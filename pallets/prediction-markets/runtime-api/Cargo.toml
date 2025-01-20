@@ -1,0 +1,19 @@
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+sp-api = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
+prediction-market-primitives = { path = "../../../primitives/prediction-market", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+    "parity-scale-codec/std",
+    "sp-api/std",
+    "prediction-market-primitives/std",
+]
+
+[package]
+authors = ["Zeitgeist PM <contact@zeitgeist.pm>"]
+edition.workspace = true
+name = "pallet-prediction-markets-runtime-api"
+version = { workspace = true }
+

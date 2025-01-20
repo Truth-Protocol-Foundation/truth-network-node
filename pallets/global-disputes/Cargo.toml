@@ -1,0 +1,51 @@
+[dependencies]
+frame-benchmarking = { workspace = true, optional = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+log = { workspace = true }
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-runtime = { workspace = true }
+sp-std = { workspace = true }
+prediction-market-primitives = { workspace = true }
+pallet-pm-market-commons = { workspace = true }
+
+# Benchmark
+num-traits = { workspace = true, optional = true }
+
+
+[dev-dependencies]
+env_logger = { workspace = true }
+pallet-balances = { workspace = true, features = ["default", "insecure_zero_ed"] }
+pallet-timestamp = { workspace = true, features = ["default"] }
+sp-io = { workspace = true, features = ["default"] }
+prediction-market-primitives = { workspace = true, features = ["mock", "default"] }
+common-primitives = { workspace = true }
+test-case = { workspace = true }
+
+[features]
+default = ["std"]
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "num-traits",
+]
+std = [
+    "frame-benchmarking?/std",
+    "frame-support/std",
+    "frame-system/std",
+    "parity-scale-codec/std",
+    "sp-runtime/std",
+    "prediction-market-primitives/std",
+]
+try-runtime = [
+    "frame-support/try-runtime",
+]
+
+[package]
+authors = ["Zeitgeist PM <contact@zeitgeist.pm>"]
+edition.workspace = true
+name = "pallet-pm-global-disputes"
+version = { workspace = true }
+

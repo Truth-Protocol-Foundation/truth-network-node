@@ -1,0 +1,22 @@
+[[bin]]
+doc = false
+name = "orderbook_v1_full_workflow"
+path = "orderbook_v1_full_workflow.rs"
+test = false
+
+[dependencies]
+arbitrary = { workspace = true, features = ["derive"] }
+frame-system = { workspace = true, features = ["default"] }
+libfuzzer-sys = { workspace = true }
+prediction-market-primitives = { workspace = true, features = ["default"] }
+pallet-pm-order-book = { workspace = true, features = ["default", "mock"] }
+
+[package]
+authors = ["Automatically generated"]
+edition.workspace = true
+name = "pallet-pm-order-book-fuzz"
+publish = false
+version = "0.0.0"
+
+[package.metadata]
+cargo-fuzz = true

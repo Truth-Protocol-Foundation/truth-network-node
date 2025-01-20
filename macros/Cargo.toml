@@ -1,0 +1,6 @@
+[package]
+authors = ["Zeitgeist PM <contact@zeitgeist.pm>", "Aventus systems team"]
+edition.workspace = true
+name = "node-macros"
+
+version = { workspace = true }

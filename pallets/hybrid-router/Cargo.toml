@@ -1,0 +1,97 @@
+[dependencies]
+frame-benchmarking = { workspace = true, optional = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+orml-traits = { workspace = true }
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-runtime = { workspace = true }
+sp-core = { workspace = true }
+prediction-market-primitives = { workspace = true }
+pallet-pm-market-commons = { workspace = true }
+
+cfg-if = { workspace = true, optional = true }
+pallet-pm-eth-asset-registry = { workspace = true, optional = true }
+orml-currencies = { workspace = true, optional = true }
+orml-tokens = { workspace = true, optional = true }
+pallet-balances = { workspace = true, optional = true }
+pallet-insecure-randomness-collective-flip = { workspace = true, optional = true }
+pallet-timestamp = { workspace = true, optional = true }
+pallet-treasury = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+sp-io = { workspace = true, optional = true }
+pallet-pm-authorized = { workspace = true, optional = true }
+pallet-pm-court = { workspace = true, optional = true }
+pallet-pm-global-disputes = { workspace = true, optional = true }
+pallet-pm-neo-swaps = { workspace = true, optional = true }
+pallet-pm-order-book = { workspace = true, optional = true }
+pallet-prediction-markets = { workspace = true, optional = true }
+common-primitives = { workspace = true }
+
+sp-avn-common = { workspace = true }
+pallet-avn = { workspace = true }
+
+[dev-dependencies]
+env_logger = { workspace = true }
+test-case = { workspace = true }
+pallet-pm-hybrid-router = { workspace = true, features = ["mock"] }
+sp-keystore = { workspace = true, features = ["default"]}
+sp-avn-common = { workspace = true, features=["test-utils"] }
+
+[features]
+default = ["std"]
+mock = [
+    "cfg-if",
+    "pallet-pm-eth-asset-registry/default",
+    "orml-currencies/default",
+    "orml-tokens/default",
+    "pallet-balances/default",
+    "pallet-insecure-randomness-collective-flip/default",
+    "pallet-timestamp/default",
+    "pallet-treasury/default",
+    "serde/default",
+    "sp-io/default",
+    "prediction-market-primitives/mock",
+    "pallet-pm-market-commons/default",
+    "pallet-pm-neo-swaps/default",
+    "pallet-pm-order-book/default",
+    "pallet-prediction-markets/default",
+    "pallet-prediction-markets/mock",
+    "pallet-pm-authorized/default",
+    "pallet-pm-court/default",
+    "pallet-pm-global-disputes/default",
+    "sp-keystore/default",
+]
+parachain = [
+    "pallet-prediction-markets/parachain",
+]
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "pallet-prediction-markets/runtime-benchmarks",
+]
+std = [
+    "frame-benchmarking?/std",
+    "frame-support/std",
+    "frame-system/std",
+    "orml-traits/std",
+    "parity-scale-codec/std",
+    "sp-runtime/std",
+    "sp-core/std",
+    "prediction-market-primitives/std",
+    "pallet-pm-market-commons/std",
+    "common-primitives/std",
+    "pallet-avn/std",
+    "sp-avn-common/std",
+]
+try-runtime = [
+    "frame-support/try-runtime",
+]
+
+[package]
+authors = ["Zeitgeist PM <contact@zeitgeist.pm>"]
+edition.workspace = true
+name = "pallet-pm-hybrid-router"
+version = { workspace = true }
+

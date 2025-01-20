@@ -1,0 +1,23 @@
+[[bin]]
+doc = false
+name = "pm_full_workflow"
+path = "pm_full_workflow.rs"
+test = false
+
+[dependencies]
+arbitrary = { workspace = true, features = ["derive"] }
+frame-support = { workspace = true, features = ["default"] }
+libfuzzer-sys = { workspace = true }
+sp-arithmetic = { workspace = true, features = ["default"] }
+prediction-market-primitives = { workspace = true, features = ["arbitrary", "mock", "default"] }
+pallet-prediction-markets = { workspace = true, features = ["mock", "default"] }
+
+[package]
+authors = ["Automatically generated"]
+edition.workspace = true
+name = "pallet-prediction-markets-fuzz"
+publish = false
+version = "0.0.0"
+
+[package.metadata]
+cargo-fuzz = true

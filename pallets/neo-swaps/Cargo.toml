@@ -1,0 +1,96 @@
+[dependencies]
+cfg-if = { workspace = true }
+fixed = { workspace = true }
+frame-benchmarking = { workspace = true, optional = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+hydra-dx-math = { workspace = true }
+log = { workspace = true }
+orml-traits = { workspace = true }
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-runtime = { workspace = true }
+typenum = { workspace = true }
+prediction-market-primitives = { workspace = true }
+pallet-pm-market-commons = { workspace = true }
+
+# Mock
+
+env_logger = { workspace = true, optional = true }
+pallet-pm-eth-asset-registry = { workspace = true, optional = true }
+orml-currencies = { workspace = true, optional = true }
+orml-tokens = { workspace = true, optional = true }
+pallet-balances = { workspace = true, optional = true }
+pallet-insecure-randomness-collective-flip = { workspace = true, optional = true }
+pallet-timestamp = { workspace = true, optional = true }
+pallet-treasury = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+sp-api = { workspace = true, optional = true }
+sp-io = { workspace = true, optional = true }
+sp-core = { workspace = true, optional = true }
+pallet-pm-authorized = { workspace = true, optional = true }
+pallet-pm-court = { workspace = true, optional = true }
+pallet-pm-global-disputes = { workspace = true, optional = true }
+pallet-prediction-markets = { workspace = true, optional = true }
+pallet-prediction-markets-runtime-api = { workspace = true, optional = true }
+common-primitives = { workspace = true }
+
+[dev-dependencies]
+more-asserts = { workspace = true }
+test-case = { workspace = true }
+pallet-pm-neo-swaps = { workspace = true, features = ["mock"] }
+
+[features]
+default = ["std"]
+mock = [
+    "orml-currencies/default",
+    "orml-tokens/default",
+    "pallet-balances",
+    "pallet-insecure-randomness-collective-flip/default",
+    "pallet-timestamp/default",
+    "pallet-treasury/default",
+    "sp-api/default",
+    "sp-io/default",
+    "sp-core/default",
+    "prediction-market-primitives/mock",
+    "pallet-prediction-markets-runtime-api/default",
+    "pallet-pm-eth-asset-registry/default",
+    "orml-currencies/default",
+    "orml-tokens/default",
+    "pallet-balances/default",
+    "pallet-timestamp/default",
+    "pallet-pm-court/std",
+    "pallet-pm-authorized/std",
+    "pallet-pm-global-disputes/std",
+    "pallet-prediction-markets/std",
+    "pallet-prediction-markets/mock",
+    "pallet-prediction-markets/default",
+    "serde/default",
+    "env_logger/default",
+]
+parachain = ["pallet-prediction-markets/parachain"]
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+]
+std = [
+    "frame-benchmarking?/std",
+    "frame-support/std",
+    "frame-system/std",
+    "orml-traits/std",
+    "parity-scale-codec/std",
+    "sp-runtime/std",
+    "prediction-market-primitives/std",
+    "pallet-pm-market-commons/std",
+]
+try-runtime = [
+    "frame-support/try-runtime",
+]
+
+[package]
+authors = ["Zeitgeist PM <contact@zeitgeist.pm>"]
+edition.workspace = true
+name = "pallet-pm-neo-swaps"
+version = { workspace = true }
+

@@ -1,0 +1,62 @@
+
+[dependencies]
+frame-benchmarking = { workspace = true, optional = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+log = { workspace = true }
+orml-traits = { workspace = true }
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-runtime = { workspace = true }
+prediction-market-primitives = { workspace = true }
+
+# Mock
+env_logger = { workspace = true, optional = true }
+orml-currencies = { workspace = true, optional = true }
+orml-tokens = { workspace = true, optional = true }
+pallet-balances = { workspace = true, optional = true }
+pallet-timestamp = { workspace = true, optional = true }
+sp-io = { workspace = true, optional = true }
+pallet-pm-market-commons = { workspace = true, optional = true }
+common-primitives = { workspace = true }
+
+[dev-dependencies]
+test-case = { workspace = true }
+pallet-pm-order-book = { workspace = true, features = ["mock", "default"] }
+
+[features]
+default = ["std"]
+mock = [
+    "orml-tokens/default",
+    "pallet-balances/default",
+    "pallet-timestamp/default",
+    "pallet-pm-market-commons/default",
+    "orml-currencies/default",
+    "sp-io/default",
+    "prediction-market-primitives/mock",
+    "env_logger/default",
+]
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+]
+std = [
+    "frame-benchmarking?/std",
+    "frame-support/std",
+    "frame-system/std",
+    "orml-traits/std",
+    "parity-scale-codec/std",
+    "sp-runtime/std",
+    "prediction-market-primitives/std",
+    "common-primitives/std",
+]
+try-runtime = [
+    "frame-support/try-runtime",
+]
+
+[package]
+authors = ["Zeitgeist PM <contact@zeitgeist.pm>"]
+edition.workspace = true
+name = "pallet-pm-order-book"
+version = { workspace = true }

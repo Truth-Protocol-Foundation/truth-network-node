@@ -1,0 +1,257 @@
+[package]
+name = "tnf-node-runtime"
+description = "A fresh FRAME-based Substrate node, ready for hacking."
+publish = false
+
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+license = { workspace = true }
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.6.9", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
+smallvec = "1.11.0"
+
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-aura = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", features=["insecure_zero_ed"] }
+pallet-session = { version = "4.0.0-dev", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.1.0" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-sudo = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-im-online = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-offences = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+frame-try-runtime = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", optional = true , branch = "release-polkadot-v1.1.0" }
+frame-executive = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-block-builder = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-consensus-aura = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-consensus-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-core = { version = "21.0.0", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-inherents = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-offchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-runtime = { version = "24.0.0", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-std = { version = "8.0.0", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-version = { version = "22.0.0", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-scheduler = { version = "4.0.0-dev", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.1.0" }
+pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.1.0" }
+common-primitives = { workspace = true }
+
+# Multisig pallet
+pallet-multisig = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.1.0" }
+
+# AvN pallets
+sp-avn-common = { workspace = true }
+pallet-avn = { workspace = true }
+pallet-avn-transaction-payment = { workspace = true }
+pallet-ethereum-events = { workspace = true }
+pallet-eth-bridge = { workspace = true }
+pallet-eth-bridge-runtime-api = { workspace = true }
+pallet-summary = { workspace = true }
+pallet-token-manager = { workspace = true }
+pallet-avn-proxy = { workspace = true }
+pallet-nft-manager = { workspace = true }
+
+# Tnf pallets
+pallet-tnf-validators-manager = { path = "../pallets/tnf-validators-manager", default-features = false }
+
+# Used for the node's RPCs
+frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+
+# Used for runtime benchmarking
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", optional = true , branch = "release-polkadot-v1.1.0" }
+frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", optional = true , branch = "release-polkadot-v1.1.0" }
+
+# Prediction market
+
+prediction-market-primitives = { workspace = true }
+pallet-pm-authorized = { workspace = true }
+pallet-pm-court = { workspace = true }
+pallet-pm-market-commons = { workspace = true }
+pallet-prediction-markets = { workspace = true }
+pallet-pm-global-disputes = { workspace = true, optional = true }
+pallet-pm-neo-swaps = { workspace = true }
+pallet-collective = { workspace = true }
+pallet-insecure-randomness-collective-flip = { workspace = true }
+orml-currencies = { workspace = true }
+orml-tokens = { workspace = true }
+orml-traits = { workspace = true }
+pallet-pm-eth-asset-registry = { workspace = true }
+pallet-pm-hybrid-router = { workspace = true }
+pallet-pm-order-book = { workspace = true }
+
+[build-dependencies]
+substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/polkadot-sdk", optional = true , branch = "release-polkadot-v1.1.0" }
+
+[features]
+default = ["std"]
+std = [
+	"frame-try-runtime?/std",
+	"frame-system-benchmarking?/std",
+	"frame-benchmarking?/std",
+	"codec/std",
+	"scale-info/std",
+	"frame-executive/std",
+	"frame-support/std",
+	"frame-system-rpc-runtime-api/std",
+	"frame-system/std",
+	"frame-try-runtime/std",
+	"pallet-aura/std",
+	"pallet-balances/std",
+	"pallet-grandpa/std",
+	"pallet-sudo/std",
+	"pallet-timestamp/std",
+	"pallet-transaction-payment-rpc-runtime-api/std",
+	"pallet-transaction-payment/std",
+	"pallet-authorship/std",
+	"pallet-session/std",
+	"pallet-authority-discovery/std",
+	"pallet-im-online/std",
+	"pallet-offences/std",
+	"pallet-multisig/std",
+	"sp-api/std",
+	"sp-authority-discovery/std",
+	"sp-block-builder/std",
+	"sp-consensus-aura/std",
+	"sp-consensus-grandpa/std",
+	"sp-core/std",
+	"sp-inherents/std",
+	"sp-offchain/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-std/std",
+	"sp-transaction-pool/std",
+	"sp-version/std",
+	"substrate-wasm-builder",
+	"pallet-scheduler/std",
+	"pallet-preimage/std",
+	"pallet-utility/std",
+	"common-primitives/std",
+
+	# AvN pallets
+	"sp-avn-common/std",
+	"pallet-avn/std",
+	"pallet-avn-transaction-payment/std",
+	"pallet-ethereum-events/std",
+	"pallet-eth-bridge/std",
+	"pallet-eth-bridge-runtime-api/std",
+	"pallet-summary/std",
+	"pallet-token-manager/std",
+	"pallet-avn-proxy/std",
+	"pallet-nft-manager/std",
+
+	# TNF pallets
+	"pallet-tnf-validators-manager/std",
+
+	# Prediction market pallets
+	"prediction-market-primitives/std",
+    "pallet-pm-authorized/std",
+    "pallet-pm-court/std",
+    "pallet-pm-market-commons/std",
+    "pallet-prediction-markets/std",
+    "pallet-pm-global-disputes/std",
+	"pallet-collective/std",
+	"pallet-insecure-randomness-collective-flip/std",
+	"pallet-pm-neo-swaps/std",
+	"orml-currencies/std",
+	"orml-tokens/std",
+	"orml-traits/std",
+	"pallet-pm-eth-asset-registry/std",
+	"pallet-pm-hybrid-router/std",
+	"pallet-pm-order-book/std",
+]
+
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"frame-system-benchmarking/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-grandpa/runtime-benchmarks",
+	"pallet-sudo/runtime-benchmarks",
+	"pallet-timestamp/runtime-benchmarks",
+	"pallet-im-online/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
+	# "pallet-eth-bridge/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"pallet-scheduler/runtime-benchmarks",
+	"pallet-preimage/runtime-benchmarks",
+	"pallet-multisig/runtime-benchmarks",
+
+	# AvN pallets
+	"pallet-avn/runtime-benchmarks",
+	"pallet-avn-transaction-payment/runtime-benchmarks",
+	"pallet-ethereum-events/runtime-benchmarks",
+	"pallet-summary/runtime-benchmarks",
+	"pallet-token-manager/runtime-benchmarks",
+	"pallet-avn-proxy/runtime-benchmarks",
+	"pallet-nft-manager/runtime-benchmarks",
+
+	# Tnf pallets
+	"pallet-tnf-validators-manager/runtime-benchmarks",
+
+	#Prediction maket pallet
+	"pallet-pm-authorized/runtime-benchmarks",
+    "pallet-pm-court/runtime-benchmarks",
+    "pallet-prediction-markets/runtime-benchmarks",
+    "pallet-pm-global-disputes/runtime-benchmarks",
+	"pallet-collective/runtime-benchmarks",
+	"pallet-pm-neo-swaps/runtime-benchmarks",
+	"pallet-pm-eth-asset-registry/runtime-benchmarks",
+	"pallet-pm-hybrid-router/runtime-benchmarks",
+	"pallet-pm-order-book/runtime-benchmarks",
+]
+try-runtime = [
+	"frame-try-runtime/try-runtime",
+	"frame-executive/try-runtime",
+	"frame-system/try-runtime",
+	"frame-support/try-runtime",
+	"pallet-aura/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-grandpa/try-runtime",
+	"pallet-sudo/try-runtime",
+	"pallet-timestamp/try-runtime",
+	"pallet-transaction-payment/try-runtime",
+	"pallet-session/try-runtime",
+	"pallet-im-online/try-runtime",
+	"pallet-offences/try-runtime",
+	"pallet-scheduler/try-runtime",
+	"pallet-preimage/try-runtime",
+	"pallet-multisig/try-runtime",
+	"pallet-utility/try-runtime",
+	# AvN pallets
+	"pallet-avn/try-runtime",
+	"pallet-authorship/try-runtime",
+	"pallet-avn-transaction-payment/try-runtime",
+	"pallet-ethereum-events/try-runtime",
+	"pallet-eth-bridge/try-runtime",
+	"pallet-summary/try-runtime",
+	"pallet-token-manager/try-runtime",
+	"pallet-avn-proxy/try-runtime",
+	"pallet-nft-manager/try-runtime",
+
+	# Tnf pallets
+	"pallet-tnf-validators-manager/try-runtime",
+
+	# Prediction market pallets
+	"pallet-collective/try-runtime",
+	"pallet-pm-neo-swaps/try-runtime",
+	"pallet-pm-eth-asset-registry/try-runtime",
+	"pallet-pm-hybrid-router/try-runtime",
+	"pallet-pm-order-book/try-runtime",
+]
