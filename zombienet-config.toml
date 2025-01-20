@@ -1,0 +1,25 @@
+[relaychain]
+default_image = "/target/release/tnf-node"
+default_command = "./target/release/tnf-node"
+default_keystore_key_types = ["avnk_sr", "aura", "gran", "audi", "imon"]
+
+chain = "dev"
+force_decorator = "tnf-net"
+
+  [[relaychain.nodes]]
+  name = "alice"
+  validator = true
+  ws_port = 9822
+  rpc_port = 8822
+  rpc-cors = "all"
+  command = "./target/release/tnf-node"
+  args = ["--tnf-port=7722", "--ethereum-node-url=<yourt_alchemy_sepolia_url>"]
+
+  [[relaychain.nodes]]
+  name = "bob"
+  validator = true
+  ws_port = 9823
+  rpc_port = 8823
+  rpc-cors = "all"
+  command = "./target/release/tnf-node"
+  args = ["--tnf-port=7723", "--ethereum-node-url=<yourt_alchemy_sepolia_url>"]
