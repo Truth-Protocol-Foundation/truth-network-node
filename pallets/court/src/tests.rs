@@ -32,6 +32,7 @@ use crate::{
     YearlyInflation,
 };
 use alloc::collections::BTreeMap;
+use common_primitives::constants::currency::BASE;
 use frame_support::{
     assert_noop, assert_ok,
     storage::child::StateVersion,
@@ -45,12 +46,9 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use pallet_balances::{BalanceLock, NegativeImbalance};
 use pallet_pm_market_commons::{Error as MError, MarketCommonsPalletApi};
 use prediction_market_primitives::{
-    constants::{
-        mock::{
-            AggregationPeriod, AppealBond, AppealPeriod, InflationPeriod, LockId, MaxAppeals,
-            MaxCourtParticipants, MaxYearlyInflation, MinJurorStake, RequestInterval, VotePeriod,
-        },
-        BASE,
+    constants::mock::{
+        AggregationPeriod, AppealBond, AppealPeriod, InflationPeriod, LockId, MaxAppeals,
+        MaxCourtParticipants, MaxYearlyInflation, MinJurorStake, RequestInterval, VotePeriod,
     },
     traits::DisputeApi,
     types::{

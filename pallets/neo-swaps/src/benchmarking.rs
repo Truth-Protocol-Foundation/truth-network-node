@@ -24,6 +24,7 @@ use crate::{
     AssetOf, BalanceOf, MarketIdOf, Pallet as NeoSwaps, Pools, MIN_SPOT_PRICE,
 };
 use alloc::{vec, vec::Vec};
+use common_primitives::constants::currency::CENT_BASE;
 use core::{cell::Cell, iter, marker::PhantomData};
 use frame_benchmarking::v2::*;
 use frame_support::{
@@ -34,7 +35,7 @@ use frame_system::RawOrigin;
 use orml_traits::MultiCurrency;
 use pallet_pm_market_commons::MarketCommonsPalletApi;
 use prediction_market_primitives::{
-    constants::{base_multiples::*, CENT_BASE},
+    constants::base_multiples::*,
     math::fixed::{BaseProvider, FixedDiv, FixedMul, PredictionMarketBase},
     traits::CompleteSetOperationsApi,
     types::{Asset, Market, MarketCreation, MarketPeriod, MarketStatus, MarketType, ScoringRule},

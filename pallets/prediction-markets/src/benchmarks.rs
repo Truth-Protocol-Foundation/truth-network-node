@@ -32,7 +32,10 @@ use crate::signed_calls::{
 #[cfg(test)]
 use crate::Pallet as PredictionMarket;
 use alloc::{vec, vec::Vec};
-use common_primitives::constants::{currency::BASE, MILLISECS_PER_BLOCK};
+use common_primitives::constants::{
+    currency::{BASE, CENT_BASE},
+    MILLISECS_PER_BLOCK,
+};
 use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 use frame_support::{
     traits::{EnsureOrigin, Get, Hooks, UnfilteredDispatchable},
@@ -44,9 +47,7 @@ use pallet_pm_authorized::Pallet as AuthorizedPallet;
 use pallet_pm_global_disputes::GlobalDisputesPalletApi;
 use pallet_pm_market_commons::MarketCommonsPalletApi;
 use prediction_market_primitives::{
-    constants::mock::{
-        CloseEarlyProtectionTimeFramePeriod, CloseEarlyTimeFramePeriod, BASE, CENT_BASE,
-    },
+    constants::mock::{CloseEarlyProtectionTimeFramePeriod, CloseEarlyTimeFramePeriod},
     math::fixed::{BaseProvider, PredictionMarketBase},
     traits::DisputeApi,
     types::{

@@ -164,7 +164,8 @@ mod tests {
     #![allow(clippy::duplicated_attributes)]
 
     use super::*;
-    use crate::{constants::BASE, math::fixed::FixedMul};
+    use crate::math::fixed::FixedMul;
+    use common_primitives::constants::currency::BASE;
     use test_case::test_case;
 
     const _1: u128 = BASE;

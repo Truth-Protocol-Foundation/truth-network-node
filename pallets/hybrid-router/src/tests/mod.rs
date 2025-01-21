@@ -18,6 +18,7 @@
 #![cfg(all(feature = "mock", test))]
 
 use crate::{mock::*, types::*, utils::*, AccountIdOf, BalanceOf, MarketIdOf, *};
+use common_primitives::constants::currency::{BASE, CENT_BASE};
 use frame_support::{assert_noop, assert_ok, traits::fungible::Mutate};
 use orml_currencies::Error as CurrenciesError;
 use orml_tokens::Error as TokensError;
@@ -27,7 +28,7 @@ use pallet_pm_neo_swaps::Event as NeoSwapsEvent;
 use pallet_pm_order_book::Orders;
 use pallet_prediction_markets::WhitelistedMarketCreators;
 use prediction_market_primitives::{
-    constants::{base_multiples::*, BASE, CENT_BASE},
+    constants::base_multiples::*,
     orderbook::Order,
     types::{
         Asset, Deadlines, MarketCreation, MarketId, MarketPeriod, MarketStatus, MarketType,

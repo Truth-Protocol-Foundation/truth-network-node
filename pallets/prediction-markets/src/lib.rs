@@ -3637,7 +3637,6 @@ mod pallet {
 
     enum AssetFlowDirection {
         Incoming,
-        #[allow(dead_code)]
         Outgoing,
     }
 }

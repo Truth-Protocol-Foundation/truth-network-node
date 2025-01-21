@@ -20,8 +20,11 @@
 
 pub use super::*;
 use crate::{asset::Asset, types::CurrencyId};
-use common_primitives::{
-    constants::MILLISECS_PER_BLOCK,
+pub use common_primitives::{
+    constants::{
+        currency::{BASE, CENT_BASE},
+        MILLISECS_PER_BLOCK,
+    },
     types::{Balance, Moment},
 };
 use frame_support::{parameter_types, traits::LockIdentifier, PalletId};

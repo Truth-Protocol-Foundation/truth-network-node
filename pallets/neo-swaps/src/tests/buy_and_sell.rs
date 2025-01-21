@@ -16,7 +16,7 @@
 // along with Zeitgeist. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use prediction_market_primitives::constants::BASE;
+use common_primitives::constants::currency::BASE;
 
 #[test]
 fn buy_and_sell() {
