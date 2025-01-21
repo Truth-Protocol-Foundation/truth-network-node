@@ -113,15 +113,15 @@ impl<
 
 #[cfg(test)]
 mod tests {
-    use common_primitives::types::AccountId;
+    use common_primitives::{
+        constants::currency::{BASE, CENT_BASE},
+        types::AccountId,
+    };
     use sp_runtime::ArithmeticError;
     use test_case::test_case;
 
     use super::*;
-    use crate::{
-        constants::{BASE, CENT_BASE},
-        types::{Asset, MarketId},
-    };
+    use crate::types::{Asset, MarketId};
 
     pub const BASE_ASSET: Asset<MarketId> = Asset::Tnf;
 

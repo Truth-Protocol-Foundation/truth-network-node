@@ -26,6 +26,7 @@ use crate::Pallet as HybridRouter;
 
 use crate::*;
 use alloc::{vec, vec::Vec};
+use common_primitives::constants::currency::CENT_BASE;
 use frame_benchmarking::v2::*;
 use frame_support::{
     assert_ok,
@@ -36,7 +37,7 @@ use orml_traits::MultiCurrency;
 use pallet_pm_market_commons::MarketCommonsPalletApi;
 use parity_scale_codec::{Decode, Encode};
 use prediction_market_primitives::{
-    constants::{base_multiples::*, CENT_BASE},
+    constants::base_multiples::*,
     math::fixed::{BaseProvider, FixedDiv, PredictionMarketBase},
     traits::{CompleteSetOperationsApi, DeployPoolApi, HybridRouterOrderbookApi},
     types::{Asset, Market, MarketCreation, MarketPeriod, MarketStatus, MarketType, ScoringRule},

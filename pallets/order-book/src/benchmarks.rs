@@ -25,11 +25,12 @@
 
 use super::*;
 use crate::{utils::market_mock, Pallet as Orderbook};
+use common_primitives::constants::currency::BASE;
 use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 use frame_support::traits::UnfilteredDispatchable;
 use frame_system::RawOrigin;
 use orml_traits::MultiCurrency;
-use prediction_market_primitives::{constants::BASE, types::Asset};
+use prediction_market_primitives::types::Asset;
 use sp_runtime::SaturatedConversion;
 
 fn generate_funded_account<T: Config>(

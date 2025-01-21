@@ -27,13 +27,14 @@ mod sell;
 mod withdraw_fees;
 
 use crate::{consts::*, mock::*, traits::*, *};
+use common_primitives::constants::currency::CENT_BASE;
 use frame_support::{assert_noop, assert_ok};
 use orml_traits::MultiCurrency;
 use pallet_pm_market_commons::{MarketCommonsPalletApi, Markets};
 use pallet_prediction_markets::WhitelistedMarketCreators;
 pub use prediction_market_primitives::test_helper::get_account_from_seed;
 use prediction_market_primitives::{
-    constants::{base_multiples::*, CENT_BASE},
+    constants::base_multiples::*,
     math::fixed::{FixedDiv, FixedMul},
     types::{
         Asset, Deadlines, MarketCreation, MarketId, MarketPeriod, MarketStatus, MarketType,

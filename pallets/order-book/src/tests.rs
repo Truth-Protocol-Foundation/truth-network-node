@@ -17,13 +17,13 @@
 // along with Zeitgeist. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{mock::*, utils::market_mock, Error, Event, Order, Orders};
+use common_primitives::constants::currency::BASE;
 use frame_support::{assert_noop, assert_ok};
 use orml_tokens::Error as AError;
 use orml_traits::{MultiCurrency, MultiReservableCurrency};
 use pallet_balances::Error as BError;
 use pallet_pm_market_commons::{Error as MError, MarketCommonsPalletApi, Markets};
 use prediction_market_primitives::{
-    constants::BASE,
     hybrid_router_api_types::ExternalFee,
     types::{Asset, MarketStatus, MarketType, ScalarPosition, ScoringRule},
 };
