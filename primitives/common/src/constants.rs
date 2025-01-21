@@ -34,14 +34,15 @@ pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK as u64;
 pub mod currency {
     use crate::types::Balance;
 
-    pub const PICO_TNF: Balance = 1_000_000;
-    pub const NANO_TNF: Balance = 1_000 * PICO_TNF;
-    pub const MICRO_TNF: Balance = 1_000 * NANO_TNF;
-    pub const MILLI_TNF: Balance = 1_000 * MICRO_TNF;
-    pub const TNF: Balance = 1_000 * MILLI_TNF;
+    // Definitions for currency used in Prediction market
+    pub const DECIMALS: u8 = 10;
+    pub const BASE: u128 = 10u128.pow(DECIMALS as u32);
+    pub const CENT_BASE: Balance = BASE / 100; // 100_000_000
+    pub const MILLI_BASE: Balance = CENT_BASE / 10; //  10_000_000
+    pub const MICRO_BASE: Balance = MILLI_BASE / 1000; // 10_000
 
     pub const fn deposit(items: u32, bytes: u32) -> Balance {
-        items as Balance * 10 * MILLI_TNF + (bytes as Balance) * 1 * MILLI_TNF
+        items as Balance * 50 * CENT_BASE + (bytes as Balance) * 75 * MICRO_BASE
     }
 
     #[cfg(test)]
@@ -51,11 +52,10 @@ pub mod currency {
         /// Checks that the native token amounts are correct.
         #[test]
         fn tnfd_amounts() {
-            assert_eq!(TNF, 1_000_000_000_000_000_000, "TNF should be 1_000_000_000_000_000_000");
-            assert_eq!(MILLI_TNF, 1_000_000_000_000_000, "mTNF should be 1_000_000_000_000_000");
-            assert_eq!(MICRO_TNF, 1_000_000_000_000, "μTNF should be 1_000_000_000_000");
-            assert_eq!(NANO_TNF, 1_000_000_000, "nTNF should be 1_000_000_000");
-            assert_eq!(PICO_TNF, 1_000_000, "pTNF should be 1_000_000");
+            assert_eq!(BASE, 10_000_000_000, "BASE (Full TNF) should be 10_000_000_000");
+            assert_eq!(CENT_BASE, 100_000_000, "cTNF should be 100_000_000");
+            assert_eq!(MILLI_BASE, 10_000_000, "mTNF should be 10_000_000");
+            assert_eq!(MICRO_BASE, 10_000, "μTNF should be 10_000");
         }
     }
 }

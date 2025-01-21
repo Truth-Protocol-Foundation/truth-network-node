@@ -46,6 +46,7 @@ mod pallet {
         weights::*,
     };
     use alloc::{collections::BTreeMap, vec, vec::Vec};
+    use common_primitives::constants::currency::{BASE, CENT_BASE};
     use core::marker::PhantomData;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
@@ -63,7 +64,6 @@ mod pallet {
     use pallet_pm_market_commons::MarketCommonsPalletApi;
     use parity_scale_codec::{Decode, Encode};
     use prediction_market_primitives::{
-        constants::{BASE, CENT_BASE},
         hybrid_router_api_types::{AmmSoftFail, AmmTrade, ApiError},
         math::{
             checked_ops_res::{CheckedAddRes, CheckedSubRes},

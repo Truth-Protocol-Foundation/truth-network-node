@@ -194,10 +194,8 @@ impl<T: Config> MathOps<T> for Math<T> {
 
 mod detail {
     use super::*;
-    use prediction_market_primitives::{
-        constants::DECIMALS,
-        math::fixed::{IntoFixedDecimal, IntoFixedFromDecimal},
-    };
+    use common_primitives::constants::currency::DECIMALS;
+    use prediction_market_primitives::math::fixed::{IntoFixedDecimal, IntoFixedFromDecimal};
 
     /// Calculate b * ln( e^(x/b) − 1 + e^(−r_i/b) ) + r_i − x.
     pub(super) fn calculate_swap_amount_out_for_buy(

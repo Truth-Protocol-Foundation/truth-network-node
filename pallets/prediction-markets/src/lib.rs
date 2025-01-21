@@ -36,7 +36,7 @@ pub use pallet::*;
 mod pallet {
     use crate::{alloc::borrow::ToOwned, signed_calls::*, weights::*};
     pub use alloc::{format, vec, vec::Vec};
-    use common_primitives::constants::MILLISECS_PER_BLOCK;
+    use common_primitives::constants::{currency::DECIMALS, MILLISECS_PER_BLOCK};
     use core::{cmp, marker::PhantomData};
     pub use frame_support::{
         dispatch::{DispatchResultWithPostInfo, GetDispatchInfo, Pays},
@@ -63,7 +63,6 @@ mod pallet {
     pub use pallet_pm_global_disputes::{types::InitialItem, GlobalDisputesPalletApi};
     pub use pallet_pm_market_commons::{types::MarketBuilder, MarketCommonsPalletApi};
     pub use prediction_market_primitives::{
-        constants::DECIMALS,
         traits::{
             CompleteSetOperationsApi, DeployPoolApi, DisputeApi, DisputeMaxWeightApi,
             DisputeResolutionApi, InspectEthAsset, MarketBuilderTrait,
@@ -3291,11 +3290,7 @@ mod pallet {
             );
 
             let valid_base_asset = match base_asset {
-                #[cfg(not(any(feature = "runtime-benchmarks", test)))]
-                Asset::Tnf => false, /* We can't support TNF because its a native token with 18 */
-                // decimal places
-                #[cfg(any(feature = "runtime-benchmarks", test))]
-                Asset::Tnf => true, // Allow it for tests to make things easier
+                Asset::Tnf => true,
                 Asset::ForeignAsset(fa) => {
                     if let Some(metadata) = T::AssetRegistry::metadata(&Asset::ForeignAsset(fa)) {
                         metadata.additional.allow_as_base_asset

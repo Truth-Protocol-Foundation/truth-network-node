@@ -305,8 +305,8 @@ fn testnet_genesis(
             ..Default::default()
         },
         balances: BalancesConfig {
-            // Configure endowed accounts with initial balance of 100 TNF
-            balances: endowed_accounts.iter().cloned().map(|k| (k, 100 * TNF)).collect(),
+            // Configure endowed accounts with initial balance of 100 TNF (BASE)
+            balances: endowed_accounts.iter().cloned().map(|k| (k, 100 * BASE)).collect(),
         },
         aura: AuraConfig { authorities: vec![] },
         grandpa: GrandpaConfig { ..Default::default() },
@@ -377,7 +377,7 @@ fn testnet_genesis(
                     endowed_accounts
                         .iter()
                         .cloned()
-                        .map(|k| (default_non_l2_token.unwrap(), k, 100 * TNF))
+                        .map(|k| (default_non_l2_token.unwrap(), k, 100 * BASE))
                         .collect()
                 } else {
                     vec![]
