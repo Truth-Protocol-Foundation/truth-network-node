@@ -23,12 +23,12 @@
 // <https://github.com/balancer-labs/balancer-core>.
 
 use super::checked_ops_res::{CheckedAddRes, CheckedDivRes, CheckedMulRes, CheckedSubRes};
-use crate::constants::BASE;
 use alloc::{
     borrow::ToOwned,
     format,
     string::{String, ToString},
 };
+use common_primitives::constants::currency::BASE;
 use core::{cmp::Ordering, convert::TryFrom, marker::PhantomData};
 use fixed::{traits::Fixed, ParseFixedError};
 use frame_support::ensure;

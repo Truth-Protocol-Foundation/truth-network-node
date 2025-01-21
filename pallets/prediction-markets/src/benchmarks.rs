@@ -32,7 +32,7 @@ use crate::signed_calls::{
 #[cfg(test)]
 use crate::Pallet as PredictionMarket;
 use alloc::{vec, vec::Vec};
-use common_primitives::constants::{currency::TNF, MILLISECS_PER_BLOCK};
+use common_primitives::constants::{currency::BASE, MILLISECS_PER_BLOCK};
 use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 use frame_support::{
     traits::{EnsureOrigin, Get, Hooks, UnfilteredDispatchable},
@@ -77,7 +77,7 @@ fn create_market_common_parameters<T: Config>(
         caller = actual_caller;
     }
 
-    T::AssetManager::deposit(Asset::Tnf, &caller, (100000u128 * TNF).saturated_into()).unwrap();
+    T::AssetManager::deposit(Asset::Tnf, &caller, (100000u128 * BASE).saturated_into()).unwrap();
     let oracle = caller.clone();
     let deadlines = Deadlines::<BlockNumberFor<T>> {
         grace_period: 1_u32.into(),

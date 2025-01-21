@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Zeitgeist. If not, see <https://www.gnu.org/licenses/>.
 
-use prediction_market_primitives::constants::BASE;
+use common_primitives::constants::currency::BASE;
 
 /// Numerical limit for absolute value of exp arguments (not a fixed point number).
 pub(crate) const EXP_NUMERICAL_LIMIT: u128 = 10;

@@ -201,7 +201,7 @@ impl WeightToFeePolynomial for WeightToFee {
     fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
         // We adjust the fee conversion so that the Extrinsic Base Weight corresponds to 150 micro
         // TNF fee.
-        let p = 150 * MICRO_TNF;
+        let p = 150 * MICRO_BASE;
         let q = Balance::from(ExtrinsicBaseWeight::get().ref_time());
         smallvec![WeightToFeeCoefficient {
             degree: 1,
@@ -418,7 +418,7 @@ impl pallet_timestamp::Config for Runtime {
 
 /// Existential deposit.
 pub const NATIVE_EXISTENTIAL_DEPOSIT: Balance = 0;
-pub const DEFAULT_EXISTENTIAL_DEPOSIT: Balance = 10 * PICO_TNF;
+pub const DEFAULT_EXISTENTIAL_DEPOSIT: Balance = 10 * MICRO_BASE;
 
 impl pallet_balances::Config for Runtime {
     type MaxLocks = ConstU32<50>;
@@ -445,9 +445,9 @@ parameter_types! {
     // in line with the weight fees.
     // An extrinsic usually has a payload with a few hundred bytes, and its weight
     // fee should be of a few milli TNF.
-    // In consequence TransactionByteFee should be set at a few MICRO_TNF.
+    // In consequence TransactionByteFee should be set at a few MICRO_BASE.
     // The actual value here was chosen to be a round number so that a Token Transfer be around 2mTNF, and a TNF transfer be around 1 mTNF.
-    pub const TransactionByteFee: Balance = 5 * MICRO_TNF;
+    pub const TransactionByteFee: Balance = 5 * MICRO_BASE;
     pub const OperationalFeeMultiplier: u8 = 5;
 }
 
@@ -689,8 +689,8 @@ impl pallet_preimage::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type ManagerOrigin = EnsureRoot<AccountId>;
-    type BaseDeposit = ConstU128<{ 5 * TNF }>;
-    type ByteDeposit = ConstU128<{ 100 * MICRO_TNF }>;
+    type BaseDeposit = ConstU128<{ 5 * BASE }>;
+    type ByteDeposit = ConstU128<{ 100 * MICRO_BASE }>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -801,7 +801,7 @@ parameter_types! {
     /// This bond increases exponentially with the number of appeals.
     /// Slashed in case the final outcome does match the appealed outcome for which the `AppealBond`
     /// was deposited.
-    pub const AppealBond: Balance = 2000 * TNF;
+    pub const AppealBond: Balance = 2000 * BASE;
     /// The blocks per year required to calculate the yearly inflation for court incentivisation.
     pub const BlocksPerYear: BlockNumber = BLOCKS_PER_YEAR;
     /// Pallet identifier, mainly used for named balance reserves. DO NOT CHANGE.
@@ -827,7 +827,7 @@ parameter_types! {
     /// The maximum yearly inflation for court incentivisation.
     pub const MaxYearlyInflation: Perbill = Perbill::from_percent(10);
     /// The minimum stake a user needs to reserve to become a juror.
-    pub const MinJurorStake: Balance = 500 * TNF;
+    pub const MinJurorStake: Balance = 500 * BASE;
     /// The interval for requesting multiple court votes at once.
     pub const RequestInterval: BlockNumber = 7 * BLOCKS_PER_DAY;
 }
@@ -868,11 +868,11 @@ impl pallet_pm_market_commons::Config for Runtime {
 parameter_types! {
     /// (Slashable) Bond that is provided for creating an advised market that needs approval.
     /// Slashed in case the market is rejected.
-    pub const AdvisoryBond: Balance = 100 * TNF;
+    pub const AdvisoryBond: Balance = 100 * BASE;
     /// The percentage of the advisory bond that gets slashed when a market is rejected.
     pub const AdvisoryBondSlashPercentage: Percent = Percent::from_percent(0);
     /// (Slashable) Bond that is provided for disputing an early market close by the market creator.
-    pub const CloseEarlyDisputeBond: Balance = 2_000 * TNF;
+    pub const CloseEarlyDisputeBond: Balance = 2_000 * BASE;
     // Fat-finger protection for the advisory committe to reject
     // the early market schedule.
     pub const CloseEarlyProtectionTimeFramePeriod: Moment = CloseEarlyProtectionBlockPeriod::get() as u64 * MILLISECS_PER_BLOCK as u64;
@@ -880,11 +880,11 @@ parameter_types! {
     // the early market schedule.
     pub const CloseEarlyProtectionBlockPeriod: BlockNumber = 12 * BLOCKS_PER_HOUR;
     /// (Slashable) Bond that is provided for scheduling an early market close.
-    pub const CloseEarlyRequestBond: Balance = 2_000 * TNF;
+    pub const CloseEarlyRequestBond: Balance = 2_000 * BASE;
     /// (Slashable) Bond that is provided for disputing the outcome.
     /// Unreserved in case the dispute was justified otherwise slashed.
     /// This is when the resolved outcome is different to the default (reported) outcome.
-    pub const DisputeBond: Balance = 2_000 * TNF;
+    pub const DisputeBond: Balance = 2_000 * BASE;
     /// Maximum number of disputes.
     pub const MaxDisputes: u16 = 1;
     /// The dispute_duration is time where users can dispute the outcome.
@@ -914,11 +914,11 @@ parameter_types! {
     pub const MinOracleDuration: BlockNumber = MIN_ORACLE_DURATION;
     /// (Slashable) The orcale bond. Slashed in case the final outcome does not match the
     /// outcome the oracle reported.
-    pub const OracleBond: Balance = 100 * TNF;
+    pub const OracleBond: Balance = 100 * BASE;
     /// (Slashable) A bond for an outcome reporter, who is not the oracle.
     /// Slashed in case the final outcome does not match the outcome by the outsider.
     // If we remove the whitelist restriction for market creation, review this figure and ensure its > OracleBond
-    pub const OutsiderBond: Balance = 2000 * TNF;
+    pub const OutsiderBond: Balance = 2000 * BASE;
     /// Pallet identifier, mainly used for named balance reserves. DO NOT CHANGE.
     pub const PmPalletId: PalletId = PM_PALLET_ID;
     // Waiting time for market creator to close the market after an early close schedule.
@@ -927,7 +927,7 @@ parameter_types! {
     /// (Slashable) A bond for creation markets that do not require approval. Slashed in case
     /// the market is forcefully destroyed.
     // The low amount is assuming only whitelisted accounts can create a market
-    pub const ValidityBond: Balance = 100 * TNF;
+    pub const ValidityBond: Balance = 100 * BASE;
     // Orderbook parameters
     pub const OrderbookPalletId: PalletId = ORDERBOOK_PALLET_ID;
     // Hybrid Router parameters

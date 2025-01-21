@@ -29,16 +29,9 @@ pub mod mock;
 
 use common_primitives::{
     constants::{BLOCKS_PER_DAY, BLOCKS_PER_HOUR, BLOCKS_PER_YEAR},
-    types::{Balance, BlockNumber},
+    types::BlockNumber,
 };
 use frame_support::PalletId;
-
-// Definitions for currency used in Prediction market
-pub const DECIMALS: u8 = 10;
-pub const BASE: u128 = 10u128.pow(DECIMALS as u32);
-pub const CENT_BASE: Balance = BASE / 100; // 100_000_000
-pub const MILLI_BASE: Balance = CENT_BASE / 10; //  10_000_000
-pub const MICRO_BASE: Balance = MILLI_BASE / 1000; // 10_000
 
 // Authorized
 /// Pallet identifier, mainly used for named balance reserves.
