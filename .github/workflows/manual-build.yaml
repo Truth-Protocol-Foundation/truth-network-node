@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   set-up-job:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: echo inputs
         run: |
@@ -90,7 +90,7 @@ jobs:
     secrets: inherit
 
   cleanup-artifacts:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     needs:  [ set-up-job, build-code, build-docker, release, upload-assets-internal-tools ]
     if: always()
     steps:
