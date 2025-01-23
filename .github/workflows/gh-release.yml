@@ -1,0 +1,105 @@
+name: GH Release
+
+on:
+  workflow_call:
+    inputs:
+      repo_tag:
+        required: true
+        type: string
+      hotfix:
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gh-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: get Node Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: node
+          path: target/release/
+
+      - name: get Node runtime Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: node-runtime
+          path: target/release/wbuild/tnf-node-runtime/
+
+      - name: add sha256sum to files
+        id: sha256
+        run: |
+          NODE_SHA=$(sha256sum -z target/release/tnf-node | awk '{print $1}')
+          WASM_SHA_RUNTIME=$(sha256sum -z target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm | awk '{print $1}')
+          {
+            echo "NODE_SHA=$NODE_SHA"
+            echo "WASM_SHA_RUNTIME=$WASM_SHA_RUNTIME"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "$NODE_SHA" >  target/release/tnf-node.sha256
+          echo "$WASM_SHA_RUNTIME" > target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm.sha256
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          custom_tag: ${{ inputs.repo_tag }}
+          tag_prefix: ""
+          github_token: ${{ env.GITHUB_TOKEN }}
+
+      - name: Release
+        if: ${{ !inputs.hotfix }}
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          tag_name: ${{ inputs.repo_tag }}
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          append_body: true
+          body: |
+            # Release Notes
+            This release contains the latest version of Truth Network Node .
+            ## sha256sum
+            tnf_node: `${{ steps.sha256.outputs.NODE_SHA }}`
+            node_runtime.compact.compressed.wasm: `${{ steps.sha256.outputs.WASM_SHA_RUNTIME }}`
+          files: |
+            target/release/tnf-node
+            target/release/tnf-node.sha256
+            target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
+            target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm.sha256
+
+      - name: Hotfix Release
+        if: ${{ inputs.hotfix }}
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          tag_name: ${{ inputs.repo_tag }}
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: true
+          body: |
+            # Release Notes
+            This is a hotfix release of Truth Network Node.
+            ## sha256sum
+            tnf_node: `${{ steps.sha256.outputs.NODE_SHA }}`
+            node_runtime.compact.compressed.wasm: `${{ steps.sha256.outputs.WASM_SHA_RUNTIME }}`
+          files: |
+            target/release/tnf-node
+            target/release/tnf-node.sha256
+            target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
+            target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm.sha256
