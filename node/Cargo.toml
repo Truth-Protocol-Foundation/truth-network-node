@@ -61,7 +61,7 @@ pallet-avn = { workspace = true }
 pallet-eth-bridge = { workspace = true }
 pallet-eth-bridge-runtime-api = { workspace = true }
 sp-avn-common = { workspace = true }
-pallet-tnf-validators-manager = { path = "../pallets/tnf-validators-manager", default-features = false }
+pallet-authors-manager = { path = "../pallets/authors-manager", default-features = false }
 
 # These dependencies are used for the node template's RPCs
 jsonrpsee = { version = "0.16.2", features = ["server"] }
@@ -99,8 +99,8 @@ runtime-benchmarks = [
 	"tnf-node-runtime/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-benchmarking-cli/runtime-benchmarks",
-	"pallet-tnf-validators-manager/runtime-benchmarks",
+	"pallet-authors-manager/runtime-benchmarks",
 ]
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.
-try-runtime = ["tnf-node-runtime/try-runtime", "try-runtime-cli/try-runtime", "pallet-tnf-validators-manager/try-runtime",]
+try-runtime = ["tnf-node-runtime/try-runtime", "try-runtime-cli/try-runtime", "pallet-authors-manager/try-runtime",]

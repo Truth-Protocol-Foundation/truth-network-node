@@ -1,6 +1,6 @@
 //Copyright 2024 Aventus Network Services (UK) Ltd.
 
-use crate::{self as tnf_validators_manager, *};
+use crate::{self as tnf_authors_manager, *};
 use frame_support::{
     parameter_types,
     traits::{Currency, OnFinalize, OnInitialize},
@@ -45,7 +45,7 @@ pub fn validator_id_5() -> AccountId {
     TestAccount::new([5u8; 32]).account_id()
 }
 
-pub fn genesis_config_initial_validators() -> [AccountId; 5] {
+pub fn genesis_config_initial_authors() -> [AccountId; 5] {
     [validator_id_1(), validator_id_2(), validator_id_3(), validator_id_4(), validator_id_5()]
 }
 pub const REGISTERING_VALIDATOR_TIER1_ID: u128 = 200;
@@ -90,7 +90,7 @@ frame_support::construct_runtime!(
     pub enum TestRuntime
     {
         System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
-        TnfValidatorsManager: tnf_validators_manager::{Pallet, Call, Storage, Event<T>, Config<T>},
+        TnfValidatorsManager: tnf_authors_manager::{Pallet, Call, Storage, Event<T>, Config<T>},
         Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         AVN: pallet_avn::{Pallet, Storage, Event},
@@ -103,14 +103,14 @@ use frame_system::{self as system};
 use pallet_session as session;
 
 impl TnfValidatorsManager {
-    pub fn insert_validators_action_data(action_id: &ActionId<AccountId>) {
-        <ValidatorActions<TestRuntime>>::insert(
+    pub fn insert_authors_action_data(action_id: &ActionId<AccountId>) {
+        <AuthorActions<TestRuntime>>::insert(
             action_id.action_account_id,
             action_id.ingress_counter,
-            ValidatorsActionData::new(
-                ValidatorsActionStatus::AwaitingConfirmation,
+            AuthorsActionData::new(
+                AuthorsActionStatus::AwaitingConfirmation,
                 INITIAL_TRANSACTION_ID,
-                ValidatorsActionType::Resignation,
+                AuthorsActionType::Resignation,
             ),
         );
     }
@@ -309,36 +309,36 @@ impl ValidatorRegistrationNotifier<ValidatorId> for TestRuntime {
 }
 
 // Derived from [1u8;32] private key
-pub(crate) const COLLATOR_1_ETHEREUM_PUPLIC_KEY: [u8; 33] =
+pub(crate) const AUTHOR_1_ETHEREUM_PUPLIC_KEY: [u8; 33] =
     hex!["031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"];
 // Derived from [2u8;32] private key
-pub(crate) const COLLATOR_2_ETHEREUM_PUPLIC_KEY: [u8; 33] =
+pub(crate) const AUTHOR_2_ETHEREUM_PUPLIC_KEY: [u8; 33] =
     hex!["024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766"];
 // Derived from [3u8;32] private key
 
-pub(crate) const COLLATOR_3_ETHEREUM_PUPLIC_KEY: [u8; 33] =
+pub(crate) const AUTHOR_3_ETHEREUM_PUPLIC_KEY: [u8; 33] =
     hex!["02531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe337"];
 // Derived from [4u8;32] private key
 
-pub(crate) const COLLATOR_4_ETHEREUM_PUPLIC_KEY: [u8; 33] =
+pub(crate) const AUTHOR_4_ETHEREUM_PUPLIC_KEY: [u8; 33] =
     hex!["03462779ad4aad39514614751a71085f2f10e1c7a593e4e030efb5b8721ce55b0b"];
 // Derived from [5u8;32] private key
 
-pub(crate) const COLLATOR_5_ETHEREUM_PUPLIC_KEY: [u8; 33] =
+pub(crate) const AUTHOR_5_ETHEREUM_PUPLIC_KEY: [u8; 33] =
     hex!["0362c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f7"];
 
-fn initial_validators_public_keys() -> Vec<ecdsa::Public> {
+fn initial_authors_public_keys() -> Vec<ecdsa::Public> {
     return vec![
-        Public::from_slice(&COLLATOR_1_ETHEREUM_PUPLIC_KEY).unwrap(),
-        Public::from_slice(&COLLATOR_2_ETHEREUM_PUPLIC_KEY).unwrap(),
-        Public::from_slice(&COLLATOR_3_ETHEREUM_PUPLIC_KEY).unwrap(),
-        Public::from_slice(&COLLATOR_4_ETHEREUM_PUPLIC_KEY).unwrap(),
-        Public::from_slice(&COLLATOR_5_ETHEREUM_PUPLIC_KEY).unwrap(),
+        Public::from_slice(&AUTHOR_1_ETHEREUM_PUPLIC_KEY).unwrap(),
+        Public::from_slice(&AUTHOR_2_ETHEREUM_PUPLIC_KEY).unwrap(),
+        Public::from_slice(&AUTHOR_3_ETHEREUM_PUPLIC_KEY).unwrap(),
+        Public::from_slice(&AUTHOR_4_ETHEREUM_PUPLIC_KEY).unwrap(),
+        Public::from_slice(&AUTHOR_5_ETHEREUM_PUPLIC_KEY).unwrap(),
     ]
 }
 
-fn initial_maximum_validators_public_keys() -> Vec<ecdsa::Public> {
-    let mut public_keys = initial_validators_public_keys();
+fn initial_maximum_authors_public_keys() -> Vec<ecdsa::Public> {
+    let mut public_keys = initial_authors_public_keys();
 
     for i in public_keys.len() as u32..(<MaximumValidatorsBound as sp_core::TypedGet>::get() as u32)
     {
@@ -368,21 +368,20 @@ impl ExtBuilder {
         ext
     }
 
-    /// Setups a genesis configuration with 5 collators to the genesis state
-    pub fn with_validators(self) -> Self {
-        let validator_account_ids: &Vec<AccountId> =
-            &VALIDATORS.with(|l| l.borrow().clone().unwrap());
+    /// Setups a genesis configuration with 5 authors to the genesis state
+    pub fn with_authors(self) -> Self {
+        let author_account_ids: &Vec<AccountId> = &VALIDATORS.with(|l| l.borrow().clone().unwrap());
 
-        self.setup_validators(validator_account_ids, initial_validators_public_keys)
+        self.setup_authors(author_account_ids, initial_authors_public_keys)
     }
 
-    /// Setups a genesis configuration with maximum collators to the genesis state
-    pub fn with_maximum_validators(self) -> Self {
+    /// Setups a genesis configuration with maximum authors to the genesis state
+    pub fn with_maximum_authors(self) -> Self {
         let mut validators_account_ids: Vec<AccountId> = vec![];
         // mock accounts
         for i in 1..=MaximumValidatorsBound::get() {
             let mut seed = [i as u8; 32];
-            // [0u8;32] is the identity of the collator we add in the tests. Change the seed if its
+            // [0u8;32] is the identity of the author we add in the tests. Change the seed if its
             // the same.
             if seed.eq(&[0u8; 32]) {
                 seed[30] = 1;
@@ -390,24 +389,24 @@ impl ExtBuilder {
             validators_account_ids.push(TestAccount::new(seed).account_id());
         }
 
-        self.setup_validators(&validators_account_ids, initial_maximum_validators_public_keys)
+        self.setup_authors(&validators_account_ids, initial_maximum_authors_public_keys)
     }
 
-    /// Setups a genesis configuration with N collators to the genesis state
-    fn setup_validators(
+    /// Setups a genesis configuration with N authors to the genesis state
+    fn setup_authors(
         mut self,
-        validator_account_ids: &Vec<AccountId>,
+        author_account_ids: &Vec<AccountId>,
         get_eth_keys: fn() -> Vec<ecdsa::Public>,
     ) -> Self {
         BasicExternalities::execute_with_storage(&mut self.storage, || {
-            for ref k in validator_account_ids {
+            for ref k in author_account_ids {
                 frame_system::Pallet::<TestRuntime>::inc_providers(k);
             }
         });
 
         // Important: the order of the storage setup is important. Do not change it.
-        let _ = tnf_validators_manager::GenesisConfig::<TestRuntime> {
-            validators: validator_account_ids
+        let _ = tnf_authors_manager::GenesisConfig::<TestRuntime> {
+            authors: author_account_ids
                 .iter()
                 .map(|v| v.clone())
                 .zip(get_eth_keys().iter().map(|pk| pk.clone()))
@@ -416,7 +415,7 @@ impl ExtBuilder {
         .assimilate_storage(&mut self.storage);
 
         let _ = session::GenesisConfig::<TestRuntime> {
-            keys: validator_account_ids
+            keys: author_account_ids
                 .clone()
                 .into_iter()
                 .enumerate()
@@ -431,7 +430,7 @@ impl ExtBuilder {
 
 pub struct MockData {
     pub new_validator_id: AccountId,
-    pub collator_eth_public_key: ecdsa::Public,
+    pub author_eth_public_key: ecdsa::Public,
 }
 
 impl MockData {
@@ -439,13 +438,13 @@ impl MockData {
         let data = Some(LogDataHelper::get_validator_data(REGISTERING_VALIDATOR_TIER1_ID));
         let topics = MockData::get_validator_token_topics();
         let validator_data = AddedValidatorData::parse_bytes(data.clone(), topics.clone()).unwrap();
-        let collator_eth_public_key = ecdsa::Public::from_raw(hex!(
+        let author_eth_public_key = ecdsa::Public::from_raw(hex!(
             "02407b0d9f41148bbe3b6c7d4a62585ae66cc32a707441197fa5453abfebd31d57"
         ));
         let new_validator_id =
             TestAccount::from_bytes(validator_data.t2_address.clone().as_bytes()).account_id();
         Balances::make_free_balance_be(&new_validator_id, 100000);
-        MockData { new_validator_id, collator_eth_public_key }
+        MockData { new_validator_id, author_eth_public_key }
     }
 
     pub fn get_validator_token_topics() -> Vec<Vec<u8>> {
@@ -458,9 +457,9 @@ impl MockData {
 }
 
 impl TnfValidatorsManager {
-    pub fn insert_to_validators(to_insert: &AccountId) {
-        <ValidatorAccountIds<TestRuntime>>::try_append(to_insert.clone())
-            .expect("Too many validator accounts in genesis");
+    pub fn insert_to_authors(to_insert: &AccountId) {
+        <AuthorAccountIds<TestRuntime>>::try_append(to_insert.clone())
+            .expect("Too many author accounts in genesis");
     }
 }
 

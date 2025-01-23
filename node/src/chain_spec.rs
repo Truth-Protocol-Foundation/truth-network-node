@@ -18,10 +18,10 @@ use sp_runtime::{
 };
 use tnf_node_runtime::{
     opaque::SessionKeys, AccountId, AnchorSummaryConfig, Asset, AssetRegistryConfig,
-    AssetRegistryStringLimit, AuraConfig, BalancesConfig, CustomMetadata, EthBridgeConfig,
-    EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, PredictionMarketsConfig,
+    AssetRegistryStringLimit, AuraConfig, AuthorsManagerConfig, BalancesConfig, CustomMetadata,
+    EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, PredictionMarketsConfig,
     RuntimeGenesisConfig, SessionConfig, Signature, SudoConfig, SummaryConfig, SystemConfig,
-    TnfValidatorsManagerConfig, TokenManagerConfig, WASM_BINARY,
+    TokenManagerConfig, WASM_BINARY,
 };
 
 use codec::Encode;
@@ -328,8 +328,8 @@ fn testnet_genesis(
                 })
                 .collect::<Vec<_>>(),
         },
-        tnf_validators_manager: TnfValidatorsManagerConfig {
-            validators: initial_authorities
+        authors_manager: AuthorsManagerConfig {
+            authors: initial_authorities
                 .iter()
                 .map(|x| x.0.clone())
                 .zip(eth_public_keys.iter().map(|pk| pk.clone()))

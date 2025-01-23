@@ -469,7 +469,7 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_avn::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type AuthorityId = AvnId;
-    type EthereumPublicKeyChecker = TnfValidatorsManager;
+    type EthereumPublicKeyChecker = AuthorsManager;
     type NewSessionHandler = ();
     type DisabledValidatorChecker = ();
     type WeightInfo = pallet_avn::default_weights::SubstrateWeight<Runtime>;
@@ -487,7 +487,7 @@ impl pallet_session::Config for Runtime {
     type ValidatorIdOf = ConvertInto;
     type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
     type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-    type SessionManager = TnfValidatorsManager;
+    type SessionManager = AuthorsManager;
     type SessionHandler =
         <opaque::SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
     type Keys = opaque::SessionKeys;
@@ -737,11 +737,11 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type InstanceId = AvnInstanceId;
 }
 
-impl pallet_tnf_validators_manager::Config for Runtime {
+impl pallet_authors_manager::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type AccountToBytesConvert = Avn;
     type ValidatorRegistrationNotifier = (); //AvnOffenceHandler;
-    type WeightInfo = pallet_tnf_validators_manager::default_weights::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_authors_manager::default_weights::SubstrateWeight<Runtime>;
     type BridgeInterface = EthBridge;
 }
 
@@ -1179,7 +1179,7 @@ construct_runtime!(
         EthereumEvents: pallet_ethereum_events = 17,
         TokenManager: pallet_token_manager = 18,
         AvnProxy: pallet_avn_proxy = 21,
-        TnfValidatorsManager: pallet_tnf_validators_manager = 22,
+        AuthorsManager: pallet_authors_manager = 22,
         NftManager: pallet_nft_manager = 23,
         AnchorSummary: pallet_summary::<Instance2> = 26,
 
@@ -1260,7 +1260,7 @@ mod benches {
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
         // Tnf pallets
-        [pallet_tnf_validators_manager, TnfValidatorsManager]
+        [pallet_authors_manager, AuthorsManager]
         [pallet_prediction_markets, PredictionMarkets]
         [pallet_pm_hybrid_router, HybridRouter]
     );
@@ -1446,13 +1446,13 @@ impl_runtime_apis! {
 
     impl pallet_eth_bridge_runtime_api::EthEventHandlerApi<Block, AccountId> for Runtime {
         fn query_authors() -> Vec<([u8; 32], [u8; 32])> {
-            let validators = Avn::validators().to_vec();
-            let res = validators.iter().map(|validator| {
+            let authors = Avn::validators().to_vec();
+            let res = authors.iter().map(|author| {
                 let mut address: [u8; 32] = Default::default();
-                address.copy_from_slice(&validator.account_id.encode()[0..32]);
+                address.copy_from_slice(&author.account_id.encode()[0..32]);
 
                 let mut key: [u8; 32] = Default::default();
-                key.copy_from_slice(&validator.key.to_raw_vec()[0..32]);
+                key.copy_from_slice(&author.key.to_raw_vec()[0..32]);
 
                 return (address, key)
             }).collect();
