@@ -10,31 +10,31 @@ use sp_runtime::{testing::UintAuthorityId, traits::BadOrigin};
 use substrate_test_utils::assert_eq_uvec;
 
 fn register_validator(
-    collator_id: &AccountId,
-    collator_eth_public_key: &ecdsa::Public,
+    author_id: &AccountId,
+    author_eth_public_key: &ecdsa::Public,
 ) -> DispatchResult {
-    return TnfValidatorsManager::add_collator(
+    return TnfValidatorsManager::add_author(
         RawOrigin::Root.into(),
-        *collator_id,
-        *collator_eth_public_key,
+        *author_id,
+        *author_eth_public_key,
     )
 }
 
-fn set_session_keys(collator_id: &AccountId) {
+fn set_session_keys(author_id: &AccountId) {
     pallet_session::NextKeys::<TestRuntime>::insert::<AccountId, UintAuthorityId>(
-        *collator_id,
+        *author_id,
         UintAuthorityId(10u64).into(),
     );
 }
 
-fn force_add_collator(
-    collator_id: &AccountId,
-    collator_eth_public_key: &ecdsa::Public,
+fn force_add_author(
+    author_id: &AccountId,
+    author_eth_public_key: &ecdsa::Public,
 ) -> DispatchResult {
-    set_session_keys(collator_id);
-    assert_ok!(register_validator(collator_id, collator_eth_public_key));
+    set_session_keys(author_id);
+    assert_ok!(register_validator(author_id, author_eth_public_key));
 
-    //Advance 2 session to add the collator to the session
+    //Advance 2 session to add the author to the session
     advance_session();
     advance_session();
 
@@ -43,19 +43,19 @@ fn force_add_collator(
 
 #[test]
 fn test_register_existing_validator() {
-    let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+    let mut ext = ExtBuilder::build_default().with_authors().as_externality();
     ext.execute_with(|| {
         let mock_data = MockData::setup_valid();
-        TnfValidatorsManager::insert_to_validators(&mock_data.new_validator_id);
+        TnfValidatorsManager::insert_to_authors(&mock_data.new_validator_id);
 
         let current_num_events = System::events().len();
 
-        //Set the session keys of the new validator we are trying to register
+        //Set the session keys of the new author we are trying to register
         set_session_keys(&mock_data.new_validator_id);
 
         assert_noop!(
-            register_validator(&mock_data.new_validator_id, &mock_data.collator_eth_public_key),
-            Error::<TestRuntime>::ValidatorAlreadyExists
+            register_validator(&mock_data.new_validator_id, &mock_data.author_eth_public_key),
+            Error::<TestRuntime>::AuthorAlreadyExists
         );
 
         // No Event has been deposited
@@ -64,18 +64,18 @@ fn test_register_existing_validator() {
 }
 
 #[test]
-fn test_register_validator_with_no_validators() {
+fn test_register_validator_with_no_authors() {
     let mut ext = ExtBuilder::build_default().as_externality();
     ext.execute_with(|| {
         let mock_data = MockData::setup_valid();
         let current_num_events = System::events().len();
 
-        //Set the session keys of the new validator we are trying to register
+        //Set the session keys of the new author we are trying to register
         set_session_keys(&mock_data.new_validator_id);
 
         assert_noop!(
-            register_validator(&mock_data.new_validator_id, &mock_data.collator_eth_public_key),
-            Error::<TestRuntime>::NoValidators
+            register_validator(&mock_data.new_validator_id, &mock_data.author_eth_public_key),
+            Error::<TestRuntime>::NoAuthors
         );
 
         // no Event has been deposited
@@ -89,10 +89,10 @@ mod register_validator {
     // TODO move MockData here and rename to Context
 
     fn run_preconditions(context: &MockData) {
-        assert_eq!(0, ValidatorActions::<TestRuntime>::iter().count());
-        let validator_account_ids =
-            TnfValidatorsManager::validator_account_ids().expect("Should contain validators");
-        assert_eq!(false, validator_account_ids.contains(&context.new_validator_id));
+        assert_eq!(0, AuthorActions::<TestRuntime>::iter().count());
+        let author_account_ids =
+            TnfValidatorsManager::author_account_ids().expect("Should contain authors");
+        assert_eq!(false, author_account_ids.contains(&context.new_validator_id));
         assert_eq!(
             false,
             TnfValidatorsManager::get_ethereum_public_key_if_exists(&context.new_validator_id)
@@ -100,10 +100,10 @@ mod register_validator {
         );
     }
 
-    fn find_validator_activation_action(data: &MockData, status: ValidatorsActionStatus) -> bool {
-        return ValidatorActions::<TestRuntime>::iter().any(|(account_id, _ingress, action_data)| {
+    fn find_validator_activation_action(data: &MockData, status: AuthorsActionStatus) -> bool {
+        return AuthorActions::<TestRuntime>::iter().any(|(account_id, _ingress, action_data)| {
             action_data.status == status &&
-                action_data.action_type == ValidatorsActionType::Activation &&
+                action_data.action_type == AuthorsActionType::Activation &&
                 account_id == data.new_validator_id
         })
     }
@@ -113,42 +113,42 @@ mod register_validator {
 
         #[test]
         fn and_adds_validator() {
-            let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+            let mut ext = ExtBuilder::build_default().with_authors().as_externality();
             ext.execute_with(|| {
                 let context = MockData::setup_valid();
                 run_preconditions(&context);
 
-                //set the session keys of the new validator we are trying to register
+                //set the session keys of the new author we are trying to register
                 set_session_keys(&context.new_validator_id);
 
                 // Result OK
                 assert_ok!(register_validator(
                     &context.new_validator_id,
-                    &context.collator_eth_public_key
+                    &context.author_eth_public_key
                 ));
-                // Upon completion validator has been added ValidatorAccountIds storage
-                assert!(TnfValidatorsManager::validator_account_ids()
+                // Upon completion author has been added AuthorAccountIds storage
+                assert!(TnfValidatorsManager::author_account_ids()
                     .unwrap()
                     .iter()
                     .any(|a| a == &context.new_validator_id));
-                // ValidatorRegistered Event has been deposited
+                // AuthorRegistered Event has been deposited
                 assert_eq!(
                     true,
                     System::events().iter().any(|a| a.event ==
                         mock::RuntimeEvent::TnfValidatorsManager(
-                            crate::Event::<TestRuntime>::ValidatorRegistered {
-                                validator_id: context.new_validator_id,
-                                eth_key: context.collator_eth_public_key.clone()
+                            crate::Event::<TestRuntime>::AuthorRegistered {
+                                author_id: context.new_validator_id,
+                                eth_key: context.author_eth_public_key.clone()
                             }
                         ))
                 );
-                // ValidatorActivationStarted Event has not been deposited yet
+                // AuthorActivationStarted Event has not been deposited yet
                 assert_eq!(
                     false,
                     System::events().iter().any(|a| a.event ==
                         mock::RuntimeEvent::TnfValidatorsManager(
-                            crate::Event::<TestRuntime>::ValidatorActivationStarted {
-                                validator_id: context.new_validator_id
+                            crate::Event::<TestRuntime>::AuthorActivationStarted {
+                                author_id: context.new_validator_id
                             }
                         ))
                 );
@@ -157,7 +157,7 @@ mod register_validator {
                     true,
                     find_validator_activation_action(
                         &context,
-                        ValidatorsActionStatus::AwaitingConfirmation
+                        AuthorsActionStatus::AwaitingConfirmation
                     )
                 );
             });
@@ -165,35 +165,35 @@ mod register_validator {
 
         #[test]
         fn activation_dispatches_after_two_sessions() {
-            let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+            let mut ext = ExtBuilder::build_default().with_authors().as_externality();
             ext.execute_with(|| {
                 let context = MockData::setup_valid();
                 run_preconditions(&context);
 
-                //Set the session keys of the new validator we are trying to register
+                //Set the session keys of the new author we are trying to register
                 set_session_keys(&context.new_validator_id);
 
                 assert_ok!(register_validator(
                     &context.new_validator_id,
-                    &context.collator_eth_public_key
+                    &context.author_eth_public_key
                 ));
 
-                // It takes 2 session for validators to be updated
+                // It takes 2 session for authors to be updated
                 advance_session();
                 advance_session();
 
                 // The activation action has been sent
                 assert_eq!(
                     true,
-                    find_validator_activation_action(&context, ValidatorsActionStatus::Confirmed)
+                    find_validator_activation_action(&context, AuthorsActionStatus::Confirmed)
                 );
-                // ValidatorActivationStarted Event has been deposited
+                // AuthorActivationStarted Event has been deposited
                 assert_eq!(
                     true,
                     System::events().iter().any(|a| a.event ==
                         mock::RuntimeEvent::TnfValidatorsManager(
-                            crate::Event::<TestRuntime>::ValidatorActivationStarted {
-                                validator_id: context.new_validator_id
+                            crate::Event::<TestRuntime>::AuthorActivationStarted {
+                                author_id: context.new_validator_id
                             }
                         ))
                 );
@@ -207,18 +207,15 @@ mod register_validator {
 mod remove_validator_public {
     use super::*;
 
-    // Tests for pub fn remove_validator(origin) -> DispatchResult {...}
+    // Tests for pub fn remove_author(origin) -> DispatchResult {...}
     #[test]
     fn valid_case() {
-        let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+        let mut ext = ExtBuilder::build_default().with_authors().as_externality();
         ext.execute_with(|| {
             let context = MockData::setup_valid();
-            assert_ok!(force_add_collator(
-                &context.new_validator_id,
-                &context.collator_eth_public_key
-            ));
+            assert_ok!(force_add_author(&context.new_validator_id, &context.author_eth_public_key));
 
-            //Prove this is an existing validator
+            //Prove this is an existing author
             assert_eq_uvec!(
                 Session::validators(),
                 vec![
@@ -231,11 +228,11 @@ mod remove_validator_public {
                 ]
             );
 
-            //Validator exists in the AVN
+            //Author exists in the AVN
             assert_eq!(AVN::<TestRuntime>::is_validator(&context.new_validator_id), true);
 
-            //Remove the validator
-            assert_ok!(TnfValidatorsManager::remove_validator(
+            //Remove the author
+            assert_ok!(TnfValidatorsManager::remove_author(
                 RawOrigin::Root.into(),
                 context.new_validator_id
             ));
@@ -243,21 +240,21 @@ mod remove_validator_public {
             //Event emitted as expected
             assert!(System::events().iter().any(|a| a.event ==
                 mock::RuntimeEvent::TnfValidatorsManager(
-                    crate::Event::<TestRuntime>::ValidatorDeregistered {
-                        validator_id: context.new_validator_id
+                    crate::Event::<TestRuntime>::AuthorDeregistered {
+                        author_id: context.new_validator_id
                     }
                 )));
 
-            //Validator removed from validators manager
+            //Author removed from validators manager
             assert_eq!(
-                TnfValidatorsManager::validator_account_ids()
+                TnfValidatorsManager::author_account_ids()
                     .unwrap()
                     .iter()
                     .position(|&x| x == context.new_validator_id),
                 None
             );
 
-            //Validator is still in the session. Will be removed after 1 era.
+            //Author is still in the session. Will be removed after 1 era.
             assert_eq_uvec!(
                 Session::validators(),
                 vec![
@@ -274,7 +271,7 @@ mod remove_validator_public {
             advance_session();
             advance_session();
 
-            // Validator has been removed from the session
+            // Author has been removed from the session
             assert_eq_uvec!(
                 Session::validators(),
                 vec![
@@ -286,24 +283,21 @@ mod remove_validator_public {
                 ]
             );
 
-            //Validator is also removed from the AVN
+            //Author is also removed from the AVN
             assert_eq!(AVN::<TestRuntime>::is_validator(&context.new_validator_id), false);
         });
     }
 
     #[test]
     fn fails_when_regular_sender_submits_transaction() {
-        let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+        let mut ext = ExtBuilder::build_default().with_authors().as_externality();
         ext.execute_with(|| {
             let context = MockData::setup_valid();
-            assert_ok!(force_add_collator(
-                &context.new_validator_id,
-                &context.collator_eth_public_key
-            ));
+            assert_ok!(force_add_author(&context.new_validator_id, &context.author_eth_public_key));
 
             let num_events = System::events().len();
             assert_noop!(
-                TnfValidatorsManager::remove_validator(
+                TnfValidatorsManager::remove_author(
                     RuntimeOrigin::signed(validator_id_3()),
                     validator_id_3()
                 ),
@@ -315,17 +309,14 @@ mod remove_validator_public {
 
     #[test]
     fn unsigned_sender() {
-        let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+        let mut ext = ExtBuilder::build_default().with_authors().as_externality();
         ext.execute_with(|| {
             let context = MockData::setup_valid();
-            assert_ok!(force_add_collator(
-                &context.new_validator_id,
-                &context.collator_eth_public_key
-            ));
+            assert_ok!(force_add_author(&context.new_validator_id, &context.author_eth_public_key));
 
             let num_events = System::events().len();
             assert_noop!(
-                TnfValidatorsManager::remove_validator(
+                TnfValidatorsManager::remove_author(
                     RawOrigin::None.into(),
                     context.new_validator_id
                 ),
@@ -337,32 +328,29 @@ mod remove_validator_public {
 
     #[test]
     fn non_validator() {
-        let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+        let mut ext = ExtBuilder::build_default().with_authors().as_externality();
         ext.execute_with(|| {
             //Ensure we have enough candidates
             let context = MockData::setup_valid();
-            assert_ok!(force_add_collator(
-                &context.new_validator_id,
-                &context.collator_eth_public_key
-            ));
+            assert_ok!(force_add_author(&context.new_validator_id, &context.author_eth_public_key));
 
-            let original_validators = TnfValidatorsManager::validator_account_ids();
+            let original_authors = TnfValidatorsManager::author_account_ids();
             let num_events = System::events().len();
 
             // Caller of remove function has to emit event if removal is successful.
             assert_eq!(System::events().len(), num_events);
-            assert_eq!(TnfValidatorsManager::validator_account_ids(), original_validators);
+            assert_eq!(TnfValidatorsManager::author_account_ids(), original_authors);
         });
     }
 }
 
 #[test]
-fn test_initial_validators_populated_from_genesis_config() {
-    let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+fn test_initial_authors_populated_from_genesis_config() {
+    let mut ext = ExtBuilder::build_default().with_authors().as_externality();
     ext.execute_with(|| {
         assert_eq!(
-            TnfValidatorsManager::validator_account_ids().unwrap(),
-            genesis_config_initial_validators().to_vec()
+            TnfValidatorsManager::author_account_ids().unwrap(),
+            genesis_config_initial_authors().to_vec()
         );
     });
 }
@@ -371,18 +359,18 @@ mod add_validator {
     use super::*;
 
     struct AddValidatorContext {
-        collator: AccountId,
-        collator_eth_public_key: ecdsa::Public,
+        author: AccountId,
+        author_eth_public_key: ecdsa::Public,
     }
 
     impl Default for AddValidatorContext {
         fn default() -> Self {
-            let collator = TestAccount::new([0u8; 32]).account_id();
-            Balances::make_free_balance_be(&collator, 100000);
+            let author = TestAccount::new([0u8; 32]).account_id();
+            Balances::make_free_balance_be(&author, 100000);
 
             AddValidatorContext {
-                collator,
-                collator_eth_public_key: ecdsa::Public::from_raw(hex!(
+                author,
+                author_eth_public_key: ecdsa::Public::from_raw(hex!(
                     "02407b0d9f41148bbe3b6c7d4a62585ae66cc32a707441197fa5453abfebd31d57"
                 )),
             }
@@ -391,25 +379,23 @@ mod add_validator {
 
     #[test]
     fn succeeds_with_good_parameters() {
-        let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+        let mut ext = ExtBuilder::build_default().with_authors().as_externality();
         ext.execute_with(|| {
             let context = &AddValidatorContext::default();
 
-            set_session_keys(&context.collator);
-            assert_ok!(register_validator(&context.collator, &context.collator_eth_public_key));
+            set_session_keys(&context.author);
+            assert_ok!(register_validator(&context.author, &context.author_eth_public_key));
 
             assert_eq!(
                 true,
-                TnfValidatorsManager::validator_account_ids()
-                    .unwrap()
-                    .contains(&context.collator)
+                TnfValidatorsManager::author_account_ids().unwrap().contains(&context.author)
             );
             assert_eq!(
-                TnfValidatorsManager::get_validator_by_eth_public_key(
-                    context.collator_eth_public_key.clone()
+                TnfValidatorsManager::get_author_by_eth_public_key(
+                    context.author_eth_public_key.clone()
                 )
                 .unwrap(),
-                context.collator
+                context.author
             );
         });
     }
@@ -419,16 +405,16 @@ mod add_validator {
 
         #[test]
         fn extrinsic_is_unsigned() {
-            let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+            let mut ext = ExtBuilder::build_default().with_authors().as_externality();
             ext.execute_with(|| {
                 let context = &AddValidatorContext::default();
 
-                set_session_keys(&context.collator);
+                set_session_keys(&context.author);
                 assert_noop!(
-                    TnfValidatorsManager::add_collator(
+                    TnfValidatorsManager::add_author(
                         RawOrigin::None.into(),
-                        context.collator,
-                        context.collator_eth_public_key,
+                        context.author,
+                        context.author_eth_public_key,
                     ),
                     BadOrigin
                 );
@@ -436,66 +422,66 @@ mod add_validator {
         }
 
         #[test]
-        fn no_validators() {
+        fn no_authors() {
             let mut ext = ExtBuilder::build_default().as_externality();
             ext.execute_with(|| {
-                // This test is simulating "no validators" by not using validators when building the
+                // This test is simulating "no authors" by not using authors when building the
                 // test extension
                 let context = &AddValidatorContext::default();
 
-                set_session_keys(&context.collator);
+                set_session_keys(&context.author);
                 assert_noop!(
-                    register_validator(&context.collator, &context.collator_eth_public_key),
-                    Error::<TestRuntime>::NoValidators
+                    register_validator(&context.author, &context.author_eth_public_key),
+                    Error::<TestRuntime>::NoAuthors
                 );
             });
         }
 
         #[test]
         fn validator_eth_key_already_exists() {
-            let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+            let mut ext = ExtBuilder::build_default().with_authors().as_externality();
             ext.execute_with(|| {
                 let context = &AddValidatorContext::default();
 
-                set_session_keys(&context.collator);
+                set_session_keys(&context.author);
                 <EthereumPublicKeys<TestRuntime>>::insert(
-                    context.collator_eth_public_key.clone(),
-                    context.collator,
+                    context.author_eth_public_key.clone(),
+                    context.author,
                 );
 
                 assert_noop!(
-                    register_validator(&context.collator, &context.collator_eth_public_key),
-                    Error::<TestRuntime>::ValidatorEthKeyAlreadyExists
+                    register_validator(&context.author, &context.author_eth_public_key),
+                    Error::<TestRuntime>::AuthorEthKeyAlreadyExists
                 );
             });
         }
 
         #[test]
         fn validator_already_exists() {
-            let mut ext = ExtBuilder::build_default().with_validators().as_externality();
+            let mut ext = ExtBuilder::build_default().with_authors().as_externality();
             ext.execute_with(|| {
                 let context = &AddValidatorContext::default();
 
-                set_session_keys(&context.collator);
-                assert_ok!(<ValidatorAccountIds::<TestRuntime>>::try_append(&context.collator));
+                set_session_keys(&context.author);
+                assert_ok!(<AuthorAccountIds::<TestRuntime>>::try_append(&context.author));
 
                 assert_noop!(
-                    register_validator(&context.collator, &context.collator_eth_public_key),
-                    Error::<TestRuntime>::ValidatorAlreadyExists
+                    register_validator(&context.author, &context.author_eth_public_key),
+                    Error::<TestRuntime>::AuthorAlreadyExists
                 );
             });
         }
 
         #[test]
-        fn maximum_collators_is_reached() {
-            let mut ext = ExtBuilder::build_default().with_maximum_validators().as_externality();
+        fn maximum_authors_is_reached() {
+            let mut ext = ExtBuilder::build_default().with_maximum_authors().as_externality();
             ext.execute_with(|| {
                 let context = &AddValidatorContext::default();
 
-                set_session_keys(&context.collator);
+                set_session_keys(&context.author);
                 assert_noop!(
-                    register_validator(&context.collator, &context.collator_eth_public_key),
-                    Error::<TestRuntime>::MaximumValidatorsReached
+                    register_validator(&context.author, &context.author_eth_public_key),
+                    Error::<TestRuntime>::MaximumAuthorsReached
                 );
             });
         }

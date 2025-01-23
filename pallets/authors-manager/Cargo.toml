@@ -1,6 +1,6 @@
 [package]
-name = "pallet-tnf-validators-manager"
-description = "Manages the Truth network validators"
+name = "pallet-authors-manager"
+description = "Pallet to manages authors of the chain"
 publish = false
 
 version = { workspace = true }
