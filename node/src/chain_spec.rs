@@ -18,10 +18,10 @@ use sp_runtime::{
 };
 use tnf_node_runtime::{
     opaque::SessionKeys, AccountId, AnchorSummaryConfig, Asset, AssetRegistryConfig,
-    AssetRegistryStringLimit, AuraConfig, BalancesConfig, CustomMetadata, EthBridgeConfig,
-    EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, PredictionMarketsConfig,
+    AssetRegistryStringLimit, AuraConfig, AuthorsManagerConfig, BalancesConfig, CustomMetadata,
+    EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, PredictionMarketsConfig,
     RuntimeGenesisConfig, SessionConfig, Signature, SudoConfig, SummaryConfig, SystemConfig,
-    AuthorsManagerConfig, TokenManagerConfig, WASM_BINARY,
+    TokenManagerConfig, WASM_BINARY,
 };
 
 use codec::Encode;
