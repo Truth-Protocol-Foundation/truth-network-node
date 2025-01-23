@@ -85,7 +85,7 @@ jobs:
     if: ${{ github.event.inputs.RELEASE == 'true' }}
     uses: ./.github/workflows/s3-upload.yml
     with:
-      bucket_name: "s3://aventus-internal-artefact/vow-chain-node-artefacts"
+      bucket_name: "s3://aventus-internal-artefact/tnf-chain-node-artefacts"
       repo_tag: ${{ github.event.inputs.GIT_TAG }}
     secrets: inherit
 
@@ -98,6 +98,6 @@ jobs:
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         with:
           name: |
-            vow-node
-            vow-node-runtime
+            tnf-node
+            tnf-node-runtime
           failOnError: false

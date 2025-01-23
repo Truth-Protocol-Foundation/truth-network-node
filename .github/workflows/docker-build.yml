@@ -35,10 +35,10 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: node-runtime
-          path: target/release/wbuild/vow-node-runtime/
+          path: target/release/wbuild/tnf-node-runtime/
 
       - name: Set 'x' rights
-        run: chmod a+x target/release/vow-node
+        run: chmod a+x target/release/tnf-node
 
       - name: Build the node docker images
         run: |

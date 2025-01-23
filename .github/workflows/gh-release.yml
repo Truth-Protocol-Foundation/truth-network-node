@@ -33,20 +33,20 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: node-runtime
-          path: target/release/wbuild/vow-node-runtime/
+          path: target/release/wbuild/tnf-node-runtime/
 
       - name: add sha256sum to files
         id: sha256
         run: |
-          NODE_SHA=$(sha256sum -z target/release/vow-node | awk '{print $1}')
-          WASM_SHA_RUNTIME=$(sha256sum -z target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm | awk '{print $1}')
+          NODE_SHA=$(sha256sum -z target/release/tnf-node | awk '{print $1}')
+          WASM_SHA_RUNTIME=$(sha256sum -z target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm | awk '{print $1}')
           {
             echo "NODE_SHA=$NODE_SHA"
             echo "WASM_SHA_RUNTIME=$WASM_SHA_RUNTIME"
           } >> "$GITHUB_OUTPUT"
 
-          echo "$NODE_SHA" >  target/release/vow-node.sha256
-          echo "$WASM_SHA_RUNTIME" > target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+          echo "$NODE_SHA" >  target/release/tnf-node.sha256
+          echo "$WASM_SHA_RUNTIME" > target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
 
       - name: Bump version and push tag
         id: tag_version
@@ -77,10 +77,10 @@ jobs:
             node: `${{ steps.sha256.outputs.NODE_SHA }}`
             node_runtime.compact.compressed.wasm: `${{ steps.sha256.outputs.WASM_SHA_RUNTIME }}`
           files: |
-            target/release/vow-node
-            target/release/vow-node.sha256
-            target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm
-            target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+            target/release/tnf-node
+            target/release/tnf-node.sha256
+            target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm
+            target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
 
       - name: Hotfix Release
         if: ${{ inputs.hotfix }}
@@ -99,7 +99,7 @@ jobs:
             node: `${{ steps.sha256.outputs.NODE_SHA }}`
             node_runtime.compact.compressed.wasm: `${{ steps.sha256.outputs.WASM_SHA_RUNTIME }}`
           files: |
-            target/release/vow-node
-            target/release/vow-node.sha256
-            target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm
-            target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+            target/release/tnf-node
+            target/release/tnf-node.sha256
+            target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm
+            target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256

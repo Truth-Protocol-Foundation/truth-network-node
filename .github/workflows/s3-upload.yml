@@ -30,26 +30,26 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: node-runtime
-          path: target/release/wbuild/vow-node-runtime/
+          path: target/release/wbuild/tnf-node-runtime/
 
       - name: Upload assets to s3
         env:
           REPO_TAG: ${{ inputs.repo_tag }}
         run: |
-          NODE_SHA=$(sha256sum -z target/release/vow-node | awk '{print $1}')
-          WASM_SHA=$(sha256sum -z target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm | awk '{print $1}')
+          NODE_SHA=$(sha256sum -z target/release/tnf-node | awk '{print $1}')
+          WASM_SHA=$(sha256sum -z target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm | awk '{print $1}')
 
-          echo "$NODE_SHA" >  target/release/vow-node.sha256
-          echo "$WASM_SHA" > target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+          echo "$NODE_SHA" >  target/release/tnf-node.sha256
+          echo "$WASM_SHA" > target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
 
-          aws s3 cp target/release/vow-node.sha256 \
+          aws s3 cp target/release/tnf-node.sha256 \
             ${{ inputs.bucket_name }}/$REPO_TAG/
 
-          aws s3 cp target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256 \
+          aws s3 cp target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256 \
             ${{ inputs.bucket_name }}/$REPO_TAG/
 
-          aws s3 cp target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm \
+          aws s3 cp target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm \
             ${{ inputs.bucket_name }}/$REPO_TAG/
 
-          aws s3 cp target/release/vow-node \
+          aws s3 cp target/release/tnf-node \
             ${{ inputs.bucket_name }}/$REPO_TAG/
