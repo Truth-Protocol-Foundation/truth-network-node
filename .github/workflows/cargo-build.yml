@@ -49,18 +49,18 @@ jobs:
       - name: Build
         run: cargo build --locked --release
 
-      - name: VoW Node Artifact
+      - name: Node Artifact
         if: ${{ inputs.upload_artifacts }}
         uses: actions/upload-artifact@v3
         with:
-          name: vow-node
+          name: node
           path: target/release/vow-node
           if-no-files-found: error
 
-      - name: VoW Node runtime Artifact
+      - name: Node runtime Artifact
         if: ${{ inputs.upload_artifacts }}
         uses: actions/upload-artifact@v3
         with:
-          name: vow-node-runtime
+          name: node-runtime
           path: target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm
           if-no-files-found: error

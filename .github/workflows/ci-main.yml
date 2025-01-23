@@ -118,6 +118,6 @@ jobs:
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         with:
           name: |
-            vow-node
-            vow-node-runtime
+            node
+            node-runtime
           failOnError: false

@@ -20,26 +20,26 @@ jobs:
       - name: Check out
         uses: actions/checkout@v3
 
-      - name: get VoW Node Artifact
+      - name: get Node Artifact
         uses: actions/download-artifact@v3
         with:
-          name: vow-node
+          name: node
           path: target/release/
 
-      - name: get VoW Node runtime Artifact
+      - name: get Node runtime Artifact
         uses: actions/download-artifact@v3
         with:
-          name: vow-node-runtime
+          name: node-runtime
           path: target/release/wbuild/vow-node-runtime/
 
       - name: Upload assets to s3
         env:
           REPO_TAG: ${{ inputs.repo_tag }}
         run: |
-          VOW_NODE_SHA=$(sha256sum -z target/release/vow-node | awk '{print $1}')
+          NODE_SHA=$(sha256sum -z target/release/vow-node | awk '{print $1}')
           WASM_SHA=$(sha256sum -z target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm | awk '{print $1}')
 
-          echo "$VOW_NODE_SHA" >  target/release/vow-node.sha256
+          echo "$NODE_SHA" >  target/release/vow-node.sha256
           echo "$WASM_SHA" > target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
 
           aws s3 cp target/release/vow-node.sha256 \

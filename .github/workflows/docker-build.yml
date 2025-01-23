@@ -25,22 +25,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: get VoW Node Artifact
+      - name: get Node Artifact
         uses: actions/download-artifact@v3
         with:
-          name: vow-node
+          name: node
           path: target/release/
 
-      - name: get VoW Node runtime Artifact
+      - name: get Node runtime Artifact
         uses: actions/download-artifact@v3
         with:
-          name: vow-node-runtime
+          name: node-runtime
           path: target/release/wbuild/vow-node-runtime/
 
       - name: Set 'x' rights
         run: chmod a+x target/release/vow-node
 
-      - name: Build the vow-node docker images
+      - name: Build the node docker images
         run: |
           docker build . --tag $ECR_REPO:${GITHUB_SHA::7} -f Containerfile
 
@@ -58,7 +58,7 @@ jobs:
 
       - name: Login to the AWS registry
         run: |
-          aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 931945598683.dkr.ecr.eu-west-1.amazonaws.com
+          aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 288761771289.dkr.ecr.us-east-1.amazonaws.com
 
       - name: Push the images to the registry
         run: |
