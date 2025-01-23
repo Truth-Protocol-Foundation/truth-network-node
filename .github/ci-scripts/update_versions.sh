@@ -23,17 +23,14 @@ git config --global user.email ci-agent-bot@truth-network.io
 
 if $INCREASE_VERSIONS; then
     git checkout main
-    CURRENT_SPEC_VERSION=$(grep -Eow "spec_version: [0-9]+" runtime/tnf/src/lib.rs | grep -Eow "[0-9]+")
+    CURRENT_SPEC_VERSION=$(grep -Eow "spec_version: [0-9]+" runtime/src/lib.rs | grep -Eow "[0-9]+")
     let NEW_SPEC_VERSION=$CURRENT_SPEC_VERSION+1
 
     git checkout "${GITHUB_HEAD_REF}"
 
     # runtime
-    sed -i "s@$REGEX_SPEC_VERSION@\1\2$NEW_SPEC_VERSION@" runtime/tnf/src/lib.rs
-    sed -i "s@$REGEX_IMPL_VERSION@\1\20@" runtime/tnf/src/lib.rs
-    # test runtime: for now, always follow the releases versions
-    sed -i "s@$REGEX_SPEC_VERSION@\1\2$NEW_SPEC_VERSION@" runtime/test/src/lib.rs
-    sed -i "s@$REGEX_IMPL_VERSION@\1\20@" runtime/test/src/lib.rs
+    sed -i "s@$REGEX_SPEC_VERSION@\1\2$NEW_SPEC_VERSION@" runtime/src/lib.rs
+    sed -i "s@$REGEX_IMPL_VERSION@\1\20@" runtime/src/lib.rs
 
     COMMIT_MESSAGE="cargo package, spec and impl versions increased"
 else
