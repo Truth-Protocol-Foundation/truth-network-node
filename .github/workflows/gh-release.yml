@@ -39,14 +39,14 @@ jobs:
         id: sha256
         run: |
           NODE_SHA=$(sha256sum -z target/release/tnf-node | awk '{print $1}')
-          WASM_SHA_RUNTIME=$(sha256sum -z target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm | awk '{print $1}')
+          WASM_SHA_RUNTIME=$(sha256sum -z target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm | awk '{print $1}')
           {
             echo "NODE_SHA=$NODE_SHA"
             echo "WASM_SHA_RUNTIME=$WASM_SHA_RUNTIME"
           } >> "$GITHUB_OUTPUT"
 
           echo "$NODE_SHA" >  target/release/tnf-node.sha256
-          echo "$WASM_SHA_RUNTIME" > target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+          echo "$WASM_SHA_RUNTIME" > target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm.sha256
 
       - name: Bump version and push tag
         id: tag_version
@@ -79,8 +79,8 @@ jobs:
           files: |
             target/release/tnf-node
             target/release/tnf-node.sha256
-            target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm
-            target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+            target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
+            target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm.sha256
 
       - name: Hotfix Release
         if: ${{ inputs.hotfix }}
@@ -101,5 +101,5 @@ jobs:
           files: |
             target/release/tnf-node
             target/release/tnf-node.sha256
-            target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm
-            target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+            target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
+            target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm.sha256

@@ -37,18 +37,18 @@ jobs:
           REPO_TAG: ${{ inputs.repo_tag }}
         run: |
           NODE_SHA=$(sha256sum -z target/release/tnf-node | awk '{print $1}')
-          WASM_SHA=$(sha256sum -z target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm | awk '{print $1}')
+          WASM_SHA=$(sha256sum -z target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm | awk '{print $1}')
 
           echo "$NODE_SHA" >  target/release/tnf-node.sha256
-          echo "$WASM_SHA" > target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+          echo "$WASM_SHA" > target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm.sha256
 
           aws s3 cp target/release/tnf-node.sha256 \
             ${{ inputs.bucket_name }}/$REPO_TAG/
 
-          aws s3 cp target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256 \
+          aws s3 cp target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm.sha256 \
             ${{ inputs.bucket_name }}/$REPO_TAG/
 
-          aws s3 cp target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm \
+          aws s3 cp target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
             ${{ inputs.bucket_name }}/$REPO_TAG/
 
           aws s3 cp target/release/tnf-node \

@@ -62,5 +62,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: node-runtime
-          path: target/release/wbuild/tnf-node-runtime/vow_node_runtime.compact.compressed.wasm
+          path: target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
           if-no-files-found: error
