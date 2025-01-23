@@ -74,7 +74,7 @@ jobs:
             # Release Notes
             This release contains the latest version of AvN Node Parachain.
             ## sha256sum
-            node: `${{ steps.sha256.outputs.NODE_SHA }}`
+            tnf_node: `${{ steps.sha256.outputs.NODE_SHA }}`
             node_runtime.compact.compressed.wasm: `${{ steps.sha256.outputs.WASM_SHA_RUNTIME }}`
           files: |
             target/release/tnf-node
@@ -96,7 +96,7 @@ jobs:
             # Release Notes
             This is a hotfix release of AvN Node Parachain.
             ## sha256sum
-            node: `${{ steps.sha256.outputs.NODE_SHA }}`
+            tnf_node: `${{ steps.sha256.outputs.NODE_SHA }}`
             node_runtime.compact.compressed.wasm: `${{ steps.sha256.outputs.WASM_SHA_RUNTIME }}`
           files: |
             target/release/tnf-node
