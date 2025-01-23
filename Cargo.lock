@@ -5336,6 +5336,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-authors-manager"
+version = "2.3.1"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "hex-literal",
+ "libsecp256k1",
+ "log",
+ "pallet-avn",
+ "pallet-balances",
+ "pallet-eth-bridge",
+ "pallet-session",
+ "pallet-timestamp",
+ "parity-scale-codec 3.6.9",
+ "parking_lot 0.12.2",
+ "rand 0.8.5",
+ "scale-info",
+ "serde",
+ "sha3 0.8.2",
+ "sp-application-crypto",
+ "sp-avn-common",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
+ "substrate-test-utils",
+]
+
+[[package]]
 name = "pallet-authorship"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0#65a434a0ed474c14f692dcf9f69f8da66a99d401"
@@ -6000,38 +6032,6 @@ dependencies = [
  "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
  "sp-storage",
  "sp-timestamp",
-]
-
-[[package]]
-name = "pallet-tnf-validators-manager"
-version = "2.3.1"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "hex",
- "hex-literal",
- "libsecp256k1",
- "log",
- "pallet-avn",
- "pallet-balances",
- "pallet-eth-bridge",
- "pallet-session",
- "pallet-timestamp",
- "parity-scale-codec 3.6.9",
- "parking_lot 0.12.2",
- "rand 0.8.5",
- "scale-info",
- "serde",
- "sha3 0.8.2",
- "sp-application-crypto",
- "sp-avn-common",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-state-machine",
- "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
- "substrate-test-utils",
 ]
 
 [[package]]
@@ -10427,11 +10427,11 @@ dependencies = [
  "jsonrpsee",
  "log",
  "orml-traits",
+ "pallet-authors-manager",
  "pallet-avn",
  "pallet-eth-bridge",
  "pallet-eth-bridge-runtime-api",
  "pallet-im-online",
- "pallet-tnf-validators-manager",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec 3.6.9",
@@ -10490,6 +10490,7 @@ dependencies = [
  "orml-traits",
  "pallet-aura",
  "pallet-authority-discovery",
+ "pallet-authors-manager",
  "pallet-authorship",
  "pallet-avn",
  "pallet-avn-proxy",
@@ -10520,7 +10521,6 @@ dependencies = [
  "pallet-sudo",
  "pallet-summary",
  "pallet-timestamp",
- "pallet-tnf-validators-manager",
  "pallet-token-manager",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
