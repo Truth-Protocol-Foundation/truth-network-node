@@ -22,7 +22,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2023-05-22
+          toolchain: nightly-2024-04-15
           components: rustfmt, clippy
           target: wasm32-unknown-unknown
           override: true
@@ -51,7 +51,7 @@ jobs:
 
       - name: Node Artifact
         if: ${{ inputs.upload_artifacts }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: node
           path: target/release/tnf-node
@@ -59,7 +59,7 @@ jobs:
 
       - name: Node runtime Artifact
         if: ${{ inputs.upload_artifacts }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: node-runtime
           path: target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
