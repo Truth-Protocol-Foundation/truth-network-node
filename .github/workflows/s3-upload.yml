@@ -1,0 +1,55 @@
+name: s3 upload
+
+on:
+  workflow_call:
+    inputs:
+      bucket_name:
+        required: true
+        type: string
+      repo_tag:
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  s3-upload:
+    runs-on: gh-ubuntu-2404-x64
+    steps:
+      - name: Check out
+        uses: actions/checkout@v3
+
+      - name: get VoW Node Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: vow-node
+          path: target/release/
+
+      - name: get VoW Node runtime Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: vow-node-runtime
+          path: target/release/wbuild/vow-node-runtime/
+
+      - name: Upload assets to s3
+        env:
+          REPO_TAG: ${{ inputs.repo_tag }}
+        run: |
+          VOW_NODE_SHA=$(sha256sum -z target/release/vow-node | awk '{print $1}')
+          WASM_SHA=$(sha256sum -z target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm | awk '{print $1}')
+
+          echo "$VOW_NODE_SHA" >  target/release/vow-node.sha256
+          echo "$WASM_SHA" > target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256
+
+          aws s3 cp target/release/vow-node.sha256 \
+            ${{ inputs.bucket_name }}/$REPO_TAG/
+
+          aws s3 cp target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm.sha256 \
+            ${{ inputs.bucket_name }}/$REPO_TAG/
+
+          aws s3 cp target/release/wbuild/vow-node-runtime/vow_node_runtime.compact.compressed.wasm \
+            ${{ inputs.bucket_name }}/$REPO_TAG/
+
+          aws s3 cp target/release/vow-node \
+            ${{ inputs.bucket_name }}/$REPO_TAG/
