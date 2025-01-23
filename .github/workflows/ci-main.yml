@@ -80,7 +80,7 @@ jobs:
       upload_artifacts: true
     secrets: inherit
 
-  build-avn-docker:
+  build-docker:
     needs: [ set-up-job, build-code, test-code ]
     if: |
       always() &&
@@ -92,16 +92,16 @@ jobs:
       docker_tag: ${{ needs.set-up-job.outputs.NEW_PACKAGE_TAG }}
     secrets: inherit
 
-  avn-repo-release:
-    needs: [ set-up-job, build-avn-docker ]
+  repo-release:
+    needs: [ set-up-job, build-docker ]
     if: ${{ needs.set-up-job.outputs.RELEASE == 'true' }}
     uses: ./.github/workflows/gh-release.yml
     with:
       repo_tag: ${{ needs.set-up-job.outputs.NEW_PACKAGE_TAG }}
     secrets: inherit
 
-  upload-avn-assets-internal-tools:
-    needs: [ set-up-job, build-avn-docker ]
+  upload-assets-internal-tools:
+    needs: [ set-up-job, build-docker ]
     if: ${{ needs.set-up-job.outputs.RELEASE == 'true' }}
     uses: ./.github/workflows/s3-upload.yml
     with:
@@ -111,7 +111,7 @@ jobs:
 
   cleanup-artifacts:
     runs-on: ubuntu-20.04
-    needs:  [ set-up-job, build-code, build-avn-docker, avn-repo-release, upload-avn-assets-internal-tools ]
+    needs:  [ set-up-job, build-code, build-docker, repo-release, upload-assets-internal-tools ]
     if: always()
     steps:
       - uses: geekyeggo/delete-artifact@v2

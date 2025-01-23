@@ -16,7 +16,7 @@ env:
 
 jobs:
   gh-release:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Check out
         uses: actions/checkout@v3
@@ -72,7 +72,7 @@ jobs:
           append_body: true
           body: |
             # Release Notes
-            This release contains the latest version of AvN Node Parachain.
+            This release contains the latest version of Truth Network Node .
             ## sha256sum
             tnf_node: `${{ steps.sha256.outputs.NODE_SHA }}`
             node_runtime.compact.compressed.wasm: `${{ steps.sha256.outputs.WASM_SHA_RUNTIME }}`
@@ -94,7 +94,7 @@ jobs:
           prerelease: true
           body: |
             # Release Notes
-            This is a hotfix release of AvN Node Parachain.
+            This is a hotfix release of Truth Network Node.
             ## sha256sum
             tnf_node: `${{ steps.sha256.outputs.NODE_SHA }}`
             node_runtime.compact.compressed.wasm: `${{ steps.sha256.outputs.WASM_SHA_RUNTIME }}`
