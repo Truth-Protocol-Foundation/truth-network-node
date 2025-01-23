@@ -18,8 +18,8 @@ echo "NEW_PACKAGE_TAG=$NEW_PACKAGE_TAG" >> "$GITHUB_OUTPUT"
 
 [[ "$event_type" == "push" ]] && exit 0
 
-git config --global user.name aventus-ci-agent
-git config --global user.email ci-agent-bot@aventus.io
+git config --global user.name ci-agent
+git config --global user.email ci-agent-bot@truth-network.io
 
 if $INCREASE_VERSIONS; then
     git checkout main
