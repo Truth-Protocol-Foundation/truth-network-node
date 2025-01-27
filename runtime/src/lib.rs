@@ -603,6 +603,7 @@ impl pallet_ethereum_events::Config for Runtime {
     type ReportInvalidEthereumLog = Offences;
     type WeightInfo = pallet_ethereum_events::default_weights::SubstrateWeight<Runtime>;
     type EthereumEventsFilter = EthBridgeTnfRuntimeEventsFilter;
+    type ProcessedEventsChecker = EthereumEvents;
 }
 
 impl pallet_token_manager::pallet::Config for Runtime {

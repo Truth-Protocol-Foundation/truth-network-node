@@ -266,7 +266,7 @@ pub async fn identify_events(
     // discovery.
     let extend_discovery_to_secondary_events = event_signatures_to_find
         .iter()
-        .filter_map(|sig| ValidEvents::try_from(sig))
+        .filter_map(|sig| ValidEvents::try_from(sig).ok())
         .any(|x| all_secondary_events.contains(&x));
 
     let secondary_logs = if extend_discovery_to_secondary_events {
