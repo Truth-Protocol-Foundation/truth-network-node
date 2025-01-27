@@ -1,0 +1,66 @@
+name: Cargo build
+
+on:
+  workflow_call:
+    inputs:
+      upload_artifacts:
+        required: true
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cargo-build:
+    runs-on: gh-ubuntu-2404-x64
+    timeout-minutes: 90
+    steps:
+      - name: Check out
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
+
+      - name: Restore cargo cache - common
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-common-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Set up cargo cache - build
+        uses: actions/cache@v3
+        continue-on-error: false
+        with:
+          path: |
+            target/
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --locked --release
+
+      - name: Node Artifact
+        if: ${{ inputs.upload_artifacts }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: node
+          path: target/release/tnf-node
+          if-no-files-found: error
+
+      - name: Node runtime Artifact
+        if: ${{ inputs.upload_artifacts }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-runtime
+          path: target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
+          if-no-files-found: error
