@@ -541,12 +541,13 @@ mod pallet {
             min_amount_out: BalanceOf<T>,
         ) -> Result<Option<AmmTradeOf<T>>, DispatchError> {
             match tx_type {
-                TxType::Buy =>
+                TxType::Buy => {
                     match T::Amm::buy(who, market_id, asset, amount_in, min_amount_out) {
                         Ok(amm_trade) => Ok(Some(amm_trade)),
                         Err(ApiError::SoftFailure(AmmSoftFail::Numerical)) => Ok(None),
                         Err(ApiError::HardFailure(dispatch_error)) => Err(dispatch_error),
-                    },
+                    }
+                },
                 TxType::Sell => {
                     match T::Amm::sell(who, market_id, asset, amount_in, min_amount_out) {
                         Ok(amm_trade) => Ok(Some(amm_trade)),
@@ -657,8 +658,8 @@ mod pallet {
         ) -> Result<Option<OrderTradeOf<T>>, DispatchError> {
             match T::Orderbook::fill_order(who, order_id, Some(maker_fill)) {
                 Ok(order_trade) => Ok(Some(order_trade)),
-                Err(ApiError::SoftFailure(OrderbookSoftFail::BelowMinimumBalance)) |
-                Err(ApiError::SoftFailure(
+                Err(ApiError::SoftFailure(OrderbookSoftFail::BelowMinimumBalance))
+                | Err(ApiError::SoftFailure(
                     OrderbookSoftFail::PartialFillNearFullFillNotAllowed,
                 )) => Ok(None),
                 Err(ApiError::HardFailure(dispatch_error)) => Err(dispatch_error),
@@ -700,8 +701,8 @@ mod pallet {
                         taker_amount,
                     ) {
                         Ok(()) => Ok(true),
-                        Err(ApiError::SoftFailure(OrderbookSoftFail::BelowMinimumBalance)) |
-                        Err(ApiError::SoftFailure(
+                        Err(ApiError::SoftFailure(OrderbookSoftFail::BelowMinimumBalance))
+                        | Err(ApiError::SoftFailure(
                             OrderbookSoftFail::PartialFillNearFullFillNotAllowed,
                         )) => Ok(false),
                         Err(ApiError::HardFailure(dispatch_error)) => Err(dispatch_error),
@@ -1011,10 +1012,10 @@ mod pallet {
                     &proof,
                     &signed_payload.as_slice(),
                 )
-                .is_ok()
+                .is_ok();
             }
 
-            return false
+            return false;
         }
     }
 }

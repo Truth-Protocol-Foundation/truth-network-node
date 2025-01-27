@@ -496,8 +496,8 @@ fn create_market_suceeds_if_market_duration_is_maximal_in_moments() {
         let now = 12_001u32;
         Timestamp::set_timestamp(now as u64);
         let start = 5 * MILLISECS_PER_BLOCK as u64;
-        let end = now as u64 +
-            <Runtime as Config>::MaxMarketLifetime::get() as u64 * MILLISECS_PER_BLOCK as u64;
+        let end = now as u64
+            + <Runtime as Config>::MaxMarketLifetime::get() as u64 * MILLISECS_PER_BLOCK as u64;
         assert!(
             end > start,
             "Test failed due to misconfiguration: `MaxMarketLifetime` is too small"
@@ -556,9 +556,9 @@ fn create_market_fails_if_market_duration_is_too_long_in_moments() {
         let now = 12_001;
         Timestamp::set_timestamp(now as u64);
         let start = 5 * MILLISECS_PER_BLOCK as u64;
-        let end = now as u64 +
-            (<Runtime as Config>::MaxMarketLifetime::get() + 1) as u64 *
-                MILLISECS_PER_BLOCK as u64;
+        let end = now as u64
+            + (<Runtime as Config>::MaxMarketLifetime::get() + 1) as u64
+                * MILLISECS_PER_BLOCK as u64;
         assert!(
             end > start,
             "Test failed due to misconfiguration: `MaxMarketLifetime` is too small"

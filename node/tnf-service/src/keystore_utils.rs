@@ -20,7 +20,7 @@ pub fn get_eth_address_bytes_from_keystore(keystore_path: &PathBuf) -> Result<Ve
         Err(server_error(format!("No keys found in the keystore for {:?}", ETHEREUM_SIGNING_KEY)))?
     }
 
-    return Ok(addresses[0].clone())
+    return Ok(addresses[0].clone());
 }
 
 pub fn get_priv_key(keystore_path: &PathBuf, eth_address: &Vec<u8>) -> Result<[u8; 32], TideError> {
@@ -37,7 +37,7 @@ pub fn get_priv_key(keystore_path: &PathBuf, eth_address: &Vec<u8>) -> Result<[u
     // convert a [u8] into [u8; 32]
     let mut key: [u8; 32] = Default::default();
     key.copy_from_slice(&priv_key_bytes[0..32]);
-    return Ok(key)
+    return Ok(key);
 }
 
 /// Returns a list of raw public keys filtered by `KeyTypeId`
@@ -58,7 +58,7 @@ pub fn raw_public_keys(
             match hex::decode(name) {
                 Ok(ref hex) if hex.len() > 4 => {
                     if hex[0..4] != key_type.0 {
-                        continue
+                        continue;
                     }
                     let public = hex[4..].to_vec();
                     public_keys.push(public);

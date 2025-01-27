@@ -374,10 +374,12 @@ where
         for &i in self.path_to_node(index, None)?.iter() {
             let node = self.get_node_mut(i)?;
             match op {
-                UpdateDescendantStakeOperation::Add =>
-                    node.descendant_stake = node.descendant_stake.checked_add_res(&delta)?,
-                UpdateDescendantStakeOperation::Sub =>
-                    node.descendant_stake = node.descendant_stake.checked_sub_res(&delta)?,
+                UpdateDescendantStakeOperation::Add => {
+                    node.descendant_stake = node.descendant_stake.checked_add_res(&delta)?
+                },
+                UpdateDescendantStakeOperation::Sub => {
+                    node.descendant_stake = node.descendant_stake.checked_sub_res(&delta)?
+                },
             }
         }
         Ok(())

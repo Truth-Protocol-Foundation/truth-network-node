@@ -33,5 +33,5 @@ where
 
 pub fn generate_tree_root(leaves_data: Vec<Vec<u8>>) -> Result<H256, TideError> {
     return merkle_tree_utils::generate_tree_root(leaves_data)
-        .map_err(|e| server_error(format!("Error generating merkle root: {:?}", e)))
+        .map_err(|e| server_error(format!("Error generating merkle root: {:?}", e)));
 }

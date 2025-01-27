@@ -227,8 +227,8 @@ fn reject_early_close_settles_bonds() {
         // disputant Bob gets the bonds
         assert_eq!(
             free_bob_after - free_bob,
-            <Runtime as Config>::CloseEarlyRequestBond::get() +
-                <Runtime as Config>::CloseEarlyDisputeBond::get()
+            <Runtime as Config>::CloseEarlyRequestBond::get()
+                + <Runtime as Config>::CloseEarlyDisputeBond::get()
         );
         assert_eq!(free_alice_after - free_alice, 0);
     });

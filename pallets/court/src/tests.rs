@@ -1895,10 +1895,10 @@ fn reassign_court_stakes_slashes_tardy_jurors_and_rewards_winners() {
         assert_eq!(free_bob_after, free_bob_before - old_draws[BOB as usize].slashable);
 
         let free_charlie_after = Balances::free_balance(CHARLIE);
-        let full_slashes = old_draws[ALICE as usize].slashable +
-            old_draws[BOB as usize].slashable +
-            old_draws[DAVE as usize].slashable +
-            old_draws[EVE as usize].slashable;
+        let full_slashes = old_draws[ALICE as usize].slashable
+            + old_draws[BOB as usize].slashable
+            + old_draws[DAVE as usize].slashable
+            + old_draws[EVE as usize].slashable;
         assert_eq!(free_charlie_after, free_charlie_before + full_slashes);
 
         let free_dave_after = Balances::free_balance(DAVE);
@@ -2306,19 +2306,19 @@ fn reassign_court_stakes_works_for_delegations() {
             delegated_stakes_charlie.iter().find(|(acc, _)| *acc == BOB).unwrap().1;
         let dave_delegated_bob_slashed =
             delegated_stakes_dave.iter().find(|(acc, _)| *acc == BOB).unwrap().1;
-        let slashed = bob_slashed +
-            charlie_delegated_bob_slashed +
-            dave_delegated_bob_slashed +
-            tardy_or_denounced_value;
+        let slashed = bob_slashed
+            + charlie_delegated_bob_slashed
+            + dave_delegated_bob_slashed
+            + tardy_or_denounced_value;
 
         let charlie_delegated_alice_slashable =
             delegated_stakes_charlie.iter().find(|(acc, _)| *acc == ALICE).unwrap().1;
         let dave_delegated_alice_slashable =
             delegated_stakes_dave.iter().find(|(acc, _)| *acc == ALICE).unwrap().1;
-        let winners_risked_amount = charlie_delegated_alice_slashable +
-            dave_delegated_alice_slashable +
-            alice_slashable +
-            eve_slashable;
+        let winners_risked_amount = charlie_delegated_alice_slashable
+            + dave_delegated_alice_slashable
+            + alice_slashable
+            + eve_slashable;
 
         let alice_share = Perquintill::from_rational(alice_slashable, winners_risked_amount);
         let free_alice_after = Balances::free_balance(ALICE);

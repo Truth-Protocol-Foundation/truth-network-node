@@ -247,9 +247,9 @@ impl<F: Fixed, N: Into<u128>> FromFixedDecimal<N> for F {
 
         if decimal_string.len() <= places as usize {
             // This can never underflow (places >= len). Saturating subtraction to satisfy clippy.
-            decimal_string = "0.".to_owned() +
-                &"0".repeat((places as usize).saturating_sub(decimal_string.len())) +
-                &decimal_string;
+            decimal_string = "0.".to_owned()
+                + &"0".repeat((places as usize).saturating_sub(decimal_string.len()))
+                + &decimal_string;
         } else {
             // This can never underflow (len > places). Saturating subtraction to satisfy clippy.
             decimal_string.insert(decimal_string.len().saturating_sub(places as usize), '.');

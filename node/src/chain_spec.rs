@@ -49,7 +49,7 @@ pub(crate) fn tnf_chain_properties() -> Option<Properties> {
     properties.insert("tokenSymbol".into(), "TNF".into());
     properties.insert("tokenDecimals".into(), 10.into());
     properties.insert("ss58Format".into(), TNF_CHAIN_PREFIX.into());
-    return Some(properties)
+    return Some(properties);
 }
 
 fn session_keys(
@@ -512,7 +512,7 @@ fn tnf_dev_ethereum_public_keys() -> Vec<EthPublicKey> {
             "03c9a1c6b1dce4c228a1577cfa252c7120f69404d9f40e42b1137f484e95e08f61"
         ])
         .unwrap(),
-    ]
+    ];
 }
 
 fn tnf_testnet_ethereum_public_keys() -> Vec<EthPublicKey> {
@@ -537,5 +537,5 @@ fn tnf_testnet_ethereum_public_keys() -> Vec<EthPublicKey> {
             "021473964134e3f5603ccb563dbafafff81e1047c7d7c8cd1cd62cd033f43697ef"
         ])
         .unwrap(),
-    ]
+    ];
 }

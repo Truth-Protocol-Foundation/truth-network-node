@@ -64,8 +64,8 @@ where
         metadata: vec![],
         oracle: account("oracle", 0, 0),
         period: MarketPeriod::Block(
-            0u64.saturated_into::<BlockNumberFor<T>>()..
-                100u64.saturated_into::<BlockNumberFor<T>>(),
+            0u64.saturated_into::<BlockNumberFor<T>>()
+                ..100u64.saturated_into::<BlockNumberFor<T>>(),
         ),
         deadlines: Deadlines {
             grace_period: 1_u64.saturated_into::<BlockNumberFor<T>>(),
