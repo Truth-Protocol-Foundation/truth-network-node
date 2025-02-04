@@ -14,6 +14,7 @@ use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
 use tnf_node_runtime::{self, opaque::Block, RuntimeApi};
 use tnf_service::web3_utils::Web3Data;
+use common_primitives::constants::REGISTERED_NODE_KEY;
 
 use crate::tnf_config::TnfCliConfiguration;
 
@@ -169,6 +170,7 @@ pub fn new_full(
 
     let tnf_service_port = tnf_cli_config.tnf_service_port.clone();
     let eth_node_url: String = tnf_cli_config.ethereum_node_url.clone().unwrap_or_default();
+    let registered_node = tnf_cli_config.registered_node.clone().unwrap_or_default();
 
     let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
         &client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
@@ -209,6 +211,16 @@ pub fn new_full(
                 EXTERNAL_SERVICE_PORT_NUMBER_KEY,
                 &port_number.encode(),
             );
+
+            // If the node is run with the --registered-node flag,
+            // set the registered node key in the offchain storage
+            if registered_node {
+                local_db.set(
+                    sp_core::offchain::STORAGE_PREFIX,
+                    REGISTERED_NODE_KEY,
+                    &registered_node.encode(),
+                );
+            }
         }
 
         task_manager.spawn_handle().spawn(

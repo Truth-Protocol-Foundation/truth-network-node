@@ -16,10 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Zeitgeist. If not, see <https://www.gnu.org/licenses/>.
 
+use frame_support::PalletId;
 pub use crate::types::*;
+
+// Offchain DB key for registered node
+pub const REGISTERED_NODE_KEY: &'static [u8; 18] = b"is_registered_node";
 
 // Chain contant
 pub const TNF_CHAIN_PREFIX: u16 = 42u16;
+
+// Pallet identifier for node manager
+pub const NODE_MANAGER_PALLET_ID: PalletId = PalletId(*b"node_mgr");
+
 
 // Definitions for time
 pub const MILLISECS_PER_BLOCK: u32 = 6000;

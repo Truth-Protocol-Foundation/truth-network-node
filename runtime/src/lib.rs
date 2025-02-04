@@ -746,6 +746,19 @@ impl pallet_authors_manager::Config for Runtime {
     type BridgeInterface = EthBridge;
 }
 
+parameter_types! {
+    pub const NodeManagerPalletId: PalletId = NODE_MANAGER_PALLET_ID;
+}
+
+impl pallet_node_manager::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type AuthorityId = AvnId; // Change me
+    type Currency = Balances;
+    type RewardPotId = NodeManagerPalletId;
+    //type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
+}
+
 impl pallet_utility::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -1183,6 +1196,7 @@ construct_runtime!(
         AuthorsManager: pallet_authors_manager = 22,
         NftManager: pallet_nft_manager = 23,
         AnchorSummary: pallet_summary::<Instance2> = 26,
+        NodeManager: pallet_node_manager = 27,
 
         // Prediction Market pallets
         AdvisoryCommittee: pallet_collective::<Instance1>::{Call, Config<T>, Event<T>, Origin<T>, Pallet, Storage} = 30,
@@ -1199,7 +1213,6 @@ construct_runtime!(
         NeoSwaps: pallet_pm_neo_swaps::{Call, Event<T>, Pallet, Storage} = 45,
         Orderbook: pallet_pm_order_book::{Call, Event<T>, Pallet, Storage} = 46,
         HybridRouter: pallet_pm_hybrid_router::{Call, Event<T>, Pallet, Storage} = 47,
-
     }
 );
 
@@ -1258,6 +1271,7 @@ mod benches {
         [pallet_token_manager, TokenManager]
         [pallet_avn_proxy, AvnProxy]
         [pallet_nft_manager, NftManager]
+        [pallet_node_manager, NodeManager]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
         // Tnf pallets

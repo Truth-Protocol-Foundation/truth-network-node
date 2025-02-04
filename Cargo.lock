@@ -5337,8 +5337,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-authors-manager"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5377,8 +5377,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-avn"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5400,8 +5400,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-avn-proxy"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5417,8 +5417,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-avn-transaction-payment"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5469,8 +5469,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-eth-bridge"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "ethabi 13.0.0",
  "frame-benchmarking",
@@ -5497,8 +5497,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-eth-bridge-runtime-api"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "frame-support",
  "pallet-avn",
@@ -5512,8 +5512,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-ethereum-events"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5613,8 +5613,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft-manager"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5625,6 +5625,25 @@ dependencies = [
  "parity-scale-codec 3.6.9",
  "scale-info",
  "sp-avn-common",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
+]
+
+[[package]]
+name = "pallet-node-manager"
+version = "2.3.1"
+dependencies = [
+ "common-primitives",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-avn",
+ "parity-scale-codec 3.6.9",
+ "scale-info",
+ "sp-application-crypto",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -5986,8 +6005,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-summary"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6030,8 +6049,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-token-manager"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -9032,8 +9051,8 @@ dependencies = [
 
 [[package]]
 name = "sp-avn-common"
-version = "6.6.1"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=main"
+version = "6.7.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.1#18ee79ce884af4fb469ee00f88fbf3288d4965d1"
 dependencies = [
  "derive_more",
  "hex",
@@ -10490,6 +10509,7 @@ dependencies = [
  "pallet-insecure-randomness-collective-flip",
  "pallet-multisig",
  "pallet-nft-manager",
+ "pallet-node-manager",
  "pallet-offences",
  "pallet-pm-authorized",
  "pallet-pm-court",

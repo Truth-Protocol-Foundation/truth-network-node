@@ -21,7 +21,7 @@ use tnf_node_runtime::{
     AssetRegistryStringLimit, AuraConfig, AuthorsManagerConfig, BalancesConfig, CustomMetadata,
     EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, PredictionMarketsConfig,
     RuntimeGenesisConfig, SessionConfig, Signature, SudoConfig, SummaryConfig, SystemConfig,
-    TokenManagerConfig, WASM_BINARY,
+    TokenManagerConfig, WASM_BINARY, NodeManagerConfig
 };
 
 use codec::Encode;
@@ -385,6 +385,12 @@ fn testnet_genesis(
             },
         },
         nft_manager: Default::default(),
+        node_manager: NodeManagerConfig {
+            _phantom: Default::default(),
+            reward_period: 10u32,
+            max_batch_size: 10u32,
+            heart_beat_period: 10u32,
+        },
         advisory_committee: Default::default(),
         tokens: Default::default(),
         asset_registry: AssetRegistryConfig {

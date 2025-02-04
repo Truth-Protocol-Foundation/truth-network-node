@@ -30,6 +30,10 @@ pub struct TnfRunCmd {
     /// URL for connecting with an ethereum node
     #[arg(long = "ethereum-node-url", value_name = "ETH URL")]
     pub eth_node_url: Option<String>,
+
+    /// Flag to specify if the node is registered
+    #[arg(long = "registered-node", value_name = "Registered Node")]
+    pub registered_node: Option<bool>,
 }
 
 impl std::ops::Deref for TnfRunCmd {
