@@ -168,8 +168,8 @@ fn to_eth_query_response<T: TxQueryData>(
     Ok(hex::encode(
         EthQueryResponse {
             data: data.as_encodable().unwrap_or(vec![]).encode(),
-            num_confirmations: current_block_number
-                - data_block_number.unwrap_or(Default::default()).as_u64(),
+            num_confirmations: current_block_number -
+                data_block_number.unwrap_or(Default::default()).as_u64(),
         }
         .encode(),
     ))
@@ -183,8 +183,8 @@ fn error_due_to_low_nonce(error: &RPCError) -> bool {
     // https://github.com/ethereum/go-ethereum/blob/v1.10.26/rpc/json.go#L109-L123
     if error.code == ErrorCode::ServerError(-32000_i64) {
         let error_msg = error.to_string();
-        return error_msg.to_lowercase().find("the tx doesn't have the correct nonce").is_some()
-            || error_msg.to_lowercase().find("nonce too low").is_some();
+        return error_msg.to_lowercase().find("the tx doesn't have the correct nonce").is_some() ||
+            error_msg.to_lowercase().find("nonce too low").is_some();
     }
     return false;
 }
@@ -388,12 +388,10 @@ where
             .map_err(|e| server_error(format!("Error getting block number: {:?}", e)))?;
 
         match query_request.response_type {
-            EthQueryResponseType::CallData => {
-                get_call_data(&web3, current_block_number, tx_hash).await
-            },
-            EthQueryResponseType::TransactionReceipt => {
-                get_tx_receipt(&web3, current_block_number, tx_hash).await
-            },
+            EthQueryResponseType::CallData =>
+                get_call_data(&web3, current_block_number, tx_hash).await,
+            EthQueryResponseType::TransactionReceipt =>
+                get_tx_receipt(&web3, current_block_number, tx_hash).await,
         }
     } else {
         Err(server_error(format!("Failed to acquire web3 mutex")))

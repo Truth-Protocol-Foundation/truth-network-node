@@ -111,12 +111,10 @@ where
 
                 for i in 0..categories {
                     match self.scoring_rule {
-                        ScoringRule::AmmCdaHybrid => {
-                            assets.push(Asset::<MarketId>::CategoricalOutcome(self.market_id, i))
-                        },
-                        ScoringRule::Parimutuel => {
-                            assets.push(Asset::<MarketId>::ParimutuelShare(self.market_id, i))
-                        },
+                        ScoringRule::AmmCdaHybrid =>
+                            assets.push(Asset::<MarketId>::CategoricalOutcome(self.market_id, i)),
+                        ScoringRule::Parimutuel =>
+                            assets.push(Asset::<MarketId>::ParimutuelShare(self.market_id, i)),
                     };
                 }
 
@@ -159,12 +157,10 @@ where
     fn outcome_report_into_asset(&self, outcome_report: &OutcomeReport) -> Option<Asset<MarketId>> {
         match outcome_report {
             OutcomeReport::Categorical(idx) => match self.scoring_rule {
-                ScoringRule::AmmCdaHybrid => {
-                    Some(Asset::<MarketId>::CategoricalOutcome(self.market_id, *idx))
-                },
-                ScoringRule::Parimutuel => {
-                    Some(Asset::<MarketId>::ParimutuelShare(self.market_id, *idx))
-                },
+                ScoringRule::AmmCdaHybrid =>
+                    Some(Asset::<MarketId>::CategoricalOutcome(self.market_id, *idx)),
+                ScoringRule::Parimutuel =>
+                    Some(Asset::<MarketId>::ParimutuelShare(self.market_id, *idx)),
             },
             OutcomeReport::Scalar(_) => None,
         }

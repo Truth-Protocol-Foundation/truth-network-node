@@ -538,7 +538,7 @@ pub mod pallet {
         type Call = Call<T>;
         fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
             match call {
-                Call::offchain_pay_nodes { reward_period_index, author, signature } => {
+                Call::offchain_pay_nodes { reward_period_index, author, signature } =>
                     if AVN::<T>::signature_is_valid(
                         &(PAYOUT_REWARD_CONTEXT, reward_period_index).encode(),
                         &author,
@@ -550,8 +550,7 @@ pub mod pallet {
                             .build()
                     } else {
                         InvalidTransaction::Custom(1u8).into()
-                    }
-                },
+                    },
                 Call::offchain_submit_heartbeat { node, hearbeat_count, signature } => {
                     let node_info = NodeRegistry::<T>::get(&node);
                     match node_info {

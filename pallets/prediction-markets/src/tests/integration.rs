@@ -804,10 +804,10 @@ fn outsider_reports_wrong_outcome() {
         // disputor eve() gets the OracleBond and <Runtime as Config>::OutsiderBond and DisputeBond
         assert_eq!(
             Balances::free_balance(eve()),
-            eve_balance_before
-                + <Runtime as Config>::DisputeBond::get()
-                + <Runtime as Config>::OutsiderBond::get()
-                + <Runtime as Config>::OracleBond::get()
+            eve_balance_before +
+                <Runtime as Config>::DisputeBond::get() +
+                <Runtime as Config>::OutsiderBond::get() +
+                <Runtime as Config>::OracleBond::get()
         );
         // dave() gets his outcome bond back
         assert_eq!(Balances::free_balance(dave()), dave_balance_before);

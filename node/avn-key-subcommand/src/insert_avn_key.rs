@@ -101,9 +101,8 @@ impl InsertAvNKeyCmd {
         let (keystore, public) = match keystore_config {
             KeystoreConfig::Path { path, password } => {
                 let public: Vec<u8> = match self.scheme {
-                    AvNCryptoScheme::EcdsaSeed => {
-                        get_public_key_string_bytes_from_private_key(suri.as_str())?
-                    },
+                    AvNCryptoScheme::EcdsaSeed =>
+                        get_public_key_string_bytes_from_private_key(suri.as_str())?,
                     scheme => with_crypto_scheme!(
                         scheme.to_substrate_crypto_scheme().expect("Already checked"),
                         to_vec(&suri, password.clone())

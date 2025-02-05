@@ -158,9 +158,9 @@ fn reject_market_unreserves_oracle_bond_and_slashes_advisory_bond() {
             Balances::reserved_balance_named(&PredictionMarkets::reserve_id(), &alice());
         assert_eq!(
             balance_reserved_after_alice,
-            balance_reserved_before_alice
-                - <Runtime as Config>::OracleBond::get()
-                - <Runtime as Config>::AdvisoryBond::get(),
+            balance_reserved_before_alice -
+                <Runtime as Config>::OracleBond::get() -
+                <Runtime as Config>::AdvisoryBond::get(),
         );
         let balance_free_after_alice = Balances::free_balance(alice());
         let slash_amount_advisory_bond = <Runtime as Config>::AdvisoryBondSlashPercentage::get()
@@ -169,9 +169,9 @@ fn reject_market_unreserves_oracle_bond_and_slashes_advisory_bond() {
             <Runtime as Config>::AdvisoryBond::get() - slash_amount_advisory_bond;
         assert_eq!(
             balance_free_after_alice,
-            balance_free_before_alice
-                + <Runtime as Config>::OracleBond::get()
-                + advisory_bond_remains,
+            balance_free_before_alice +
+                <Runtime as Config>::OracleBond::get() +
+                advisory_bond_remains,
         );
 
         // AdvisoryBond is transferred to the treasury
