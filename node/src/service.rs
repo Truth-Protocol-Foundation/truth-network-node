@@ -1,5 +1,6 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
+use common_primitives::constants::REGISTERED_NODE_KEY;
 use futures::{lock::Mutex, FutureExt};
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
@@ -14,7 +15,6 @@ use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
 use tnf_node_runtime::{self, opaque::Block, RuntimeApi};
 use tnf_service::web3_utils::Web3Data;
-use common_primitives::constants::REGISTERED_NODE_KEY;
 
 use crate::tnf_config::TnfCliConfiguration;
 

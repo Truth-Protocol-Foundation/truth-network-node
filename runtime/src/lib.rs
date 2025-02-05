@@ -45,7 +45,7 @@ pub use prediction_market_primitives::{constants::*, types::*};
 pub use common_primitives::{
     constants::{
         currency::*, BLOCKS_PER_DAY, BLOCKS_PER_HOUR, BLOCKS_PER_YEAR, MILLISECS_PER_BLOCK,
-        SLOT_DURATION,
+        NODE_MANAGER_PALLET_ID, SLOT_DURATION,
     },
     types::{AccountId, Balance, BlockNumber},
 };
@@ -753,9 +753,11 @@ parameter_types! {
 impl pallet_node_manager::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
-    type AuthorityId = AvnId; // Change me
+    type SignerId = AvnId; // Change me
     type Currency = Balances;
     type RewardPotId = NodeManagerPalletId;
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
     //type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
 }
 
