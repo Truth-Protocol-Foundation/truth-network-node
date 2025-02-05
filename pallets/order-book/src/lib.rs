@@ -305,8 +305,8 @@ mod pallet {
             // this ensures that partial fills, which fill nearly the whole order, are not executed
             // this protects the last fill happening
             // without a division by zero for `Perquintill::from_rational`
-            let is_ratio_quotient_valid = maker_full_fill.is_zero()
-                || maker_full_fill >= T::AssetManager::minimum_balance(order_data.taker_asset);
+            let is_ratio_quotient_valid = maker_full_fill.is_zero() ||
+                maker_full_fill >= T::AssetManager::minimum_balance(order_data.taker_asset);
             ensure!(is_ratio_quotient_valid, Error::<T>::PartialFillNearFullFillNotAllowed);
             Ok(())
         }

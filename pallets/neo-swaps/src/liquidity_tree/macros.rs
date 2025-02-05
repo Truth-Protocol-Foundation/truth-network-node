@@ -37,7 +37,7 @@ macro_rules! assert_liquidity_tree_state {
         let mut error = false;
         for index in 0..max_len {
             match ($expected_nodes.get(index), actual_nodes.get(index)) {
-                (Some(exp), Some(act)) => {
+                (Some(exp), Some(act)) =>
                     if exp != act {
                         error = true;
                         eprintln!(
@@ -46,8 +46,7 @@ macro_rules! assert_liquidity_tree_state {
                         );
                         eprintln!("    Expected node: {:?}", exp);
                         eprintln!("    Actual node:   {:?}", act);
-                    }
-                },
+                    },
                 (None, Some(act)) => {
                     error = true;
                     eprintln!("assert_liquidity_tree_state: Extra node at index {}", index);

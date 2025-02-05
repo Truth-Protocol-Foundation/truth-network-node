@@ -144,8 +144,7 @@ where
 
 fn get_relayer<T: Config>() -> T::AccountId {
     let relayer_account: H256 = H256::repeat_byte(1);
-    return T::AccountId::decode(&mut relayer_account.as_bytes())
-        .expect("valid relayer account id");
+    return T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid relayer account id");
 }
 
 fn get_proof<T: Config>(

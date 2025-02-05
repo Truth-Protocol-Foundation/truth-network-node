@@ -403,21 +403,17 @@ mod pallet {
             let _ = Self::on_resolution(&market_id, &market)?;
             let weight = match market.market_type {
                 MarketType::Scalar(_) => match market.status {
-                    MarketStatus::Reported => {
-                        T::WeightInfo::admin_move_market_to_resolved_scalar_reported(ids_len)
-                    },
-                    MarketStatus::Disputed => {
-                        T::WeightInfo::admin_move_market_to_resolved_scalar_disputed(ids_len)
-                    },
+                    MarketStatus::Reported =>
+                        T::WeightInfo::admin_move_market_to_resolved_scalar_reported(ids_len),
+                    MarketStatus::Disputed =>
+                        T::WeightInfo::admin_move_market_to_resolved_scalar_disputed(ids_len),
                     _ => return Err(Error::<T>::InvalidMarketStatus.into()),
                 },
                 MarketType::Categorical(_) => match market.status {
-                    MarketStatus::Reported => {
-                        T::WeightInfo::admin_move_market_to_resolved_categorical_reported(ids_len)
-                    },
-                    MarketStatus::Disputed => {
-                        T::WeightInfo::admin_move_market_to_resolved_categorical_disputed(ids_len)
-                    },
+                    MarketStatus::Reported =>
+                        T::WeightInfo::admin_move_market_to_resolved_categorical_reported(ids_len),
+                    MarketStatus::Disputed =>
+                        T::WeightInfo::admin_move_market_to_resolved_categorical_disputed(ids_len),
                     _ => return Err(Error::<T>::InvalidMarketStatus.into()),
                 },
             };
@@ -833,18 +829,16 @@ mod pallet {
             let report = market.report.as_ref().ok_or(Error::<T>::MarketIsNotReported)?;
 
             let res_0 = match dispute_mechanism {
-                MarketDisputeMechanism::Authorized => {
-                    T::Authorized::has_failed(&market_id, &market)?
-                },
+                MarketDisputeMechanism::Authorized =>
+                    T::Authorized::has_failed(&market_id, &market)?,
                 MarketDisputeMechanism::Court => T::Court::has_failed(&market_id, &market)?,
             };
             let has_failed = res_0.result;
             ensure!(has_failed, Error::<T>::MarketDisputeMechanismNotFailed);
 
             let res_1 = match dispute_mechanism {
-                MarketDisputeMechanism::Authorized => {
-                    T::Authorized::on_global_dispute(&market_id, &market)?
-                },
+                MarketDisputeMechanism::Authorized =>
+                    T::Authorized::on_global_dispute(&market_id, &market)?,
                 MarketDisputeMechanism::Court => T::Court::on_global_dispute(&market_id, &market)?,
             };
 
@@ -1015,8 +1009,8 @@ mod pallet {
                         }
                     },
                     EarlyCloseState::Rejected => {},
-                    EarlyCloseState::ScheduledAsMarketCreator
-                    | EarlyCloseState::ScheduledAsOther => {
+                    EarlyCloseState::ScheduledAsMarketCreator |
+                    EarlyCloseState::ScheduledAsOther => {
                         return Err(Error::<T>::InvalidEarlyCloseState.into());
                     },
                 }
@@ -1079,13 +1073,12 @@ mod pallet {
             let ids_len_1 = Self::insert_auto_close(&market_id)?;
 
             let weight = match &market.early_close {
-                None => {
+                None =>
                     if is_authorized {
                         T::WeightInfo::schedule_early_close_as_authority(ids_len_0, ids_len_1)
                     } else {
                         T::WeightInfo::schedule_early_close_as_market_creator(ids_len_0, ids_len_1)
-                    }
-                },
+                    },
                 Some(_) => T::WeightInfo::schedule_early_close_after_dispute(ids_len_0, ids_len_1),
             };
 
@@ -1120,9 +1113,9 @@ mod pallet {
             let mut early_close = market.early_close.ok_or(Error::<T>::NoEarlyCloseScheduled)?;
             match early_close.state {
                 EarlyCloseState::ScheduledAsMarketCreator => (),
-                EarlyCloseState::ScheduledAsOther
-                | EarlyCloseState::Disputed
-                | EarlyCloseState::Rejected => {
+                EarlyCloseState::ScheduledAsOther |
+                EarlyCloseState::Disputed |
+                EarlyCloseState::Rejected => {
                     return Err(Error::<T>::InvalidEarlyCloseState.into());
                 },
             };
@@ -2430,8 +2423,8 @@ mod pallet {
                     ensure!(winning_balance > BalanceOf::<T>::zero(), Error::<T>::NoWinningBalance);
 
                     ensure!(
-                        T::AssetManager::free_balance(market.base_asset, &market_account)
-                            >= winning_balance,
+                        T::AssetManager::free_balance(market.base_asset, &market_account) >=
+                            winning_balance,
                         Error::<T>::InsufficientFundsInMarketAccount,
                     );
 
@@ -2444,8 +2437,8 @@ mod pallet {
                     let short_balance = T::AssetManager::free_balance(short_currency_id, &who);
 
                     ensure!(
-                        long_balance > BalanceOf::<T>::zero()
-                            || short_balance > BalanceOf::<T>::zero(),
+                        long_balance > BalanceOf::<T>::zero() ||
+                            short_balance > BalanceOf::<T>::zero(),
                         Error::<T>::NoWinningBalance
                     );
 
@@ -2483,8 +2476,8 @@ mod pallet {
                     let short_payout = short_percent.mul_floor(short_balance);
 
                     ensure!(
-                        T::AssetManager::free_balance(market.base_asset, &market_account)
-                            >= long_payout.saturating_add(short_payout),
+                        T::AssetManager::free_balance(market.base_asset, &market_account) >=
+                            long_payout.saturating_add(short_payout),
                         Error::<T>::InsufficientFundsInMarketAccount,
                     );
 
@@ -2617,13 +2610,12 @@ mod pallet {
             };
 
             let close_ids_len = match market.period {
-                MarketPeriod::Block(range) => {
+                MarketPeriod::Block(range) =>
                     MarketIdsPerCloseBlock::<T>::mutate(range.end, |ids| -> u32 {
                         let ids_len = ids.len() as u32;
                         remove_item::<MarketIdOf<T>, _>(ids, market_id);
                         ids_len
-                    })
-                },
+                    }),
                 MarketPeriod::Timestamp(range) => {
                     let time_frame = Self::calculate_time_frame_of_moment(range.end);
                     MarketIdsPerCloseTimeFrame::<T>::mutate(time_frame, |ids| -> u32 {
@@ -2663,12 +2655,10 @@ mod pallet {
                     // TODO(#782): use multiple benchmarks paths for different dispute mechanisms
                     let ResultWithWeightInfo { result: auto_resolve_block_opt, weight: _ } =
                         match dispute_mechanism {
-                            MarketDisputeMechanism::Authorized => {
-                                T::Authorized::get_auto_resolve(market_id, &market)
-                            },
-                            MarketDisputeMechanism::Court => {
-                                T::Court::get_auto_resolve(market_id, &market)
-                            },
+                            MarketDisputeMechanism::Authorized =>
+                                T::Authorized::get_auto_resolve(market_id, &market),
+                            MarketDisputeMechanism::Court =>
+                                T::Court::get_auto_resolve(market_id, &market),
                         };
                     if let Some(auto_resolve_block) = auto_resolve_block_opt {
                         let ids_len = remove_auto_resolve::<T>(market_id, auto_resolve_block);
@@ -2911,11 +2901,10 @@ mod pallet {
 
                 if let Some(p) = &market.early_close {
                     match p.state {
-                        EarlyCloseState::ScheduledAsMarketCreator => {
+                        EarlyCloseState::ScheduledAsMarketCreator =>
                             if Self::is_close_request_bond_pending(market_id, market, false) {
                                 Self::unreserve_close_request_bond(market_id)?;
-                            }
-                        },
+                            },
                         EarlyCloseState::Disputed => {
                             // this is the case that the original close happened,
                             // although requested early close or disputed

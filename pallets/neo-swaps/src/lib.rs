@@ -570,8 +570,8 @@ mod pallet {
                     Error::<T>::NumericalLimits(NumericalLimitsError::MaxAmountExceeded),
                 );
                 ensure!(
-                    pool.calculate_buy_ln_argument(asset_out, amount_in_minus_fees)?
-                        >= LN_NUMERICAL_LIMIT.saturated_into(),
+                    pool.calculate_buy_ln_argument(asset_out, amount_in_minus_fees)? >=
+                        LN_NUMERICAL_LIMIT.saturated_into(),
                     Error::<T>::NumericalLimits(NumericalLimitsError::MinAmountNotMet),
                 );
                 let swap_amount_out =
@@ -813,8 +813,8 @@ mod pallet {
                         let remaining_pool_shares_ratio = remaining_pool_shares_amount
                             .bdiv_floor(pool.liquidity_shares_manager.total_shares()?)?;
                         ensure!(
-                            remaining_pool_shares_ratio
-                                >= MIN_RELATIVE_LP_POSITION_VALUE.saturated_into(),
+                            remaining_pool_shares_ratio >=
+                                MIN_RELATIVE_LP_POSITION_VALUE.saturated_into(),
                             Error::<T>::MinRelativeLiquidityThresholdViolated
                         );
                     }
@@ -870,8 +870,8 @@ mod pallet {
             ensure!(
                 spot_prices
                     .iter()
-                    .fold(Zero::zero(), |acc: BalanceOf<T>, &val| acc.saturating_add(val))
-                    == BASE.saturated_into(),
+                    .fold(Zero::zero(), |acc: BalanceOf<T>, &val| acc.saturating_add(val)) ==
+                    BASE.saturated_into(),
                 Error::<T>::InvalidSpotPrices
             );
             for &p in spot_prices.iter() {
@@ -1015,10 +1015,10 @@ mod pallet {
                 Error::<T>::NumericalLimits(NumericalLimitsError::MaxAmountExceeded).into();
             let min_amount_not_met: DispatchError =
                 Error::<T>::NumericalLimits(NumericalLimitsError::MinAmountNotMet).into();
-            if spot_price_too_low == error
-                || spot_price_slipped_too_low == error
-                || max_amount_exceeded == error
-                || min_amount_not_met == error
+            if spot_price_too_low == error ||
+                spot_price_slipped_too_low == error ||
+                max_amount_exceeded == error ||
+                min_amount_not_met == error
             {
                 ApiError::SoftFailure(AmmSoftFail::Numerical)
             } else {

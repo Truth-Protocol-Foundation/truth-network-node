@@ -168,11 +168,11 @@ impl DeployPoolMock {
             return false;
         }
         let args = DEPLOY_POOL_CALL_DATA.with(|value| value.borrow()[0].clone());
-        args.who == who
-            && args.market_id == market_id
-            && args.amount == amount
-            && args.swap_prices == swap_prices
-            && args.swap_fee == swap_fee
+        args.who == who &&
+            args.market_id == market_id &&
+            args.amount == amount &&
+            args.swap_prices == swap_prices &&
+            args.swap_fee == swap_fee
     }
 
     pub fn return_error() {

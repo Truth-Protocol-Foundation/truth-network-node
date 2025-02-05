@@ -1082,9 +1082,9 @@ mod pallet {
 
             let mut handle_vote = |draw: DrawOf<T>| -> DispatchResult {
                 match draw.vote {
-                    Vote::Drawn
-                    | Vote::Secret { commitment: _ }
-                    | Vote::Denounced { commitment: _, vote_item: _, salt: _ } => {
+                    Vote::Drawn |
+                    Vote::Secret { commitment: _ } |
+                    Vote::Denounced { commitment: _, vote_item: _, salt: _ } => {
                         slash_juror(&draw.court_participant, draw.slashable);
                     },
                     Vote::Revealed { commitment: _, vote_item, salt: _ } => {
@@ -1816,8 +1816,8 @@ mod pallet {
                                     .clone()
                                     .into_iter()
                                     .fold(Zero::zero(), |acc: BalanceOf<T>, (_, stake)| acc
-                                        .saturating_add(stake))
-                                    == slashable
+                                        .saturating_add(stake)) ==
+                                    slashable
                             );
                             Vote::Delegated { delegated_stakes }
                         } else {
@@ -2097,7 +2097,7 @@ mod pallet {
             let mut winners = Vec::<(T::AccountId, BalanceOf<T>)>::new();
             for (juror, JurorVoteWithStakes { self_info, delegations }) in jurors_to_stakes.iter() {
                 match self_info {
-                    Some(SelfInfo { slashable, vote_item }) => {
+                    Some(SelfInfo { slashable, vote_item }) =>
                         if vote_item == winner_vote_item {
                             winners.push((juror.clone(), *slashable));
                             total_winner_stake = total_winner_stake.saturating_add(*slashable);
@@ -2121,8 +2121,7 @@ mod pallet {
 
                             let imb = slash_all_delegators(delegations.as_slice());
                             total_incentives.subsume(imb);
-                        }
-                    },
+                        },
                     None => {
                         // in this case the delegators have delegated their vote
                         // to a tardy or denounced juror
@@ -2257,12 +2256,10 @@ mod pallet {
                 },
                 Vote::Drawn => Err(Error::<T>::JurorDidNotVote.into()),
                 Vote::Delegated { delegated_stakes: _ } => Err(Error::<T>::JurorDelegated.into()),
-                Vote::Revealed { commitment: _, vote_item: _, salt: _ } => {
-                    Err(Error::<T>::VoteAlreadyRevealed.into())
-                },
-                Vote::Denounced { commitment: _, vote_item: _, salt: _ } => {
-                    Err(Error::<T>::VoteAlreadyDenounced.into())
-                },
+                Vote::Revealed { commitment: _, vote_item: _, salt: _ } =>
+                    Err(Error::<T>::VoteAlreadyRevealed.into()),
+                Vote::Denounced { commitment: _, vote_item: _, salt: _ } =>
+                    Err(Error::<T>::VoteAlreadyDenounced.into()),
             }
         }
     }
@@ -2483,8 +2480,8 @@ mod pallet {
                         .saturating_mul(T::MinJurorStake::get().saturated_into::<u128>());
                     let valid_period = Self::check_appealable_market(court_id, &court, now).is_ok();
 
-                    if appeals.is_full()
-                        || (valid_period && (pool_unconsumed_stake < required_stake))
+                    if appeals.is_full() ||
+                        (valid_period && (pool_unconsumed_stake < required_stake))
                     {
                         has_failed = true;
                     }

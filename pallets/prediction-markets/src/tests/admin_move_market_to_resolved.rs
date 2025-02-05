@@ -71,15 +71,15 @@ fn admin_move_market_to_resolved_resolves_reported_market() {
 
         assert_eq!(
             Balances::reserved_balance_named(&PredictionMarkets::reserve_id(), &alice()),
-            balance_reserved_before
-                - <Runtime as Config>::OracleBond::get()
-                - <Runtime as Config>::ValidityBond::get()
+            balance_reserved_before -
+                <Runtime as Config>::OracleBond::get() -
+                <Runtime as Config>::ValidityBond::get()
         );
         assert_eq!(
             Balances::free_balance(alice()),
-            balance_free_before
-                + <Runtime as Config>::OracleBond::get()
-                + <Runtime as Config>::ValidityBond::get()
+            balance_free_before +
+                <Runtime as Config>::OracleBond::get() +
+                <Runtime as Config>::ValidityBond::get()
         );
     };
     ExtBuilder::default().build().execute_with(|| {
@@ -146,9 +146,9 @@ fn admin_move_market_to_resolved_resolves_disputed_market() {
 
         assert_eq!(
             Balances::reserved_balance_named(&PredictionMarkets::reserve_id(), &alice()),
-            balance_reserved_before
-                - <Runtime as Config>::OracleBond::get()
-                - <Runtime as Config>::ValidityBond::get()
+            balance_reserved_before -
+                <Runtime as Config>::OracleBond::get() -
+                <Runtime as Config>::ValidityBond::get()
         );
         assert_eq!(
             Balances::free_balance(alice()),

@@ -421,8 +421,8 @@ fn schedule_early_close_disputed_sudo_schedule_and_settle_bonds() {
         // market creator Alice gets the bonds
         assert_eq!(
             free_alice_after - free_alice,
-            <Runtime as Config>::CloseEarlyRequestBond::get()
-                + <Runtime as Config>::CloseEarlyDisputeBond::get()
+            <Runtime as Config>::CloseEarlyRequestBond::get() +
+                <Runtime as Config>::CloseEarlyDisputeBond::get()
         );
         assert_eq!(free_bob_after - free_bob, 0);
 
