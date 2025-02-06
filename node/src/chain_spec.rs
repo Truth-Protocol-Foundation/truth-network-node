@@ -270,6 +270,201 @@ pub fn testnet_config() -> Result<ChainSpec, String> {
     ))
 }
 
+pub fn dev_testnet_config() -> Result<ChainSpec, String> {
+    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+
+    Ok(ChainSpec::from_genesis(
+        // Name
+        "Tnf Dev Testnet",
+        // ID
+        "tnf_dev_testnet",
+        ChainType::Live,
+        move || {
+            testnet_genesis(
+                wasm_binary,
+                // Initial PoA authorities
+                dev_testnet_candidates_keys(),
+                // Sudo account
+                AccountId::from(hex![
+                    "8276f54bd529de582ee80d457c6ea10ce3167ffebd6eb015a1adcd7e2c2ab469"
+                ]),
+                // Pre-funded accounts
+                vec![
+                    // Sudo account
+                    AccountId::from(hex![
+                        "8276f54bd529de582ee80d457c6ea10ce3167ffebd6eb015a1adcd7e2c2ab469"
+                    ]),
+                    get_account_id_from_seed::<sr25519::Public>("Bank"),
+                ],
+                true,
+                // TNF bridge contract
+                H160(hex!("5816CEDff9DE7c5FB13dcFb1cE9038014b929b7E")),
+                // Processed events
+                vec![],
+                // Lift transactions
+                vec![],
+                NORMAL_EVENT_CHALLENGE_PERIOD,
+                EIGHT_HOURS_SCHEDULE_PERIOD,
+                NORMAL_VOTING_PERIOD,
+                // Tnf native token contract
+                H160(hex!("25560bD4FD693922450D99188Fab23472e59015F")),
+                dev_testnet_ethereum_public_keys(),
+                None,
+            )
+        },
+        // Bootnodes
+        vec![],
+        // Telemetry
+        None,
+        // Protocol ID
+        None,
+        None,
+        // Properties
+        tnf_chain_properties(),
+        // Extensions
+        None,
+    ))
+}
+
+pub(crate) fn dev_testnet_candidates_keys(
+) -> Vec<(AccountId, AuraId, GrandpaId, AuthorityDiscoveryId, ImOnlineId, AvnId)> {
+    let initial_authorities: Vec<(
+        AccountId,
+        AuraId,
+        GrandpaId,
+        AuthorityDiscoveryId,
+        ImOnlineId,
+        AvnId,
+    )> = vec![
+        (
+            // account: 5H944g4h6ZyJN1DzZUK86FnRjiGGkavDfWZxmVRMfwL56jNw
+            hex!["e07e2bf370c83cc5e587bb043b89e405a08eccf951fbda61a8f59992e79dcf79"].into(),
+            // aura: 5CGDXdqf3u4qNEwyak5UKz9eoK71vX2qrsbpeFdTYrVnCmXM
+            hex!["08c79573882a16cc29ead931e5ce71301cae17a60dcd9bea18d5e0994dadc926"]
+                .unchecked_into(),
+            // gran: 5HijQmtC3pKpzAQPBTtZkuNMZpFuTo2FTepYni6uBJxu9Yye
+            hex!["fa2db8ebafaeecaf37606c4094cc04deb4f44149edf30b3f6422df382d0569ca"]
+                .unchecked_into(),
+            // audi: 5GQWmjRsA2A6Pj5Phe9GoxZWPm2rcKnubjjKGJKKaYz2K2Ah
+            hex!["c00c86ade6ed9e1d6e3a5c81870ed51c067c7750eea951642a6d0e71b2376a73"]
+                .unchecked_into(),
+            // imon: 5HYXg2i8Et2cVi4HikXsd6upXu6ZdkwjpqRg31HxvdZNHAkG
+            hex!["f265c215048c119627b16381e8f93896eafbc11af46fee9af20c6bbb74aca266"]
+                .unchecked_into(),
+            // avnk: 5GxZM8wN3JSwLozGbSzvtkBnZb7CTVHToafE9twqUFgFteTR
+            hex!["d87d0ceb36d44d38367c9cbc37dc13dd618d1f220adc4823adc916ca48b68060"]
+                .unchecked_into(),
+        ),
+        (
+            // account: 5EeZcKuD7T4mVG377JWxK7XqziBZwY4iGZxRqLvk3CzVbRRo
+            hex!["724b0c3f8edec4763f1de1aaa763d8b6bbfe898eff0cf84cb0fe21506ba6bc33"].into(),
+            // aura: 5DRjy31RkFw3bLFvjRRyRceJNv2DEtpdtHSCgNytNq6QYcmH
+            hex!["3c477d3351e4ab5b398a2a2c1caa883f6c18e2d1662161a7f72c60cf300ef71b"]
+                .unchecked_into(),
+            // gran: 5Fcrkj4MBYkPvEDWFdVaLQxUa2EMbizSdsz8iXj2711Rc3e9
+            hex!["9d3a814cfd374533eba1f16dc53b9b7ed4de7b04f6138cebf8ec69c1866822c5"]
+                .unchecked_into(),
+            // audi: 5Fsjv5jxHcoJrKyx13efnfi2h81eWrWeid2naCTFDNpUriYv
+            hex!["a8942a43fb2884c69beea41a67307380ff938b94a2251098e93538dabba20f65"]
+                .unchecked_into(),
+            // imon: 5DUNUydzuYzRHs3iRfKwoLyzBrzhykD7TW2qvPPrnw5Y3kQr
+            hex!["3e48e78ce622117b009921e3988d813324423cdfc107249be0dc79a76b26d63f"]
+                .unchecked_into(),
+            // avnk: 5HZ1dxdzscfNXio4abPzdyLwHg5Z6zvmKHMFZ82MK21tm7xS
+            hex!["f2c3e4f638ff276c7c89eda87aa82d8556716e56fb83abc23c6f5f4effed4219"]
+                .unchecked_into(),
+        ),
+        (
+            // account: 5HbgK4dQ1gb7jnxy8DF1L8TXeizSPeRvHhGZ4v1yonCUDpoy
+            hex!["f4cc92fa71b6cc32d93a10d8e828cc6803bb6ea603c1c70b2b5413f7d6ac853e"].into(),
+            // aura: 5Hjd87cLkfmRRZaXJqKd3fbcAHSqidj2ietJ49XqKtK36ka4
+            hex!["fadbcd9279170b4f511d6359fe60654102eba4058bd89ca314e5e1836db3b63e"]
+                .unchecked_into(),
+            // gran: 5DrdJ3e2hXdcmYFwG3sD32zpRCLa1KXYLkS6CeB7EL3JjUUQ
+            hex!["4f4229d85f535798251ef8100955428a43dc0fe073cd90e7d55e974160bb16f3"]
+                .unchecked_into(),
+            // audi: 5GX1GWLmiRYKiUtpDV7Nmk3Qqk7DHiFvzFiDnhueeMH6Cfwo
+            hex!["c4ffeccb00b15837e0f27b4659b2bcfbbe51de46783c35fde403fbe1b69a770d"]
+                .unchecked_into(),
+            // imon: 5EvGxChWcCWnhPHZBdgmKMfwYSmDxNXaU4b1uMUkg2PnC1yG
+            hex!["7e46e69ad174e683d774c5bfe215fc81293f0e1bd43f62dc8772269213c8287f"]
+                .unchecked_into(),
+            // avnk: 5GsJJ61iJJkAU5JF3J957X56Ckpo1oHbdVw8iAgEerF4ucpL
+            hex!["d47a26e299ff5e6fd7e4e1119750a5d3a1424be51e308357bb35b6e94187354c"]
+                .unchecked_into(),
+        ),
+        (
+            // account: 5EZfSzbFWgxsbQEF8tCNf2A1cG41uyN21BNPTET9VSvyDYJk
+            hex!["6e8e7a18fbcfa0afdb43ebc32e447c162e08129f42b918995660a0e94ddd102b"].into(),
+            // aura: 5Fe7A9cjn144wtGT6pZjLznCoz1TkM3GLAaHnSbWhpqZ8mDF
+            hex!["9e2e3cf8f48d318281220b502a94da2a0ec952b69d8bb428096a76f15d436b61"]
+                .unchecked_into(),
+            // gran: 5GTc2WwFGrWhpSuxUuRkRAGxS9MMyzazK72nzfAYXAFffFVe
+            hex!["c267f3af8be22e1fe2ca48748aa3550e3f3c5870b70b071411571d749c3e43f0"]
+                .unchecked_into(),
+            // audi: 5G9d5nYgonoppGBFyCFFLwmyazw6uvvvVZcYMd9E3CPzGL5e
+            hex!["b4b11735780e7e7430c52c9316746d01af4c4d4ba19740b08edd1c68c8bb0738"]
+                .unchecked_into(),
+            // imon: 5FkNYgAk6UA6nFrRd2JU3C6Qrj8HhccANbDTY4G1eNVR5pjJ
+            hex!["a2f583363a633fe48d2294352f3c213a18f032f6082227a80c28cbaa9dc0f035"]
+                .unchecked_into(),
+            // avnk: 5C7NxXheZpZQBKF7wM9XR2KCgiXFwMcJMwH7qoeM898Wbpg4
+            hex!["020a1de05bc2d5f516a2dc4bba1c914dcdd2319f557298ec5a176a7d43874337"]
+                .unchecked_into(),
+        ),
+        (
+            // account: 5ERk5KpNhR1uKE3E2X5tyxWRcVR9TL91AHj6DUfe3wA71gTH
+            hex!["6884166b647a650bfb9670d3d0f316fc6243177ad9465a0165b049577246ef69"].into(),
+            // aura: 5HRLq5YRS6MDKmL3q3VDJpFn7hjUbxRWmmwBo7Hc29vkCNiw
+            hex!["ecea8943f84c46eee1d4e3deaf84aad2e56568bd8bd8d5ab1c809574d8057b2d"]
+                .unchecked_into(),
+            // gran: 5DGsD6CDfAageJWvgGwWHwGvb4RXi38Rg4xrcDYZq1bHkd71
+            hex!["3582a907642802f569c827a858576944b33e52475b51e9d31449a81227434e7c"]
+                .unchecked_into(),
+            // audi: 5EoH4jAduoW2oGxJ2RU1dZ8ibczfSyF2RoRvrMztJ1TVTJrM
+            hex!["78f08fcb4b2cd71498a596c6da23ddd99f0554f55f493f2c26cfba2e9aa6b95a"]
+                .unchecked_into(),
+            // imon: 5CRpyst9mdMZRKTrtK2MFvXvTzuBNtiH8rGZjC2goYECAkHZ
+            hex!["101c22d22ff524f9c981ec3797f3fc89fea3e5a042027a9656daa5900c865b4b"]
+                .unchecked_into(),
+            // avnk: 5FRyVT21TuDzkEjvCXjnFrWpg4ExWz5Lv5M8NTfUDSio1LHh
+            hex!["94ed7bab9da720d457094c3d79a524443c74cea46bf830a2636fc57720b0ce71"]
+                .unchecked_into(),
+        ),
+    ];
+    return initial_authorities;
+}
+
+pub(crate) fn dev_testnet_ethereum_public_keys() -> Vec<EthPublicKey> {
+    return vec![
+        // 0x4EFfeDe129e2f74A7Cf8b559Bc7c5713097A7c80
+        ecdsa::Public::from_slice(&hex![
+            "02485ee3a192eb693ec705eb437f418a46db3dc3616699b80e6bd77a2389366c02"
+        ])
+        .unwrap(),
+        // 0x906b3D48f9595888d4ea7fd0ea5769438D1628Ac
+        ecdsa::Public::from_slice(&hex![
+            "033aed797b6ee54187db786592a065c48976221a662beddad8ee4f2cfcf04b5604"
+        ])
+        .unwrap(),
+        // 0x360E608b4D6a63646c09A272c02001E21CAb8869
+        ecdsa::Public::from_slice(&hex![
+            "0297396dd5aa6ab7bede976e440a4f96324a48e612943f95f436242318f35a127a"
+        ])
+        .unwrap(),
+        // 0x82baEdC5e93c59F2ac97c0f65bb4499CBd1ba03A
+        ecdsa::Public::from_slice(&hex![
+            "03ea4210cc61cd598f760dd0f7de1c8458ba16cd2c0fc4bef232e484ca820fd511"
+        ])
+        .unwrap(),
+        // 0xB1DD07E7DF6b2f11A9305a98cbcdb7Dc403f9655
+        ecdsa::Public::from_slice(&hex![
+            "0231ebb34b20b5f9d2761feef8f55ab50a5041634a7e190945ddf9c9c847dd851c"
+        ])
+        .unwrap(),
+    ]
+}
+
 /// Configure initial storage state for FRAME modules.
 fn testnet_genesis(
     wasm_binary: &[u8],
