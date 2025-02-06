@@ -15,17 +15,27 @@ use pallet_avn::{self as avn};
 use parity_scale_codec::{Decode, Encode, FullCodec};
 use sp_application_crypto::RuntimeAppPublic;
 use sp_avn_common::{event_types::Validator, verify_multi_signature};
-use sp_core::{crypto::AccountId32, MaxEncodedLen};
+use sp_core::MaxEncodedLen;
 use sp_runtime::{
     offchain::storage::StorageValueRef,
     scale_info::TypeInfo,
-    traits::{AccountIdConversion, Dispatchable, IdentifyAccount, Verify, Zero},
+    traits::{AccountIdConversion, Dispatchable, IdentifyAccount, Verify},
     transaction_validity::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
         ValidTransaction,
     },
     DispatchError, Perbill, RuntimeDebug, Saturating,
 };
+
+// Definition of the crypto to use for signing
+pub mod sr25519 {
+    mod app_sr25519 {
+        use sp_application_crypto::{app_crypto, KeyTypeId, sr25519};
+        app_crypto!(sr25519, KeyTypeId(*b"nodk"));
+    }
+
+    pub type AuthorityId = app_sr25519::Public;
+}
 
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::*;
@@ -58,7 +68,7 @@ pub mod pallet {
         _,
         Blake2_128Concat,
         T::AccountId, // node account
-        NodeInfo<T::AccountId>,
+        NodeInfo<T::SignerId, T::AccountId>,
         OptionQuery,
     >;
 
@@ -123,8 +133,8 @@ pub mod pallet {
         RewardPeriodIndex,
         Blake2_128Concat,
         T::AccountId, // node account
-        u64,          // uptime measure
-        ValueQuery,
+        UptimeInfo<BlockNumberFor<T>>,
+        OptionQuery,
     >;
 
     /// The total uptime for each reward period.
@@ -237,6 +247,14 @@ pub mod pallet {
         NodeOwnerNotFound,
         /// The reward payment request is invalid
         InvalidRewardPaymentRequest,
+        /// Reward payment is already in progress
+        PaymentInProgress,
+        /// Heartbeat has already been submitted
+        DuplicateHeartbeat,
+        /// Heartbeat submission is not valid
+        InvalidHeartbeat,
+        /// The node is not registered
+        NodeNotRegistered,
     }
 
     #[pallet::config]
@@ -289,18 +307,17 @@ pub mod pallet {
             origin: OriginFor<T>,
             node: T::AccountId,
             owner: T::AccountId,
-            signing_key: T::AccountId,
+            signing_key: T::SignerId,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
             let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
             ensure!(who == registrar, Error::<T>::InvalidRegistrar);
             ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
-            ensure!(signing_key != node, Error::<T>::InvalidSigningKey);
 
             <OwnedNodes<T>>::insert(&owner, &node, ());
             <NodeRegistry<T>>::insert(
                 &node,
-                NodeInfo::<T::AccountId>::new(owner.clone(), signing_key),
+                NodeInfo::<T::SignerId, T::AccountId>::new(owner.clone(), signing_key),
             );
             Self::deposit_event(Event::NodeRegistered { owner, node });
 
@@ -360,18 +377,15 @@ pub mod pallet {
             _author: Author<T>,
             _signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
         ) -> DispatchResult {
-            let _who = ensure_signed(origin)?;
+            ensure_none(origin)?;
 
             let last_paid_pointer = LastPaidPointer::<T>::get();
             let oldest_period = OldestUnpaidRewardPeriodIndex::<T>::get();
             let current_period = RewardPeriod::<T>::get().current;
 
-            ensure!(reward_period_index == oldest_period, Error::<T>::InvalidRewardPaymentRequest);
-
             // Only pay for completed periods whose payment has not started
-            if oldest_period >= current_period || last_paid_pointer.is_some() {
-                return Ok(());
-            }
+            ensure!(reward_period_index == oldest_period && oldest_period < current_period, Error::<T>::InvalidRewardPaymentRequest);
+            ensure!(last_paid_pointer.is_none(), Error::<T>::PaymentInProgress);
 
             let total_hearbeats = TotalUptime::<T>::get(&oldest_period);
             let maybe_node_uptime = NodeUptime::<T>::iter_prefix(oldest_period).next();
@@ -405,7 +419,7 @@ pub mod pallet {
             }
 
             for (node, uptime) in iter.by_ref().take(max_batch_size as usize) {
-                let reward_amount = Self::calculate_reward(uptime, &total_hearbeats, &total_reward);
+                let reward_amount = Self::calculate_reward(uptime.count, &total_hearbeats, &total_reward);
                 Self::pay_reward(&oldest_period, node.clone(), reward_amount);
 
                 last_node_paid = Some(node.clone());
@@ -429,16 +443,36 @@ pub mod pallet {
         pub fn offchain_submit_heartbeat(
             origin: OriginFor<T>,
             node: T::AccountId,
-            hearbeat_count: u64,
-            _signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
+            reward_period_index: RewardPeriodIndex,
+            heartbeat_count: u64,
+            _signature: <T::SignerId as RuntimeAppPublic>::Signature,
         ) -> DispatchResult {
             ensure_none(origin)?;
 
-            // TODO: Validate transaction
+            ensure!(<NodeRegistry<T>>::contains_key(&node), Error::<T>::NodeNotRegistered);
             let current_reward_period = RewardPeriod::<T>::get().current;
+            let maybe_uptime_info = <NodeUptime<T>>::get(reward_period_index, &node);
 
-            <NodeUptime<T>>::mutate(&current_reward_period, &node, |h| {
-                *h = h.saturating_add(1);
+            ensure!(current_reward_period == reward_period_index, Error::<T>::InvalidHeartbeat);
+
+            if let Some(uptime_info) = maybe_uptime_info {
+                let expected_submission = uptime_info.last_reported + BlockNumberFor::<T>::from(HeartbeatPeriod::<T>::get());
+                ensure!(frame_system::Pallet::<T>::block_number() > expected_submission, Error::<T>::DuplicateHeartbeat);
+                ensure!(heartbeat_count == info.count, Error::<T>::InvalidHeartbeat);
+            } else {
+                ensure!(heartbeat_count == 0, Error::<T>::InvalidHeartbeat);
+            }
+
+            <NodeUptime<T>>::mutate(&current_reward_period, &node, |maybe_info| {
+                if let Some(info) = maybe_info.as_mut() {
+                    info.count = info.count.saturating_add(1);
+                    info.last_reported = frame_system::Pallet::<T>::block_number();
+                } else {
+                    *maybe_info = Some(UptimeInfo {
+                        count: 1,
+                        last_reported: frame_system::Pallet::<T>::block_number(),
+                    });
+                }
             });
 
             <TotalUptime<T>>::mutate(&current_reward_period, |total| {
@@ -487,47 +521,71 @@ pub mod pallet {
         fn offchain_worker(n: BlockNumberFor<T>) {
             log::info!("🌐 OCW for node manager");
 
-            let (can_run_ocw_as_author, maybe_author) = Self::can_run_ocw_as_author(n);
+            let reward_period_index = OldestUnpaidRewardPeriodIndex::<T>::get();
 
-            if can_run_ocw_as_author && Self::offchain_trigger_payment().unwrap_or(false) {
-                let reward_period_index = OldestUnpaidRewardPeriodIndex::<T>::get();
+            let maybe_author = Self::try_get_node_author(n);
+            if let Some(ref author) = maybe_author {
+                // This is an author node
+                if Self::offchain_trigger_payment().unwrap_or(false) {
+                    log::info!("🌐 Triggering payment for period: {:?}", reward_period_index);
 
-                // trigger payment
-                log::info!("🌐 Triggering payment for period: {:?}", reward_period_index);
-
-                if let Some(ref author) = maybe_author {
                     let signature = author
                         .key
-                        .sign(&(PAYOUT_REWARD_CONTEXT, reward_period_index).encode())
-                        .expect("Error signing proof");
-                    let call = Call::<T>::offchain_pay_nodes {
-                        reward_period_index,
-                        author: author.clone(),
-                        signature,
-                    };
-                    let _ =
-                        SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
+                        .sign(&(PAYOUT_REWARD_CONTEXT, reward_period_index).encode());
+
+                    match signature {
+                        Some(signature) => {
+                            let call = Call::<T>::offchain_pay_nodes {
+                                reward_period_index,
+                                author: author.clone(),
+                                signature,
+                            };
+
+                            if let Err(e) = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()) {
+                                log::error!("💔 Error submitting transaction to trigger payment. Period: {:?}, Error: {:?}", reward_period_index, e);
+                            }
+                        },
+                        None => {
+                            log::error!("💔 Error signing payment transaction. Period: {:?}", reward_period_index);
+                        },
+                    }
                 }
+
+                // If this is an author node, we don't need to send a heartbeat
+                return;
             }
 
-            if Self::should_send_hearbeat(n) {
-                // send heartbeat
-                log::info!("🌐 Sending heartbeat");
+            let maybe_node_key = Self::get_node();
+            if let Some((node, signing_key)) = maybe_node_key {
+                if Self::should_send_hearbeat(n, reward_period_index, &node) {
+                    log::info!("🌐 Sending heartbeat");
 
-                if let Some(author) = maybe_author {
-                    // remove this condition
-                    let hearbeat_count = 10u64;
-                    let signature = author
-                        .key
-                        .sign(&(HEARTBEAT_CONTEXT, hearbeat_count).encode())
-                        .expect("Error signing proof");
-                    let call = Call::<T>::offchain_submit_heartbeat {
-                        node: author.account_id,
-                        hearbeat_count,
-                        signature,
-                    };
-                    let _ =
-                        SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
+                    let heartbeat_count = <NodeUptime<T>>::get(reward_period_index, &node)
+                        .map(|info| info.count)
+                        .unwrap_or(0);
+
+                    log::info!("🌐 Heartbeat count: {:?}", heartbeat_count);
+                    let signature = signing_key
+                        .sign(&(HEARTBEAT_CONTEXT, heartbeat_count, reward_period_index).encode());
+
+                    match signature {
+                        Some(signature) => {
+                            let call = Call::<T>::offchain_submit_heartbeat {
+                                node,
+                                reward_period_index,
+                                heartbeat_count,
+                                signature,
+                            };
+
+                            if let Err(e) = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()) {
+                                log::error!("💔 Error submitting heartbeat transaction. Period: {:?}, Heartbeat count: {:?}, Error: {:?}", reward_period_index, heartbeat_count, e);
+                            }
+                            log::info!("🌐 transaction sent");
+                        },
+                        None => {
+                            log::error!("💔 Error signing heartbeat transaction. Period: {:?}", reward_period_index);
+                        },
+                    }
                 }
             }
         }
@@ -540,7 +598,7 @@ pub mod pallet {
             match call {
                 Call::offchain_pay_nodes { reward_period_index, author, signature } =>
                     if AVN::<T>::signature_is_valid(
-                        &(PAYOUT_REWARD_CONTEXT, reward_period_index).encode(),
+                        &(PAYOUT_REWARD_CONTEXT, reward_period_index),
                         &author,
                         signature,
                     ) {
@@ -551,24 +609,24 @@ pub mod pallet {
                     } else {
                         InvalidTransaction::Custom(1u8).into()
                     },
-                Call::offchain_submit_heartbeat { node, hearbeat_count, signature } => {
+                Call::offchain_submit_heartbeat { node, reward_period_index, heartbeat_count, signature } => {
                     let node_info = NodeRegistry::<T>::get(&node);
                     match node_info {
                         Some(info) => {
-                            // if verify_multi_signature::<T::Signature, T::AccountId>(
-                            //     &info.signing_key,
-                            //     signature,
-                            //     &(HEARTBEAT_CONTEXT, info.owner, hearbeat_count).encode(),
-                            // ).is_ok() {
-                            return ValidTransaction::with_tag_prefix("NodeManagerHeartbeat")
-                                .and_provides(call)
-                                .priority(TransactionPriority::max_value())
-                                .build();
-                            // } else {
-                            //     return InvalidTransaction::Custom(1u8).into();
-                            // }
-                        },
-                        None => InvalidTransaction::Custom(2u8).into(),
+                            if Self::signature_is_valid(
+                                &(HEARTBEAT_CONTEXT, heartbeat_count, reward_period_index),
+                                &info.signing_key,
+                                signature,
+                            ) {
+                                return ValidTransaction::with_tag_prefix("NodeManagerHeartbeat")
+                                    .and_provides(call)
+                                    .priority(TransactionPriority::max_value())
+                                    .build();
+                            } else {
+                                return InvalidTransaction::Custom(2u8).into();
+                            }
+                    },
+                        _ => InvalidTransaction::Custom(3u8).into(),
                     }
                 },
                 _ => InvalidTransaction::Call.into(),
@@ -577,10 +635,28 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        fn can_run_ocw_as_author(block_number: BlockNumberFor<T>) -> (bool, Option<Author<T>>) {
+        pub fn signature_is_valid<D: Encode>(
+            data: &D,
+            signer: &T::SignerId,
+            signature: &<T::SignerId as RuntimeAppPublic>::Signature,
+        ) -> bool {
+            let signature_valid =
+                data.using_encoded(|encoded_data| signer.verify(&encoded_data, &signature));
+
+            log::error!(
+                "🪲 Validating signature: [ data {:?} - account {:?} - signature {:?} ] Result: {}",
+                data.encode(),
+                signer.encode(),
+                signature,
+                signature_valid
+            );
+            return signature_valid
+        }
+
+        fn try_get_node_author(block_number: BlockNumberFor<T>) -> Option<Author<T>> {
             let setup_result = AVN::<T>::pre_run_setup(block_number, OCW_ID.to_vec());
             if let Err(_) = setup_result {
-                return (false, None);
+                return None;
             }
 
             let (this_author, _) = setup_result.expect("We have an author");
@@ -588,10 +664,10 @@ pub mod pallet {
 
             if is_primary.is_err() {
                 log::error!("💔 Error checking if author is Primary");
-                return (false, None);
+                return None;
             }
 
-            return (true, Some(this_author));
+            return Some(this_author);
         }
 
         fn offchain_trigger_payment() -> Result<bool, ()> {
@@ -624,7 +700,19 @@ pub mod pallet {
             return Ok(false);
         }
 
-        fn should_send_hearbeat(block_number: BlockNumberFor<T>) -> bool {
+        fn get_node() -> Option<(T::AccountId, T::SignerId)> {
+            // This will return all keys whose keytype is set to `Ethereum_events`
+            let mut local_keys = T::SignerId::all();
+            local_keys.sort();
+
+            return NodeRegistry::<T>::iter()
+                .filter_map(move |(node_id, info)| {
+                    local_keys.binary_search(&info.signing_key).ok().map(|_| (node_id, info.signing_key))
+                })
+                .nth(0)
+        }
+
+        fn should_send_hearbeat(block_number: BlockNumberFor<T>, reward_period_index: RewardPeriodIndex, node: &T::AccountId) -> bool {
             let maybe_registered_node =
                 StorageValueRef::persistent(REGISTERED_NODE_KEY).get::<bool>();
             let registered_node = match maybe_registered_node {
@@ -635,10 +723,17 @@ pub mod pallet {
             if registered_node {
                 let heartbeat_period = HeartbeatPeriod::<T>::get();
                 if heartbeat_period > 0 {
-                    let period_bn = BlockNumberFor::<T>::from(heartbeat_period);
-
-                    if block_number % period_bn == BlockNumberFor::<T>::zero() {
-                        return true;
+                    // let last_submission = StorageValueRef::persistent(HEARTBEAT_CONTEXT)
+                    //     .get::<BlockNumberFor<T>>()
+                    //     .unwrap_or(BlockNumberFor::<T>::zero());
+                    match <NodeUptime<T>>::get(reward_period_index, node) {
+                        Some(uptime_info) => {
+                            let last_submission = uptime_info.last_reported;
+                            return block_number >= last_submission + BlockNumberFor::<T>::from(heartbeat_period);
+                        },
+                        None => {
+                            return true;
+                        },
                     }
                 }
             }
@@ -649,7 +744,7 @@ pub mod pallet {
         fn get_iterator_from_last_paid(
             oldest_period: RewardPeriodIndex,
             last_paid_pointer: PaymentPointer<T::AccountId>,
-        ) -> Result<PrefixIterator<(T::AccountId, RewardPeriodIndex)>, DispatchError> {
+        ) -> Result<PrefixIterator<(T::AccountId, UptimeInfo<BlockNumberFor<T>>)>, DispatchError> {
             ensure!(
                 last_paid_pointer.period_index == oldest_period,
                 Error::<T>::InvalidPeriodPointer
@@ -781,13 +876,13 @@ pub mod pallet {
     }
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Debug, Eq, TypeInfo, MaxEncodedLen)]
-    pub struct NodeInfo<AccountId> {
+    pub struct NodeInfo<SignerId, AccountId> {
         pub owner: AccountId,
-        pub signing_key: AccountId,
+        pub signing_key: SignerId,
     }
 
-    impl<AccountId: Clone + FullCodec + MaxEncodedLen + TypeInfo> NodeInfo<AccountId> {
-        pub fn new(owner: AccountId, signing_key: AccountId) -> NodeInfo<AccountId> {
+    impl<AccountId: Clone + FullCodec + MaxEncodedLen + TypeInfo, SignerId: Clone + FullCodec + MaxEncodedLen + TypeInfo> NodeInfo<SignerId, AccountId> {
+        pub fn new(owner: AccountId, signing_key: SignerId) -> NodeInfo<SignerId, AccountId> {
             NodeInfo { owner, signing_key }
         }
     }
@@ -852,5 +947,19 @@ pub struct RewardPotInfo<Balance> {
 impl<Balance: Copy> RewardPotInfo<Balance> {
     pub fn new(total_reward: Balance, total_uptime: u64) -> RewardPotInfo<Balance> {
         RewardPotInfo { total_reward, total_uptime }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Default, Eq, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+pub struct UptimeInfo<BlockNumber> {
+    /// Number of uptime reported
+    pub count: u64,
+    /// Block number when the uptime was last reported
+    pub last_reported: BlockNumber,
+}
+
+impl<BlockNumber: Copy> UptimeInfo<BlockNumber> {
+    pub fn new(count: u64, last_reported: BlockNumber) -> UptimeInfo<BlockNumber> {
+        UptimeInfo { count, last_reported }
     }
 }
