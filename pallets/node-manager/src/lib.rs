@@ -701,10 +701,25 @@ pub mod pallet {
         }
 
         fn get_node() -> Option<(T::AccountId, T::SignerId)> {
-            // This will return all keys whose keytype is set to `Ethereum_events`
+            let registered_node_id = StorageValueRef::persistent(REGISTERED_NODE_KEY)
+                .get::<T::AccountId>()
+                .ok()
+                .flatten()?;
+
             let mut local_keys = T::SignerId::all();
             local_keys.sort();
 
+            if let Some(node_info) = NodeRegistry::<T>::get(&registered_node_id) {
+                // If the registered node’s signing key is present locally, return it.
+                if local_keys.binary_search(&node_info.signing_key).is_ok() {
+                    return Some((registered_node_id, node_info.signing_key));
+                } else {
+                    log::warn!("🔐 Signing key not found for registered node.");
+                }
+            }
+
+            // we couldn't find a signing key for the registered_node_id, so check all registered nodes
+            // This is potentially very slow so only do it as a last resort
             return NodeRegistry::<T>::iter()
                 .filter_map(move |(node_id, info)| {
                     local_keys.binary_search(&info.signing_key).ok().map(|_| (node_id, info.signing_key))
@@ -713,28 +728,19 @@ pub mod pallet {
         }
 
         fn should_send_hearbeat(block_number: BlockNumberFor<T>, reward_period_index: RewardPeriodIndex, node: &T::AccountId) -> bool {
-            let maybe_registered_node =
-                StorageValueRef::persistent(REGISTERED_NODE_KEY).get::<bool>();
-            let registered_node = match maybe_registered_node {
-                Ok(Some(is_registered_node)) => is_registered_node,
-                _ => false,
-            };
-
-            if registered_node {
-                let heartbeat_period = HeartbeatPeriod::<T>::get();
-                if heartbeat_period > 0 {
-                    // let last_submission = StorageValueRef::persistent(HEARTBEAT_CONTEXT)
-                    //     .get::<BlockNumberFor<T>>()
-                    //     .unwrap_or(BlockNumberFor::<T>::zero());
-                    match <NodeUptime<T>>::get(reward_period_index, node) {
-                        Some(uptime_info) => {
-                            let last_submission = uptime_info.last_reported;
-                            return block_number >= last_submission + BlockNumberFor::<T>::from(heartbeat_period);
-                        },
-                        None => {
-                            return true;
-                        },
-                    }
+            let heartbeat_period = HeartbeatPeriod::<T>::get();
+            if heartbeat_period > 0 {
+                // let last_submission = StorageValueRef::persistent(HEARTBEAT_CONTEXT)
+                //     .get::<BlockNumberFor<T>>()
+                //     .unwrap_or(BlockNumberFor::<T>::zero());
+                match <NodeUptime<T>>::get(reward_period_index, node) {
+                    Some(uptime_info) => {
+                        let last_submission = uptime_info.last_reported;
+                        return block_number >= last_submission + BlockNumberFor::<T>::from(heartbeat_period);
+                    },
+                    None => {
+                        return true;
+                    },
                 }
             }
 

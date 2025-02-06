@@ -387,7 +387,7 @@ fn testnet_genesis(
         nft_manager: Default::default(),
         node_manager: NodeManagerConfig {
             _phantom: Default::default(),
-            reward_period: 50u32,
+            reward_period: 30u32,
             max_batch_size: 10u32,
             heartbeat_period: 10u32,
         },

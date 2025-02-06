@@ -8,5 +8,5 @@ use clap::Parser;
 pub struct TnfCliConfiguration {
     pub tnf_service_port: Option<String>,
     pub ethereum_node_url: Option<String>,
-    pub registered_node: Option<bool>,
+    pub registered_node_id: Option<String>,
 }
