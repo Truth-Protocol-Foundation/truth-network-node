@@ -458,7 +458,7 @@ pub mod pallet {
             if let Some(uptime_info) = maybe_uptime_info {
                 let expected_submission = uptime_info.last_reported + BlockNumberFor::<T>::from(HeartbeatPeriod::<T>::get());
                 ensure!(frame_system::Pallet::<T>::block_number() > expected_submission, Error::<T>::DuplicateHeartbeat);
-                ensure!(heartbeat_count == info.count, Error::<T>::InvalidHeartbeat);
+                ensure!(heartbeat_count == uptime_info.count, Error::<T>::InvalidHeartbeat);
             } else {
                 ensure!(heartbeat_count == 0, Error::<T>::InvalidHeartbeat);
             }
