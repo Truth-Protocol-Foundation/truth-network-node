@@ -190,6 +190,9 @@ impl<T: Config> Pallet<T> {
                 // Send heartbeat if the current block is at or past the next allowed block.
                 return block_number >=
                     last_submission + BlockNumberFor::<T>::from(heartbeat_period);
+            } else {
+                // First heartbeat
+                return true;
             }
         }
 

@@ -98,8 +98,9 @@ impl<T: Config> Pallet<T> {
         last_paid_pointer: PaymentPointer<T::AccountId>,
     ) -> Result<PrefixIterator<(T::AccountId, UptimeInfo<BlockNumberFor<T>>)>, DispatchError> {
         ensure!(last_paid_pointer.period_index == oldest_period, Error::<T>::InvalidPeriodPointer);
+        // Make sure the last paid node has been remove, to be extra sure we won't double pay
         ensure!(
-            NodeUptime::<T>::contains_key(oldest_period, &last_paid_pointer.node),
+            !NodeUptime::<T>::contains_key(oldest_period, &last_paid_pointer.node),
             Error::<T>::InvalidNodePointer
         );
 
