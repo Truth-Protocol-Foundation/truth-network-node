@@ -106,9 +106,10 @@ impl<
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq)]
-pub enum AdminConfig<AccountId> {
+pub enum AdminConfig<AccountId, Balance> {
     NodeRegistrar(AccountId),
     RewardPeriod(u32),
     BatchSize(u32),
     Heartbeat(u32),
+    RewardAmount(Balance),
 }

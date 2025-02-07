@@ -1,6 +1,21 @@
 use crate::*;
 
 impl<T: Config> Pallet<T> {
+    pub fn get_total_reward(
+        oldest_period: &RewardPeriodIndex,
+    ) -> Result<BalanceOf<T>, DispatchError> {
+        let total_reward = RewardPot::<T>::get(oldest_period)
+            .map(|reward_pot| reward_pot.total_reward)
+            .unwrap_or_else(|| RewardAmount::<T>::get());
+
+        ensure!(
+            Self::reward_pot_balance().ge(&BalanceOf::<T>::from(total_reward)),
+            Error::<T>::InsufficientBalanceForReward
+        );
+
+        Ok(total_reward)
+    }
+
     pub fn calculate_reward(
         uptime: u64,
         total_uptime: &u64,

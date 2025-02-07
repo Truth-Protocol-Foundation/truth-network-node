@@ -390,6 +390,7 @@ fn testnet_genesis(
             reward_period: 30u32,
             max_batch_size: 10u32,
             heartbeat_period: 10u32,
+            reward_amount: 20 * BASE,
         },
         advisory_committee: Default::default(),
         tokens: Default::default(),

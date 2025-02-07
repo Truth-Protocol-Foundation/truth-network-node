@@ -19,7 +19,7 @@ use sp_core::MaxEncodedLen;
 use sp_runtime::{
     offchain::storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
     scale_info::TypeInfo,
-    traits::{AccountIdConversion, Dispatchable, IdentifyAccount, Verify},
+    traits::{AccountIdConversion, Dispatchable, IdentifyAccount, Verify, Zero},
     transaction_validity::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
         ValidTransaction,
@@ -102,6 +102,10 @@ pub mod pallet {
     #[pallet::storage]
     pub type HeartbeatPeriod<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+    /// The total amount to pay out for each period
+    #[pallet::storage]
+    pub type RewardAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
     /// Map of reward pot amounts for each reward period.
     #[pallet::storage]
     pub(super) type RewardPot<T: Config> = StorageMap<
@@ -154,6 +158,7 @@ pub mod pallet {
         pub max_batch_size: u32,
         pub reward_period: u32,
         pub heartbeat_period: u32,
+        pub reward_amount: BalanceOf<T>,
     }
 
     impl<T: Config> Default for GenesisConfig<T> {
@@ -163,6 +168,7 @@ pub mod pallet {
                 max_batch_size: 0,
                 reward_period: 0,
                 heartbeat_period: 0,
+                reward_amount: Default::default(),
             }
         }
     }
@@ -170,8 +176,9 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
-            MaxBatchSize::<T>::set(self.max_batch_size.clone());
-            HeartbeatPeriod::<T>::set(self.heartbeat_period.clone());
+            RewardAmount::<T>::set(self.reward_amount);
+            MaxBatchSize::<T>::set(self.max_batch_size);
+            HeartbeatPeriod::<T>::set(self.heartbeat_period);
 
             let reward_period: RewardPeriodInfo<BlockNumberFor<T>> =
                 RewardPeriodInfo::new(0u64, 0u32.into(), self.reward_period);
@@ -221,6 +228,8 @@ pub mod pallet {
         HeartbeatPeriodSet { new_heartbeat_period: u32 },
         /// A new heartbeat has been received
         HeartbeatReceived { reward_period_index: RewardPeriodIndex, node: NodeId<T> },
+        /// A new reward amount is set
+        RewardAmountSet { new_amount: BalanceOf<T> },
     }
 
     // Pallet Errors
@@ -246,8 +255,8 @@ pub mod pallet {
         HeartbeatPeriodInvalid,
         /// The heartbeat period is 0
         HeartbeatPeriodZero,
-        /// The total reward for the period was not found
-        TotalRewardNotFound,
+        /// The reward pot does not have enough funds to pay rewards
+        InsufficientBalanceForReward,
         /// The total uptime for the period was not found
         TotalUptimeNotFound,
         /// The node uptime for the period was not found
@@ -266,6 +275,8 @@ pub mod pallet {
         NodeNotRegistered,
         /// Failed to aquire a lock on the Offchain db
         FailedToAcquireOcwDbLock,
+        /// The reward amount is 0
+        RewardAmountZero,
     }
 
     #[pallet::config]
@@ -340,7 +351,7 @@ pub mod pallet {
         #[pallet::weight(1)]
         pub fn set_admin_config(
             origin: OriginFor<T>,
-            config: AdminConfig<T::AccountId>,
+            config: AdminConfig<T::AccountId, BalanceOf<T>>,
         ) -> DispatchResult {
             ensure_root(origin)?;
 
@@ -373,6 +384,11 @@ pub mod pallet {
                     ensure!(period < reward_period, Error::<T>::HeartbeatPeriodInvalid);
                     <HeartbeatPeriod<T>>::put(period.clone());
                     Self::deposit_event(Event::HeartbeatPeriodSet { new_heartbeat_period: period });
+                },
+                AdminConfig::RewardAmount(amount) => {
+                    ensure!(amount > BalanceOf::<T>::zero(), Error::<T>::RewardAmountZero);
+                    <RewardAmount<T>>::put(amount.clone());
+                    Self::deposit_event(Event::RewardAmountSet { new_amount: amount });
                 },
             }
 
@@ -411,17 +427,13 @@ pub mod pallet {
             ensure!(total_heartbeats > 0, Error::<T>::TotalUptimeNotFound);
             ensure!(maybe_node_uptime.is_some(), Error::<T>::NodeUptimeNotFound);
 
-            let total_reward = RewardPot::<T>::get(&oldest_period)
-                .ok_or(Error::<T>::TotalRewardNotFound)?
-                .total_reward;
+            let total_reward = Self::get_total_reward(&oldest_period)?;
 
-            let max_batch_size = MaxBatchSize::<T>::get();
-            let maybe_last_paid_pointer = LastPaidPointer::<T>::get();
             let mut paid_nodes = Vec::new();
             let mut last_node_paid: Option<T::AccountId> = None;
             let mut iter;
 
-            match maybe_last_paid_pointer {
+            match LastPaidPointer::<T>::get() {
                 Some(pointer) => {
                     iter = Self::get_iterator_from_last_paid(oldest_period, pointer)?;
                 },
@@ -430,7 +442,7 @@ pub mod pallet {
                 },
             }
 
-            for (node, uptime) in iter.by_ref().take(max_batch_size as usize) {
+            for (node, uptime) in iter.by_ref().take(MaxBatchSize::<T>::get() as usize) {
                 let reward_amount =
                     Self::calculate_reward(uptime.count, &total_heartbeats, &total_reward);
                 Self::pay_reward(&oldest_period, node.clone(), reward_amount)?;
@@ -518,17 +530,17 @@ pub mod pallet {
                 RewardPeriod::<T>::put(reward_period);
 
                 // take a snapshot of the reward pot amount to pay for the previous reward period
-                let pot_balance = Self::reward_pot_balance();
+                let reward_amount = RewardAmount::<T>::get();
                 let total_heartbeats = <TotalUptime<T>>::get(reward_period_index);
                 <RewardPot<T>>::insert(
                     reward_period_index,
-                    RewardPotInfo::<BalanceOf<T>>::new(pot_balance, total_heartbeats),
+                    RewardPotInfo::<BalanceOf<T>>::new(reward_amount, total_heartbeats),
                 );
 
                 Self::deposit_event(Event::NewRewardPeriodStarted {
                     reward_period_index: reward_period.current,
                     reward_period_length: reward_period.length,
-                    previous_period_reward: pot_balance,
+                    previous_period_reward: reward_amount,
                 });
             }
 

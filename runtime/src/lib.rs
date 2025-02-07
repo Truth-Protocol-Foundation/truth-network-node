@@ -35,8 +35,8 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
 use pallet_avn::sr25519::AuthorityId as AvnId;
-use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
+use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 
 pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
