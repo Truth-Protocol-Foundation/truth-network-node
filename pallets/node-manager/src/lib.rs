@@ -551,16 +551,15 @@ pub mod pallet {
         fn offchain_worker(n: BlockNumberFor<T>) {
             log::info!("🌐 OCW for node manager");
 
-            let reward_period_index = OldestUnpaidRewardPeriodIndex::<T>::get();
-
             let maybe_author = Self::try_get_node_author(n);
             if let Some(author) = maybe_author {
-                Self::trigger_payment_if_required(reward_period_index, author);
+                let oldest_unpaid_period = OldestUnpaidRewardPeriodIndex::<T>::get();
+                Self::trigger_payment_if_required(oldest_unpaid_period, author);
                 // If this is an author node, we don't need to send a heartbeat
                 return;
             }
 
-            Self::send_heartbeat_if_required(n, reward_period_index);
+            Self::send_heartbeat_if_required(n);
         }
     }
 

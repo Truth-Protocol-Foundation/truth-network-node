@@ -38,34 +38,33 @@ impl<T: Config> Pallet<T> {
 
     pub fn send_heartbeat_if_required(
         block_number: BlockNumberFor<T>,
-        reward_period_index: RewardPeriodIndex,
     ) {
         let maybe_node_key = Self::get_node_from_signing_key();
         if let Some((node, signing_key)) = maybe_node_key {
-            let heartbeat_count = <NodeUptime<T>>::get(reward_period_index, &node)
-                .map(|info| info.count)
-                .unwrap_or(0);
+            let current_reward_period = RewardPeriod::<T>::get().current;
+            let uptime_info = <NodeUptime<T>>::get(current_reward_period, &node);
+            let heartbeat_count = uptime_info.map(|info| info.count).unwrap_or(0);
 
             if Self::should_send_heartbeat(
                 block_number,
-                reward_period_index,
-                &node,
+                uptime_info,
+                current_reward_period,
                 heartbeat_count,
             ) {
                 log::info!(
                     "🌐 Sending heartbeat for reward period: {:?}, block number: {:?}",
                     block_number,
-                    reward_period_index
+                    current_reward_period
                 );
 
                 let signature = signing_key
-                    .sign(&(HEARTBEAT_CONTEXT, heartbeat_count, reward_period_index).encode());
+                    .sign(&(HEARTBEAT_CONTEXT, heartbeat_count, current_reward_period).encode());
 
                 match signature {
                     Some(signature) => {
                         let call = Call::<T>::offchain_submit_heartbeat {
                             node,
-                            reward_period_index,
+                            reward_period_index: current_reward_period,
                             heartbeat_count,
                             signature,
                         };
@@ -75,23 +74,23 @@ impl<T: Config> Pallet<T> {
                                 // If this fails, the extrinsic will still reject duplicates
                                 let _ = Self::record_heartbeat_ocw_submission(
                                     block_number,
-                                    reward_period_index,
+                                    current_reward_period,
                                     heartbeat_count
                                 );
                             },
                             Err(e) => log::error!(
                                 "💔 Error submitting heartbeat transaction. Period: {:?}, Heartbeat count: {:?}, Error: {:?}",
-                                reward_period_index, heartbeat_count, e),
+                                current_reward_period, heartbeat_count, e),
                         }
 
                         log::info!(
                             "🌐 heartbeat transaction sent. Reward period: {:?}, Block number: {:?}",
-                            block_number, reward_period_index);
+                            block_number, current_reward_period);
                     },
                     None => {
                         log::error!(
                             "💔 Error signing heartbeat transaction. Reward period: {:?}, Block number: {:?}",
-                            block_number, reward_period_index);
+                            block_number, current_reward_period);
                     },
                 }
             }
@@ -170,8 +169,8 @@ impl<T: Config> Pallet<T> {
 
     pub fn should_send_heartbeat(
         block_number: BlockNumberFor<T>,
+        uptime_info: Option<UptimeInfo<BlockNumberFor<T>>>,
         reward_period_index: RewardPeriodIndex,
-        node: &NodeId<T>,
         heartbeat_count: u64,
     ) -> bool {
         let submission_in_progress = Self::heartbeat_submission_in_progress(
@@ -184,19 +183,15 @@ impl<T: Config> Pallet<T> {
         }
 
         let heartbeat_period = HeartbeatPeriod::<T>::get();
-        if heartbeat_period > 0 {
-            if let Some(uptime_info) = <NodeUptime<T>>::get(reward_period_index, node) {
-                let last_submission = uptime_info.last_reported;
-                // Send heartbeat if the current block is at or past the next allowed block.
-                return block_number >=
-                    last_submission + BlockNumberFor::<T>::from(heartbeat_period);
-            } else {
-                // First heartbeat
-                return true;
-            }
+        if let Some(uptime_info) = uptime_info {
+            let last_submission = uptime_info.last_reported;
+            // Send heartbeat if the current block is at or past the next allowed block.
+            return block_number >=
+                last_submission + BlockNumberFor::<T>::from(heartbeat_period);
+        } else {
+            // First heartbeat
+            return true;
         }
-
-        return false;
     }
 
     fn record_heartbeat_ocw_submission(
