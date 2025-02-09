@@ -1,4 +1,5 @@
 use crate::*;
+use sp_runtime::Saturating;
 
 #[derive(Copy, Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 /// The current era index and transition information
@@ -12,7 +13,7 @@ pub struct RewardPeriodInfo<BlockNumber> {
 }
 
 impl<
-        B: Copy + sp_std::ops::Add<Output = B> + sp_std::ops::Sub<Output = B> + From<u32> + PartialOrd,
+        B: Copy + sp_std::ops::Add<Output = B> + sp_std::ops::Sub<Output = B> + From<u32> + PartialOrd + Saturating,
     > RewardPeriodInfo<B>
 {
     pub fn new(current: RewardPeriodIndex, first: B, length: u32) -> RewardPeriodInfo<B> {
@@ -21,7 +22,7 @@ impl<
 
     /// Check if the reward period should be updated
     pub fn should_update(&self, now: B) -> bool {
-        now - self.first >= self.length.into()
+        now.saturating_sub(self.first) >= self.length.into()
     }
 
     /// New reward period
@@ -32,11 +33,11 @@ impl<
 }
 
 impl<
-        B: Copy + sp_std::ops::Add<Output = B> + sp_std::ops::Sub<Output = B> + From<u32> + PartialOrd,
+        B: Copy + sp_std::ops::Add<Output = B> + sp_std::ops::Sub<Output = B> + From<u32> + PartialOrd + Saturating,
     > Default for RewardPeriodInfo<B>
 {
     fn default() -> RewardPeriodInfo<B> {
-        RewardPeriodInfo::new(1u64, 1u32.into(), 20u32)
+        RewardPeriodInfo::new(0u64, 0u32.into(), 20u32)
     }
 }
 

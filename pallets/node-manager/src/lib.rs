@@ -27,10 +27,17 @@ use sp_runtime::{
     DispatchError, Perbill, RuntimeDebug, Saturating,
 };
 
-mod offchain;
-mod reward;
+pub mod offchain;
+pub mod reward;
 pub mod types;
 use crate::types::*;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+#[cfg(test)]
+#[path = "tests/mock.rs"]
+mod mock;
 
 // Definition of the crypto to use for signing
 pub mod sr25519 {
@@ -444,7 +451,7 @@ pub mod pallet {
 
             for (node, uptime) in iter.by_ref().take(MaxBatchSize::<T>::get() as usize) {
                 let reward_amount =
-                    Self::calculate_reward(uptime.count, &total_heartbeats, &total_reward);
+                    Self::calculate_reward(uptime.count, &total_heartbeats, &total_reward)?;
                 Self::pay_reward(&oldest_period, node.clone(), reward_amount)?;
 
                 last_node_paid = Some(node.clone());
@@ -566,10 +573,18 @@ pub mod pallet {
     #[pallet::validate_unsigned]
     impl<T: Config> ValidateUnsigned for Pallet<T> {
         type Call = Call<T>;
-        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+        fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            // Discard unsinged tx's not coming from the local OCW.
+            match source {
+                TransactionSource::Local | TransactionSource::InBlock => { /* allowed */ },
+                _ => return InvalidTransaction::Call.into(),
+            }
             match call {
                 Call::offchain_pay_nodes { reward_period_index, author, signature } =>
                     if AVN::<T>::signature_is_valid(
+                        // Technically this signature can be replayed for the duration of the reward period
+                        // but in reality, since we only accept locally produced transactions
+                        // and we don't propagate them, only an author can submit this transaction and there is nothing to gain.
                         &(PAYOUT_REWARD_CONTEXT, reward_period_index),
                         &author,
                         signature,
@@ -577,6 +592,9 @@ pub mod pallet {
                         ValidTransaction::with_tag_prefix("NodeManagerPayout")
                             .and_provides((call, reward_period_index))
                             .priority(TransactionPriority::max_value())
+                            // We don't propagate this transaction,
+                            // it ensures only block authors can pay rewards
+                            .propagate(false)
                             .build()
                     } else {
                         InvalidTransaction::Custom(1u8).into()

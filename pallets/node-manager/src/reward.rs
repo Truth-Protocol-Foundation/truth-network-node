@@ -1,5 +1,6 @@
 use crate::*;
-
+use prediction_market_primitives::math::fixed::FixedMulDiv;
+use sp_runtime::SaturatedConversion;
 impl<T: Config> Pallet<T> {
     pub fn get_total_reward(
         oldest_period: &RewardPeriodIndex,
@@ -20,9 +21,10 @@ impl<T: Config> Pallet<T> {
         uptime: u64,
         total_uptime: &u64,
         total_reward: &BalanceOf<T>,
-    ) -> BalanceOf<T> {
-        let fraction = Perbill::from_rational(uptime, *total_uptime);
-        fraction * *total_reward
+    ) -> Result<BalanceOf<T>, DispatchError> {
+        let uptime_balance: BalanceOf<T> = uptime.saturated_into::<BalanceOf<T>>();
+        let total_uptime_balance: BalanceOf<T> = (*total_uptime).saturated_into::<BalanceOf<T>>();
+        total_reward.bmul_bdiv(uptime_balance, total_uptime_balance)
     }
 
     pub fn pay_reward(

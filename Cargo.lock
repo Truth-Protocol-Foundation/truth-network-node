@@ -5641,13 +5641,16 @@ dependencies = [
  "frame-system",
  "log",
  "pallet-avn",
+ "pallet-balances",
  "parity-scale-codec 3.6.9",
+ "prediction-market-primitives",
  "scale-info",
  "sp-application-crypto",
  "sp-avn-common",
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-state-machine",
  "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
 ]
 
