@@ -44,27 +44,26 @@ fn set_registrar<T: Config>(registrar: T::AccountId) {
 
 fn register_new_node<T: Config>(node: NodeId<T>, owner: T::AccountId) -> T::SignerId {
     let key = T::SignerId::generate_pair(None);
-    <NodeRegistry<T>>::insert(
-        node.clone(),
-        NodeInfo::new(owner, key.clone())
-    );
+    <NodeRegistry<T>>::insert(node.clone(), NodeInfo::new(owner, key.clone()));
 
     key
 }
 
-fn create_heartbeat<T: Config>(
-    node: NodeId<T>,
-    reward_period_index: RewardPeriodIndex,
-) {
+fn create_heartbeat<T: Config>(node: NodeId<T>, reward_period_index: RewardPeriodIndex) {
     let uptime = <NodeUptime<T>>::get(reward_period_index, node.clone());
     let total_uptime = <TotalUptime<T>>::get(reward_period_index);
     if let Some(uptime) = uptime {
         <NodeUptime<T>>::insert(
             reward_period_index,
             node,
-            UptimeInfo::<BlockNumberFor<T>>::new(uptime.count + 1, frame_system::Pallet::<T>::block_number()));
+            UptimeInfo::<BlockNumberFor<T>>::new(
+                uptime.count + 1,
+                frame_system::Pallet::<T>::block_number(),
+            ),
+        );
     } else {
-        let uptime_info = UptimeInfo::<BlockNumberFor<T>>::new(1u64, frame_system::Pallet::<T>::block_number());
+        let uptime_info =
+            UptimeInfo::<BlockNumberFor<T>>::new(1u64, frame_system::Pallet::<T>::block_number());
         <NodeUptime<T>>::insert(reward_period_index, node, uptime_info);
     }
 
@@ -88,11 +87,8 @@ fn create_nodes_and_hearbeat<T: Config>(
     reward_period_index: RewardPeriodIndex,
     node_to_create: u32,
 ) {
-
-    println!("create_nodes_and_hearbeat: {:?}", node_to_create);
     for i in 1..=node_to_create {
         let node: NodeId<T> = account("node", i, i);
-        println!("create_nodes_and_hearbeat node: {:?}", node);
         let _ = register_new_node::<T>(node.clone(), owner.clone());
         create_heartbeat::<T>(node.clone(), reward_period_index);
     }
@@ -203,7 +199,7 @@ benchmarks! {
     }
 
     offchain_pay_nodes {
-        let n in 11 .. 100000;
+        let n in 11 .. 50000;
         fund_reward_pot::<T>();
 
         let reward_period = <RewardPeriod<T>>::get();
@@ -236,4 +232,3 @@ impl_benchmark_test_suite!(
     crate::mock::ExtBuilder::build_default().with_genesis_config().as_externality(),
     crate::mock::TestRuntime,
 );
-

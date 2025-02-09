@@ -13,7 +13,12 @@ pub struct RewardPeriodInfo<BlockNumber> {
 }
 
 impl<
-        B: Copy + sp_std::ops::Add<Output = B> + sp_std::ops::Sub<Output = B> + From<u32> + PartialOrd + Saturating,
+        B: Copy
+            + sp_std::ops::Add<Output = B>
+            + sp_std::ops::Sub<Output = B>
+            + From<u32>
+            + PartialOrd
+            + Saturating,
     > RewardPeriodInfo<B>
 {
     pub fn new(current: RewardPeriodIndex, first: B, length: u32) -> RewardPeriodInfo<B> {
@@ -33,7 +38,12 @@ impl<
 }
 
 impl<
-        B: Copy + sp_std::ops::Add<Output = B> + sp_std::ops::Sub<Output = B> + From<u32> + PartialOrd + Saturating,
+        B: Copy
+            + sp_std::ops::Add<Output = B>
+            + sp_std::ops::Sub<Output = B>
+            + From<u32>
+            + PartialOrd
+            + Saturating,
     > Default for RewardPeriodInfo<B>
 {
     fn default() -> RewardPeriodInfo<B> {

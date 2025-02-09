@@ -85,6 +85,12 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    // This is mainly used for performance reasons. It is better to have a single value storage than
+    // iterate over a huge map.
+    /// Total registered nodes.
+    #[pallet::storage]
+    pub type TotalRegisteredNodes<T: Config> = StorageValue<_, u32, ValueQuery>;
+
     /// Registry of nodes with their owners.
     #[pallet::storage]
     pub type OwnedNodes<T: Config> = StorageDoubleMap<
@@ -348,6 +354,7 @@ pub mod pallet {
                 &node,
                 NodeInfo::<T::SignerId, T::AccountId>::new(owner.clone(), signing_key),
             );
+            <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_add(1));
             Self::deposit_event(Event::NodeRegistered { owner, node });
 
             Ok(())
@@ -582,9 +589,11 @@ pub mod pallet {
             match call {
                 Call::offchain_pay_nodes { reward_period_index, author, signature } =>
                     if AVN::<T>::signature_is_valid(
-                        // Technically this signature can be replayed for the duration of the reward period
-                        // but in reality, since we only accept locally produced transactions
-                        // and we don't propagate them, only an author can submit this transaction and there is nothing to gain.
+                        // Technically this signature can be replayed for the duration of the
+                        // reward period but in reality, since we only
+                        // accept locally produced transactions and we don'
+                        // t propagate them, only an author can submit this transaction and there
+                        // is nothing to gain.
                         &(PAYOUT_REWARD_CONTEXT, reward_period_index),
                         &author,
                         signature,

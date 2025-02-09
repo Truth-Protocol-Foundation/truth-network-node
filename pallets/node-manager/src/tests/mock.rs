@@ -3,20 +3,20 @@
 #![cfg(test)]
 
 use crate::{self as pallet_node_manager, *};
+use common_primitives::constants::{currency::BASE, NODE_MANAGER_PALLET_ID};
 use frame_support::{parameter_types, weights::Weight};
 use frame_system as system;
 use sp_core::{
-    H256, sr25519,
     offchain::testing::{OffchainState, PendingRequest},
+    sr25519, H256,
 };
 use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
     traits::{BlakeTwo256, ConvertInto, IdentifyAccount, IdentityLookup, Verify},
-    BuildStorage, Perbill, SaturatedConversion
+    BuildStorage, Perbill, SaturatedConversion,
 };
 use sp_state_machine::BasicExternalities;
 use std::cell::RefCell;
-use common_primitives::constants::{NODE_MANAGER_PALLET_ID, currency::BASE};
 
 pub type Signature = sr25519::Signature;
 pub type AccountId = <Signature as Verify>::Signer;

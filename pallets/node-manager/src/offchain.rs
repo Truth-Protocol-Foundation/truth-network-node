@@ -36,9 +36,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn send_heartbeat_if_required(
-        block_number: BlockNumberFor<T>,
-    ) {
+    pub fn send_heartbeat_if_required(block_number: BlockNumberFor<T>) {
         let maybe_node_key = Self::get_node_from_signing_key();
         if let Some((node, signing_key)) = maybe_node_key {
             let current_reward_period = RewardPeriod::<T>::get().current;
@@ -186,8 +184,7 @@ impl<T: Config> Pallet<T> {
         if let Some(uptime_info) = uptime_info {
             let last_submission = uptime_info.last_reported;
             // Send heartbeat if the current block is at or past the next allowed block.
-            return block_number >=
-                last_submission + BlockNumberFor::<T>::from(heartbeat_period);
+            return block_number >= last_submission + BlockNumberFor::<T>::from(heartbeat_period);
         } else {
             // First heartbeat
             return true;
