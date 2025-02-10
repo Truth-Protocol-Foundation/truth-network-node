@@ -34,6 +34,7 @@ frame_support::construct_runtime!(
 );
 impl Config for TestRuntime {
     type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type Currency = Balances;
     type SignerId = UintAuthorityId;
     type Public = AccountId;
@@ -90,4 +91,34 @@ impl pallet_avn::Config for TestRuntime {
     type NewSessionHandler = ();
     type DisabledValidatorChecker = ();
     type WeightInfo = ();
+}
+
+pub struct ExtBuilder {
+    pub storage: sp_runtime::Storage,
+}
+
+impl ExtBuilder {
+    pub fn build_default() -> Self {
+        let storage = frame_system::GenesisConfig::<TestRuntime>::default()
+            .build_storage()
+            .unwrap()
+            .into();
+        Self { storage }
+    }
+
+    pub fn with_genesis_config(mut self) -> Self {
+        let _ = pallet_node_manager::GenesisConfig::<TestRuntime> {
+            _phantom: Default::default(),
+            heartbeat_period: 10u32,
+        }
+        .assimilate_storage(&mut self.storage);
+        self
+    }
+
+    pub fn as_externality(self) -> sp_io::TestExternalities {
+        let mut ext = sp_io::TestExternalities::from(self.storage);
+        // Events do not get emitted on block 0, so we increment the block here
+        ext.execute_with(|| frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into()));
+        ext
+    }
 }

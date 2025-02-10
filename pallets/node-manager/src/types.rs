@@ -1,3 +1,21 @@
+use crate::*;
+use sp_runtime::Saturating;
+
+#[derive(
+    Copy, Clone, PartialEq, Default, Eq, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen,
+)]
+pub struct UptimeInfo<BlockNumber> {
+    /// Number of uptime reported
+    pub count: u64,
+    /// Block number when the uptime was last reported
+    pub last_reported: BlockNumber,
+}
+
+impl<BlockNumber: Copy> UptimeInfo<BlockNumber> {
+    pub fn new(count: u64, last_reported: BlockNumber) -> UptimeInfo<BlockNumber> {
+        UptimeInfo { count, last_reported }
+    }
+}
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Debug, Eq, TypeInfo, MaxEncodedLen)]
 pub struct NodeInfo<SignerId, AccountId> {
@@ -17,3 +35,8 @@ impl<
     }
 }
 
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq)]
+pub enum AdminConfig<AccountId, Balance> {
+    NodeRegistrar(AccountId),
+    Heartbeat(u32),
+}
