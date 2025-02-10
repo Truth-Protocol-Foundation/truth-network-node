@@ -203,6 +203,7 @@ runtime-benchmarks = [
 	"pallet-token-manager/runtime-benchmarks",
 	"pallet-avn-proxy/runtime-benchmarks",
 	"pallet-nft-manager/runtime-benchmarks",
+	"pallet-authors-manager/runtime-benchmarks",
 
 	# Tnf pallets
 	"pallet-node-manager/runtime-benchmarks",

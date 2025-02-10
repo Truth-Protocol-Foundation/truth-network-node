@@ -19,9 +19,9 @@ use sp_runtime::{
 use tnf_node_runtime::{
     opaque::SessionKeys, AccountId, AnchorSummaryConfig, Asset, AssetRegistryConfig,
     AssetRegistryStringLimit, AuraConfig, AuthorsManagerConfig, BalancesConfig, CustomMetadata,
-    EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, PredictionMarketsConfig,
-    RuntimeGenesisConfig, SessionConfig, Signature, SudoConfig, SummaryConfig, SystemConfig,
-    TokenManagerConfig, WASM_BINARY,
+    EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, NodeManagerConfig,
+    PredictionMarketsConfig, RuntimeGenesisConfig, SessionConfig, Signature, SudoConfig,
+    SummaryConfig, SystemConfig, TokenManagerConfig, WASM_BINARY,
 };
 
 use codec::Encode;
@@ -580,6 +580,13 @@ fn testnet_genesis(
             },
         },
         nft_manager: Default::default(),
+        node_manager: NodeManagerConfig {
+            _phantom: Default::default(),
+            reward_period: 30u32,
+            max_batch_size: 10u32,
+            heartbeat_period: 10u32,
+            reward_amount: 20 * BASE,
+        },
         advisory_committee: Default::default(),
         tokens: Default::default(),
         asset_registry: AssetRegistryConfig {

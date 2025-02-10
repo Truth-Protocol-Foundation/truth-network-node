@@ -396,13 +396,18 @@ pub mod pallet {
                         old_reward_period_length: old_period,
                         new_reward_period_length: period,
                     });
-                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_period()).into());
+                    return Ok(
+                        Some(<T as Config>::WeightInfo::set_admin_config_reward_period()).into()
+                    );
                 },
                 AdminConfig::BatchSize(size) => {
                     ensure!(size > 0, Error::<T>::BatchSizeInvalid);
                     <MaxBatchSize<T>>::put(size.clone());
                     Self::deposit_event(Event::BatchSizeSet { new_size: size });
-                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_batch_size()).into());
+                    return Ok(
+                        Some(<T as Config>::WeightInfo::set_admin_config_reward_batch_size())
+                            .into(),
+                    );
                 },
                 AdminConfig::Heartbeat(period) => {
                     let reward_period = RewardPeriod::<T>::get().length;
@@ -410,13 +415,17 @@ pub mod pallet {
                     ensure!(period < reward_period, Error::<T>::HeartbeatPeriodInvalid);
                     <HeartbeatPeriod<T>>::put(period.clone());
                     Self::deposit_event(Event::HeartbeatPeriodSet { new_heartbeat_period: period });
-                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat()).into());
+                    return Ok(
+                        Some(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat()).into()
+                    );
                 },
                 AdminConfig::RewardAmount(amount) => {
                     ensure!(amount > BalanceOf::<T>::zero(), Error::<T>::RewardAmountZero);
                     <RewardAmount<T>>::put(amount.clone());
                     Self::deposit_event(Event::RewardAmountSet { new_amount: amount });
-                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_amount()).into());
+                    return Ok(
+                        Some(<T as Config>::WeightInfo::set_admin_config_reward_amount()).into()
+                    );
                 },
             }
         }
