@@ -51,7 +51,7 @@ pub enum Asset<MarketId> {
     CombinatorialOutcome,
     PoolShare(PoolId),
     #[default]
-    Tnf,
+    Tru,
     ForeignAsset(u32),
     ParimutuelShare(MarketId, CategoryIndex),
 }
