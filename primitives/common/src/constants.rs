@@ -52,10 +52,10 @@ pub mod currency {
         /// Checks that the native token amounts are correct.
         #[test]
         fn tnfd_amounts() {
-            assert_eq!(BASE, 10_000_000_000, "BASE (Full TNF) should be 10_000_000_000");
-            assert_eq!(CENT_BASE, 100_000_000, "cTNF should be 100_000_000");
-            assert_eq!(MILLI_BASE, 10_000_000, "mTNF should be 10_000_000");
-            assert_eq!(MICRO_BASE, 10_000, "μTNF should be 10_000");
+            assert_eq!(BASE, 10_000_000_000, "BASE (Full TRU) should be 10_000_000_000");
+            assert_eq!(CENT_BASE, 100_000_000, "cTRU should be 100_000_000");
+            assert_eq!(MILLI_BASE, 10_000_000, "mTRU should be 10_000_000");
+            assert_eq!(MICRO_BASE, 10_000, "μTRU should be 10_000");
         }
     }
 }

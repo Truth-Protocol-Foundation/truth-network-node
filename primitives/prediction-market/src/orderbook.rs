@@ -123,7 +123,7 @@ mod tests {
     use super::*;
     use crate::types::{Asset, MarketId};
 
-    pub const BASE_ASSET: Asset<MarketId> = Asset::Tnf;
+    pub const BASE_ASSET: Asset<MarketId> = Asset::Tru;
 
     #[test]
     fn price_calculation_works() {

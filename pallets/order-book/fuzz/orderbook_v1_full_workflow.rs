@@ -93,7 +93,7 @@ fn asset(seed: (u128, u16)) -> Asset<u128> {
             Asset::ScalarOutcome(seed0, scalar_position)
         }
         2 => Asset::PoolShare(seed0),
-        _ => Asset::Tnf,
+        _ => Asset::Tru,
     }
 }
 

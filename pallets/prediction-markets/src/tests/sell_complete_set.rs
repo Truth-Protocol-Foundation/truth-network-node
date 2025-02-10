@@ -61,7 +61,7 @@ fn sell_complete_set_works(scoring_rule: ScoringRule) {
         System::assert_last_event(Event::SoldCompleteSet(market_id, sell_amount, who).into());
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -73,7 +73,7 @@ fn sell_complete_set_works(scoring_rule: ScoringRule) {
 fn sell_complete_set_fails_on_zero_amount() {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -109,7 +109,7 @@ fn sell_complete_set_fails_on_insufficient_share_balance() {
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -132,7 +132,7 @@ fn sell_complete_set_fails_if_market_has_wrong_scoring_rule(scoring_rule: Scorin
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {

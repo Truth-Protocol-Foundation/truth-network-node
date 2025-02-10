@@ -31,7 +31,7 @@ fn it_allows_to_dispute_the_outcome_of_a_market() {
     ExtBuilder::default().build().execute_with(|| {
         let end = 2;
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..end,
             ScoringRule::AmmCdaHybrid,
@@ -77,7 +77,7 @@ fn dispute_fails_disputed_already() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -119,7 +119,7 @@ fn dispute_fails_if_market_not_reported() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -155,7 +155,7 @@ fn dispute_reserves_dispute_bond() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -202,7 +202,7 @@ fn dispute_updates_market() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -250,7 +250,7 @@ fn dispute_emits_event() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -292,7 +292,7 @@ fn dispute_fails_unless_reported_or_disputed_market(status: MarketStatus) {
     ExtBuilder::default().build().execute_with(|| {
         // Creates a permissionless market.
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..2,
             ScoringRule::AmmCdaHybrid,

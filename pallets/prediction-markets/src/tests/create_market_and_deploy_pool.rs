@@ -47,7 +47,7 @@ fn create_market_and_deploy_pool_works() {
         WhitelistedMarketCreators::<Runtime>::insert(&creator, ());
         assert_ok!(PredictionMarkets::create_market_and_deploy_pool(
             RuntimeOrigin::signed(creator),
-            Asset::Tnf,
+            Asset::Tru,
             creator_fee,
             oracle,
             period.clone(),

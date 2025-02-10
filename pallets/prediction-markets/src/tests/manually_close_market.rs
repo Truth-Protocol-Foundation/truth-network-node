@@ -37,7 +37,7 @@ fn manually_close_market_after_long_stall() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             alice(),
             MarketPeriod::Timestamp(0..end),
@@ -50,7 +50,7 @@ fn manually_close_market_after_long_stall() {
         ));
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             alice(),
             MarketPeriod::Timestamp(0..end),
@@ -107,7 +107,7 @@ fn manually_close_market_fails_if_market_not_in_close_time_frame_list() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             alice(),
             MarketPeriod::Timestamp(0..end),
@@ -149,7 +149,7 @@ fn manually_close_market_fails_if_not_allowed_for_block_based_markets() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             alice(),
             MarketPeriod::Block(0..end),

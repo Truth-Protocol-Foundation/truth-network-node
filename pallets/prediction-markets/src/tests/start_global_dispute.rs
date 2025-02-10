@@ -34,7 +34,7 @@ fn start_global_dispute_fails_on_wrong_mdm() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..2),

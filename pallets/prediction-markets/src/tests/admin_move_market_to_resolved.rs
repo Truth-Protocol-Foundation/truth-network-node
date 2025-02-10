@@ -23,7 +23,7 @@ use prediction_market_primitives::types::OutcomeReport;
 
 #[test]
 fn admin_move_market_to_resolved_resolves_reported_market() {
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         let end = 33;
         simple_create_categorical_market(
@@ -34,9 +34,9 @@ fn admin_move_market_to_resolved_resolves_reported_market() {
         );
         let market_id = 0;
 
-        // Give alice() `SENTINEL_AMOUNT` free and reserved TNF; we record the free balance to check
+        // Give alice() `SENTINEL_AMOUNT` free and reserved TRU; we record the free balance to check
         // that the correct bonds are unreserved!
-        assert_ok!(AssetManager::deposit(Asset::Tnf, &alice(), 2 * SENTINEL_AMOUNT));
+        assert_ok!(AssetManager::deposit(Asset::Tru, &alice(), 2 * SENTINEL_AMOUNT));
         assert_ok!(Balances::reserve_named(
             &PredictionMarkets::reserve_id(),
             &alice(),
@@ -83,7 +83,7 @@ fn admin_move_market_to_resolved_resolves_reported_market() {
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
 
     ExtBuilder::default().build().execute_with(|| {
@@ -93,7 +93,7 @@ fn admin_move_market_to_resolved_resolves_reported_market() {
 
 #[test]
 fn admin_move_market_to_resolved_resolves_disputed_market() {
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         let end = 33;
         simple_create_categorical_market(
@@ -104,9 +104,9 @@ fn admin_move_market_to_resolved_resolves_disputed_market() {
         );
         let market_id = 0;
 
-        // Give alice() `SENTINEL_AMOUNT` free and reserved TNF; we record the free balance to check
+        // Give alice() `SENTINEL_AMOUNT` free and reserved TRU; we record the free balance to check
         // that the correct bonds are unreserved!
-        assert_ok!(AssetManager::deposit(Asset::Tnf, &alice(), 2 * SENTINEL_AMOUNT));
+        assert_ok!(AssetManager::deposit(Asset::Tru, &alice(), 2 * SENTINEL_AMOUNT));
         assert_ok!(Balances::reserve_named(
             &PredictionMarkets::reserve_id(),
             &alice(),
@@ -156,7 +156,7 @@ fn admin_move_market_to_resolved_resolves_disputed_market() {
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
 
     ExtBuilder::default().build().execute_with(|| {
@@ -172,7 +172,7 @@ fn admin_move_market_to_resolved_fails_if_market_is_not_reported_or_disputed(
 ) {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..33,
             ScoringRule::AmmCdaHybrid,

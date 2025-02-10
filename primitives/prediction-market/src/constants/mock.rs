@@ -153,13 +153,13 @@ parameter_types! {
 // ORML
 parameter_types! {
     // ORML
-    pub const GetNativeCurrencyId: CurrencyId = Asset::Tnf;
+    pub const GetNativeCurrencyId: CurrencyId = Asset::Tru;
 }
 
 parameter_type_with_key! {
     pub ExistentialDeposits: |currency_id: CurrencyId| -> Balance {
         match currency_id {
-            Asset::Tnf => ExistentialDeposit::get(),
+            Asset::Tru => ExistentialDeposit::get(),
             _ => 10
         }
     };

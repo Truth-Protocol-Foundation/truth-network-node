@@ -200,7 +200,7 @@ impl WeightToFeePolynomial for WeightToFee {
     type Balance = Balance;
     fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
         // We adjust the fee conversion so that the Extrinsic Base Weight corresponds to 150 micro
-        // TNF fee.
+        // TRU fee.
         let p = 150 * MICRO_BASE;
         let q = Balance::from(ExtrinsicBaseWeight::get().ref_time());
         smallvec![WeightToFeeCoefficient {
@@ -444,9 +444,9 @@ parameter_types! {
     // This value was adjusted so that the length fee of an extrinsic is roughly
     // in line with the weight fees.
     // An extrinsic usually has a payload with a few hundred bytes, and its weight
-    // fee should be of a few milli TNF.
+    // fee should be of a few milli TRU.
     // In consequence TransactionByteFee should be set at a few MICRO_BASE.
-    // The actual value here was chosen to be a round number so that a Token Transfer be around 2mTNF, and a TNF transfer be around 1 mTNF.
+    // The actual value here was chosen to be a round number so that a Token Transfer be around 2mTRU, and a TRU transfer be around 1 mTRU.
     pub const TransactionByteFee: Balance = 5 * MICRO_BASE;
     pub const OperationalFeeMultiplier: u8 = 5;
 }
@@ -1002,7 +1002,7 @@ impl pallet_pm_eth_asset_registry::Config for Runtime {
 }
 
 parameter_types! {
-    pub const GetNativeCurrencyId: CurrencyId = Asset::Tnf;
+    pub const GetNativeCurrencyId: CurrencyId = Asset::Tru;
     pub const TreasuryPalletId: PalletId = TREASURY_PALLET_ID;
     pub TnfTreasuryAccount: AccountId = TreasuryPalletId::get().into_account_truncating();
 }
@@ -1024,7 +1024,7 @@ parameter_types! {
 parameter_type_with_key! {
     pub ExistentialDeposits: |currency_id: CurrencyId| -> Balance {
         match currency_id {
-            Asset::Tnf => NATIVE_EXISTENTIAL_DEPOSIT,
+            Asset::Tru => NATIVE_EXISTENTIAL_DEPOSIT,
             Asset::ForeignAsset(id) => {
                 let maybe_metadata = <
                 pallet_pm_eth_asset_registry::Pallet<Runtime> as prediction_market_primitives::traits::InspectEthAsset

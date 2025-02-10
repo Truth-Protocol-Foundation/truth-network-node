@@ -37,7 +37,7 @@ use sp_runtime::{DispatchError, Perbill};
 fn create_market_builder(oracle: AccountIdOf<Runtime>) -> MarketBuilder<Runtime> {
     let mut market_builder = MarketBuilder::new();
     market_builder
-        .base_asset(Asset::Tnf)
+        .base_asset(Asset::Tru)
         .creation(MarketCreation::Permissionless)
         .creator_fee(Perbill::zero())
         .creator(0)

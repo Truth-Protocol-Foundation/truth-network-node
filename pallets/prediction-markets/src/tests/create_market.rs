@@ -41,12 +41,12 @@ fn fails_if_user_cannot_afford_bonds_advised(
 ) {
     ExtBuilder::default().build().execute_with(|| {
         let creator = get_account(99);
-        assert_ok!(AssetManager::deposit(Asset::Tnf, &creator, balance));
+        assert_ok!(AssetManager::deposit(Asset::Tru, &creator, balance));
         WhitelistedMarketCreators::<Runtime>::insert(&creator, ());
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(creator),
-                Asset::Tnf,
+                Asset::Tru,
                 <Runtime as Config>::MaxCreatorFee::get(),
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -70,7 +70,7 @@ fn fails_on_fee_too_high() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 <Runtime as Config>::MaxCreatorFee::get() + one_billionth,
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -97,7 +97,7 @@ fn fails_on_invalid_multihash() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 <Runtime as Config>::MaxCreatorFee::get(),
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -121,7 +121,7 @@ fn create_scalar_market_fails_on_invalid_range(range: RangeInclusive<u128>) {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -149,7 +149,7 @@ fn create_market_fails_on_min_dispute_period() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -177,7 +177,7 @@ fn create_market_fails_on_min_oracle_duration() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -205,7 +205,7 @@ fn create_market_fails_on_max_dispute_period() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -233,7 +233,7 @@ fn create_market_fails_on_max_grace_period() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -261,7 +261,7 @@ fn create_market_fails_on_max_oracle_duration() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(123..456),
@@ -350,7 +350,7 @@ fn it_does_not_create_market_with_too_few_categories() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(0..100),
@@ -373,7 +373,7 @@ fn it_does_not_create_market_with_too_many_categories() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(0..100),
@@ -403,7 +403,7 @@ fn create_categorical_market_fails_if_market_period_is_invalid(
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 period,
@@ -428,7 +428,7 @@ fn create_categorical_market_fails_if_end_is_not_far_enough_ahead() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(0..end_block),
@@ -446,7 +446,7 @@ fn create_categorical_market_fails_if_end_is_not_far_enough_ahead() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Timestamp(0..end_time),
@@ -476,7 +476,7 @@ fn create_market_succeeds_if_market_duration_is_maximal_in_blocks() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(start..end),
@@ -505,7 +505,7 @@ fn create_market_suceeds_if_market_duration_is_maximal_in_moments() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Timestamp(start..end),
@@ -534,7 +534,7 @@ fn create_market_fails_if_market_duration_is_too_long_in_blocks() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(start..end),
@@ -567,7 +567,7 @@ fn create_market_fails_if_market_duration_is_too_long_in_moments() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Timestamp(start..end),
@@ -632,7 +632,7 @@ fn create_market_sets_the_correct_market_parameters_and_reserves_the_correct_amo
         WhitelistedMarketCreators::<Runtime>::insert(&creator, ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(creator),
-            Asset::Tnf,
+            Asset::Tru,
             creator_fee,
             oracle,
             period.clone(),
@@ -668,7 +668,7 @@ fn create_market_fails_on_trusted_market_with_non_zero_dispute_period() {
         assert_noop!(
             PredictionMarkets::create_market(
                 RuntimeOrigin::signed(alice()),
-                Asset::Tnf,
+                Asset::Tru,
                 Perbill::zero(),
                 bob(),
                 MarketPeriod::Block(1..2),
@@ -692,7 +692,7 @@ fn create_market_fails_on_trusted_market_with_non_zero_dispute_period() {
 fn create_categorical_market_deposits_the_correct_event() {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             1..2,
             ScoringRule::AmmCdaHybrid,
@@ -708,7 +708,7 @@ fn create_categorical_market_deposits_the_correct_event() {
 fn create_scalar_market_deposits_the_correct_event() {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_scalar_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             1..2,
             ScoringRule::AmmCdaHybrid,
