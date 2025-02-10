@@ -35,6 +35,16 @@ mod benchmarking;
 #[path = "tests/mock.rs"]
 mod mock;
 
+// Definition of the crypto to use for signing
+pub mod sr25519 {
+    mod app_sr25519 {
+        use sp_application_crypto::{app_crypto, sr25519, KeyTypeId};
+        app_crypto!(sr25519, KeyTypeId(*b"nodk"));
+    }
+
+    pub type AuthorityId = app_sr25519::Public;
+}
+
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::*;
 
