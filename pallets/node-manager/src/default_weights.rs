@@ -44,7 +44,8 @@ pub trait WeightInfo {
 	fn set_admin_config_reward_batch_size() -> Weight;
 	fn set_admin_config_reward_heartbeat() -> Weight;
 	fn set_admin_config_reward_amount() -> Weight;
-	fn on_initialise() -> Weight;
+	fn on_initialise_with_new_reward_period() -> Weight;
+	fn on_initialise_no_reward_period() -> Weight;
 	fn offchain_submit_heartbeat() -> Weight;
 	fn offchain_pay_nodes(n: u32, ) -> Weight;
 }
@@ -133,14 +134,24 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// Proof: `NodeManager::TotalUptime` (`max_values`: None, `max_size`: Some(32), added: 2507, mode: `MaxEncodedLen`)
 	/// Storage: `NodeManager::RewardPot` (r:0 w:1)
 	/// Proof: `NodeManager::RewardPot` (`max_values`: None, `max_size`: Some(48), added: 2523, mode: `MaxEncodedLen`)
-	fn on_initialise() -> Weight {
+	fn on_initialise_with_new_reward_period() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `168`
 		//  Estimated: `3497`
-		// Minimum execution time: 17_402_000 picoseconds.
-		Weight::from_parts(18_774_000, 3497)
+		// Minimum execution time: 16_961_000 picoseconds.
+		Weight::from_parts(19_091_000, 3497)
 			.saturating_add(T::DbWeight::get().reads(3_u64))
 			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
+	/// Storage: `NodeManager::RewardPeriod` (r:1 w:0)
+	/// Proof: `NodeManager::RewardPeriod` (`max_values`: Some(1), `max_size`: Some(16), added: 511, mode: `MaxEncodedLen`)
+	fn on_initialise_no_reward_period() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `165`
+		//  Estimated: `1501`
+		// Minimum execution time: 5_490_000 picoseconds.
+		Weight::from_parts(5_962_000, 1501)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
 	}
 	/// Storage: `NodeManager::NodeRegistry` (r:1 w:0)
 	/// Proof: `NodeManager::NodeRegistry` (`max_values`: None, `max_size`: Some(112), added: 2587, mode: `MaxEncodedLen`)
@@ -275,14 +286,24 @@ impl WeightInfo for () {
 	/// Proof: `NodeManager::TotalUptime` (`max_values`: None, `max_size`: Some(32), added: 2507, mode: `MaxEncodedLen`)
 	/// Storage: `NodeManager::RewardPot` (r:0 w:1)
 	/// Proof: `NodeManager::RewardPot` (`max_values`: None, `max_size`: Some(48), added: 2523, mode: `MaxEncodedLen`)
-	fn on_initialise() -> Weight {
+	fn on_initialise_with_new_reward_period() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `168`
 		//  Estimated: `3497`
-		// Minimum execution time: 17_402_000 picoseconds.
-		Weight::from_parts(18_774_000, 3497)
+		// Minimum execution time: 16_961_000 picoseconds.
+		Weight::from_parts(19_091_000, 3497)
 			.saturating_add(RocksDbWeight::get().reads(3_u64))
 			.saturating_add(RocksDbWeight::get().writes(2_u64))
+	}
+	/// Storage: `NodeManager::RewardPeriod` (r:1 w:0)
+	/// Proof: `NodeManager::RewardPeriod` (`max_values`: Some(1), `max_size`: Some(16), added: 511, mode: `MaxEncodedLen`)
+	fn on_initialise_no_reward_period() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `165`
+		//  Estimated: `1501`
+		// Minimum execution time: 5_490_000 picoseconds.
+		Weight::from_parts(5_962_000, 1501)
+			.saturating_add(RocksDbWeight::get().reads(1_u64))
 	}
 	/// Storage: `NodeManager::NodeRegistry` (r:1 w:0)
 	/// Proof: `NodeManager::NodeRegistry` (`max_values`: None, `max_size`: Some(112), added: 2587, mode: `MaxEncodedLen`)

@@ -29,7 +29,7 @@ use crate::MarketIdsForEdit;
 fn only_creator_can_edit_market() {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -54,7 +54,7 @@ fn only_creator_can_edit_market() {
         assert_noop!(
             PredictionMarkets::edit_market(
                 RuntimeOrigin::signed(bob()),
-                Asset::Tnf,
+                Asset::Tru,
                 0,
                 charlie(),
                 MarketPeriod::Block(0..2),
@@ -73,7 +73,7 @@ fn only_creator_can_edit_market() {
 fn edit_cycle_for_proposed_markets() {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             2..4,
             ScoringRule::AmmCdaHybrid,
@@ -97,7 +97,7 @@ fn edit_cycle_for_proposed_markets() {
         // After this edit its changed to alice()
         assert_ok!(PredictionMarkets::edit_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             0,
             charlie(),
             MarketPeriod::Block(2..4),
@@ -122,7 +122,7 @@ fn edit_market_with_foreign_asset() {
     ExtBuilder::default().build().execute_with(|| {
         // Creates an advised market.
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             0..2,
             ScoringRule::AmmCdaHybrid,

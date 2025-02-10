@@ -366,17 +366,25 @@ pub mod pallet {
 
         /// Set admin configurations
         #[pallet::call_index(1)]
-        #[pallet::weight(1)]
+        #[pallet::weight(
+            <T as Config>::WeightInfo::register_node()
+            .max(<T as Config>::WeightInfo::set_admin_config_registrar())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_period())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_batch_size())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_amount())
+        )]
         pub fn set_admin_config(
             origin: OriginFor<T>,
             config: AdminConfig<T::AccountId, BalanceOf<T>>,
-        ) -> DispatchResult {
+        ) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
 
             match config {
                 AdminConfig::NodeRegistrar(registrar) => {
                     <NodeRegistrar<T>>::set(Some(registrar.clone()));
                     Self::deposit_event(Event::NodeRegistrarSet { new_registrar: registrar });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_registrar()).into());
                 },
                 AdminConfig::RewardPeriod(period) => {
                     let heartbeat = <HeartbeatPeriod<T>>::get();
@@ -390,11 +398,13 @@ pub mod pallet {
                         old_reward_period_length: old_period,
                         new_reward_period_length: period,
                     });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_period()).into());
                 },
                 AdminConfig::BatchSize(size) => {
                     ensure!(size > 0, Error::<T>::BatchSizeInvalid);
                     <MaxBatchSize<T>>::put(size.clone());
                     Self::deposit_event(Event::BatchSizeSet { new_size: size });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_batch_size()).into());
                 },
                 AdminConfig::Heartbeat(period) => {
                     let reward_period = RewardPeriod::<T>::get().length;
@@ -402,15 +412,15 @@ pub mod pallet {
                     ensure!(period < reward_period, Error::<T>::HeartbeatPeriodInvalid);
                     <HeartbeatPeriod<T>>::put(period.clone());
                     Self::deposit_event(Event::HeartbeatPeriodSet { new_heartbeat_period: period });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat()).into());
                 },
                 AdminConfig::RewardAmount(amount) => {
                     ensure!(amount > BalanceOf::<T>::zero(), Error::<T>::RewardAmountZero);
                     <RewardAmount<T>>::put(amount.clone());
                     Self::deposit_event(Event::RewardAmountSet { new_amount: amount });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_amount()).into());
                 },
             }
-
-            Ok(())
         }
 
         /// Offchain call: pay and remove up to `MAX_BATCH_SIZE` nodes in the oldest unpaid period.
@@ -561,10 +571,10 @@ pub mod pallet {
                     previous_period_reward: reward_amount,
                 });
 
-                return <T as Config>::WeightInfo::on_initialise();
+                return <T as Config>::WeightInfo::on_initialise_with_new_reward_period();
             }
 
-            T::DbWeight::get().reads(1)
+            return <T as Config>::WeightInfo::on_initialise_no_reward_period();
         }
 
         fn offchain_worker(n: BlockNumberFor<T>) {

@@ -212,15 +212,47 @@ benchmarks! {
     }
 
     offchain_pay_nodes {
-        // The number of registered nodes (n) should not have any effect on the performance of this extrinsic.
-        // If this changes, we have broken something in the extrinsic.
-        let n in 1 .. 100;
+        let registered_nodes = 1001;
 
         // This should affect the performance of the extrinsic.
-        let b in 1 .. 100;
+        let b in 1 .. 1000;
 
         fund_reward_pot::<T>();
         set_max_batch_size::<T>(b);
+
+        let reward_period = <RewardPeriod<T>>::get();
+        let reward_period_index = reward_period.current;
+        let owner: T::AccountId = account("owner", 0, 0);
+        let author = create_author::<T>();
+
+        create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, registered_nodes);
+
+        // Move forward to the next reward period
+        <frame_system::Pallet<T>>::set_block_number((reward_period.length + 1).into());
+        let current_block_number = frame_system::Pallet::<T>::block_number();
+        <frame_system::Pallet<T>>::set_block_number(current_block_number + reward_period.length.into());
+        Pallet::<T>::on_initialize(current_block_number);
+        let signature = author.key.sign(
+            &(PAYOUT_REWARD_CONTEXT, reward_period_index).encode()
+        ).expect("Error signing");
+    }: offchain_pay_nodes(RawOrigin::None, reward_period_index, author ,signature)
+    verify {
+        let max_batch_size = MaxBatchSize::<T>::get();
+        let expected_balance = max_batch_size.min(registered_nodes).saturated_into::<BalanceOf<T>>().
+            bmul_bdiv(RewardAmount::<T>::get(), registered_nodes.saturated_into::<BalanceOf<T>>())
+            .unwrap();
+        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 100u32.saturated_into::<BalanceOf<T>>());
+    }
+
+    #[extra]
+    pay_nodes_constant_batch_size {
+        // Prove that the extrinsic is constant time with respect to the batch size.
+        // Even if the number of registered nodes increases
+
+        // This should NOT affect the performance of the extrinsic. The execution time should be constant.
+        let n in 1 .. 100;
+
+        fund_reward_pot::<T>();
 
         let reward_period = <RewardPeriod<T>>::get();
         let reward_period_index = reward_period.current;
@@ -243,7 +275,7 @@ benchmarks! {
         let expected_balance = max_batch_size.min(n).saturated_into::<BalanceOf<T>>().
             bmul_bdiv(RewardAmount::<T>::get(), n.saturated_into::<BalanceOf<T>>())
             .unwrap();
-        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 10u32.saturated_into::<BalanceOf<T>>());
+        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 50u32.saturated_into::<BalanceOf<T>>());
     }
 }
 

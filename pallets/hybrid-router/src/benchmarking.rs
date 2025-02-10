@@ -166,7 +166,7 @@ mod benchmarks {
     #[benchmark]
     fn buy(n: Linear<2, 16>, o: Linear<0, 10>) {
         let buyer: T::AccountId = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             buyer.clone(),
@@ -227,7 +227,7 @@ mod benchmarks {
     #[benchmark]
     fn sell(n: Linear<2, 10>, o: Linear<0, 10>) {
         let seller: T::AccountId = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             seller.clone(),
@@ -300,7 +300,7 @@ mod benchmarks {
         let relayer_account_id = get_relayer::<T>();
         let (buyer_key_pair, buyer_account_id) = get_user_account::<T>();
 
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             buyer_account_id.clone(),
@@ -380,7 +380,7 @@ mod benchmarks {
         let relayer_account_id = get_relayer::<T>();
         let (seller_key_pair, seller_account_id) = get_user_account::<T>();
 
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             seller_account_id.clone(),

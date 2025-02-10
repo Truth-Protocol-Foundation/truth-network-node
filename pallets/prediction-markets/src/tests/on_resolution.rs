@@ -27,7 +27,7 @@ fn it_correctly_resolves_a_market_that_was_reported_on() {
     ExtBuilder::default().build().execute_with(|| {
         let end = 2;
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..end,
             ScoringRule::AmmCdaHybrid,
@@ -88,7 +88,7 @@ fn it_correctly_resolves_a_market_that_was_reported_on() {
 #[test]
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_market_on_oracle_report(
 ) {
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -127,7 +127,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_ma
         assert_eq!(Balances::free_balance(alice()), alice_balance_before + OracleBond::get());
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -138,7 +138,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_ma
 #[test]
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_market_on_outsider_report(
 ) {
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -177,7 +177,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_ma
         assert_eq!(Balances::free_balance(alice()), alice_balance_before);
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -189,7 +189,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_ma
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_market_with_correct_disputed_outcome_with_oracle_report(
 ) {
     // Oracle reports in time but incorrect report, so OracleBond gets slashed on resolution
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -229,7 +229,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
         assert_eq!(Balances::free_balance(alice()), alice_balance_before + ValidityBond::get());
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -241,7 +241,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_market_with_correct_disputed_outcome_with_oracle_report(
 ) {
     // Oracle reports in time but incorrect report, so OracleBond gets slashed on resolution
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -285,7 +285,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_ma
         assert_eq!(Balances::free_balance(alice()), alice_balance_before);
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -297,7 +297,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_approved_advised_ma
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_market_with_wrong_disputed_outcome_with_oracle_report(
 ) {
     // Oracle reports in time and correct report, so OracleBond does not get slashed on resolution
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -340,7 +340,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -352,7 +352,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_advised_approved_market_with_wrong_disputed_outcome_with_oracle_report(
 ) {
     // Oracle reports in time and correct report, so OracleBond does not get slashed on resolution
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -396,7 +396,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_advised_approved_ma
         assert_eq!(Balances::free_balance(alice()), alice_balance_before + OracleBond::get());
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -408,7 +408,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_advised_approved_ma
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_market_with_disputed_outcome_with_outsider_report(
 ) {
     // Oracle does not report in time, so OracleBond gets slashed on resolution
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -463,7 +463,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -475,7 +475,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_advised_approved_market_with_disputed_outcome_with_outsider_report(
 ) {
     // Oracle does not report in time, so OracleBond gets slashed on resolution
-    // NOTE: Bonds are always in TNF
+    // NOTE: Bonds are always in TRU
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -533,7 +533,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_advised_approved_ma
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -548,7 +548,7 @@ fn trusted_market_complete_lifecycle() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -594,7 +594,7 @@ fn trusted_market_complete_lifecycle() {
 #[test]
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_market_on_oracle_report(
 ) {
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -630,7 +630,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -641,7 +641,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
 #[test]
 fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_market_on_outsider_report(
 ) {
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         let end = 100;
@@ -702,7 +702,7 @@ fn on_resolution_correctly_reserves_and_unreserves_bonds_for_permissionless_mark
         assert!(market.bonds.outsider.unwrap().is_settled);
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {

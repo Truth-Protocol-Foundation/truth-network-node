@@ -275,7 +275,7 @@ mod benchmarks {
     #[benchmark]
     fn buy(n: Linear<2, 128>) {
         let alice = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             alice,
@@ -298,7 +298,7 @@ mod benchmarks {
     #[benchmark]
     fn sell(n: Linear<2, 128>) {
         let alice = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             alice,
@@ -323,7 +323,7 @@ mod benchmarks {
     #[benchmark]
     fn join_in_place(n: Linear<2, 128>) {
         let alice: T::AccountId = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             alice.clone(),
@@ -355,7 +355,7 @@ mod benchmarks {
     #[benchmark]
     fn join_reassigned(n: Linear<2, 128>) {
         let alice: T::AccountId = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             alice.clone(),
@@ -387,7 +387,7 @@ mod benchmarks {
     #[benchmark]
     fn join_leaf(n: Linear<2, 128>) {
         let alice: T::AccountId = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             alice.clone(),
@@ -425,7 +425,7 @@ mod benchmarks {
     #[benchmark]
     fn exit(n: Linear<2, 128>) {
         let alice: T::AccountId = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market_and_deploy_pool::<T>(
             alice.clone(),
@@ -454,7 +454,7 @@ mod benchmarks {
         let alice: T::AccountId = whitelisted_caller();
         let market_id = create_market_and_deploy_pool::<T>(
             alice.clone(),
-            Asset::Tnf,
+            Asset::Tru,
             2u16,
             _10.saturated_into(),
         );
@@ -476,7 +476,7 @@ mod benchmarks {
     #[benchmark]
     fn deploy_pool(n: Linear<2, 128>) {
         let alice: T::AccountId = whitelisted_caller();
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let asset_count = n.try_into().unwrap();
         let market_id = create_market::<T>(alice.clone(), base_asset, asset_count);
         let amount = _10.saturated_into();

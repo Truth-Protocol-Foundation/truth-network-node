@@ -568,7 +568,7 @@ mod pallet {
             };
 
             let dispute_bond = T::DisputeBond::get();
-            T::AssetManager::reserve_named(&Self::reserve_id(), Asset::Tnf, &who, dispute_bond)?;
+            T::AssetManager::reserve_named(&Self::reserve_id(), Asset::Tru, &who, dispute_bond)?;
 
             <pallet_pm_market_commons::Pallet<T>>::mutate_market(&market_id, |m| {
                 m.status = MarketStatus::Disputed;
@@ -1032,7 +1032,7 @@ mod pallet {
 
                     T::AssetManager::reserve_named(
                         &Self::reserve_id(),
-                        Asset::Tnf,
+                        Asset::Tru,
                         &market_creator,
                         close_request_bond,
                     )?;
@@ -1148,7 +1148,7 @@ mod pallet {
 
             T::AssetManager::reserve_named(
                 &Self::reserve_id(),
-                Asset::Tnf,
+                Asset::Tru,
                 &who,
                 close_dispute_bond,
             )?;
@@ -2308,7 +2308,7 @@ mod pallet {
 
             T::AssetManager::reserve_named(
                 &Self::reserve_id(),
-                Asset::Tnf,
+                Asset::Tru,
                 &who,
                 bonds.total_amount_bonded(&who),
             )?;
@@ -3290,7 +3290,7 @@ mod pallet {
             );
 
             let valid_base_asset = match base_asset {
-                Asset::Tnf => true,
+                Asset::Tru => true,
                 Asset::ForeignAsset(fa) => {
                     if let Some(metadata) = T::AssetRegistry::metadata(&Asset::ForeignAsset(fa)) {
                         metadata.additional.allow_as_base_asset
@@ -3390,7 +3390,7 @@ mod pallet {
 
                     T::AssetManager::reserve_named(
                         &Self::reserve_id(),
-                        Asset::Tnf,
+                        Asset::Tru,
                         &sender,
                         outsider_bond,
                     )?;

@@ -27,7 +27,7 @@ use crate::{MarketIdsForEdit, MarketIdsPerCloseBlock};
 fn it_allows_the_advisory_origin_to_reject_markets() {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             4..6,
             ScoringRule::AmmCdaHybrid,
@@ -58,7 +58,7 @@ fn reject_errors_if_reject_reason_is_too_long() {
     ExtBuilder::default().build().execute_with(|| {
         // Creates an advised market.
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -86,7 +86,7 @@ fn it_allows_the_advisory_origin_to_reject_markets_with_edit_request() {
     ExtBuilder::default().build().execute_with(|| {
         // Creates an advised market.
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -121,7 +121,7 @@ fn it_allows_the_advisory_origin_to_reject_markets_with_edit_request() {
 
 #[test]
 fn reject_market_unreserves_oracle_bond_and_slashes_advisory_bond() {
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         simple_create_categorical_market(
             base_asset,
@@ -130,9 +130,9 @@ fn reject_market_unreserves_oracle_bond_and_slashes_advisory_bond() {
             ScoringRule::AmmCdaHybrid,
         );
 
-        // Give alice() `SENTINEL_AMOUNT` free and reserved TNF; we record the free balance to check
+        // Give alice() `SENTINEL_AMOUNT` free and reserved TRU; we record the free balance to check
         // that the AdvisoryBond gets slashed but the OracleBond gets unreserved.
-        assert_ok!(AssetManager::deposit(Asset::Tnf, &alice(), 2 * SENTINEL_AMOUNT));
+        assert_ok!(AssetManager::deposit(Asset::Tru, &alice(), 2 * SENTINEL_AMOUNT));
         assert_ok!(Balances::reserve_named(
             &PredictionMarkets::reserve_id(),
             &alice(),
@@ -179,7 +179,7 @@ fn reject_market_unreserves_oracle_bond_and_slashes_advisory_bond() {
         assert_eq!(balance_treasury_after, slash_amount_advisory_bond);
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
     #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
@@ -193,19 +193,19 @@ fn reject_market_clears_auto_close_blocks() {
     // pools can not be deployed on pending advised pools.
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             33..66,
             ScoringRule::AmmCdaHybrid,
         );
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             22..66,
             ScoringRule::AmmCdaHybrid,
         );
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             22..33,
             ScoringRule::AmmCdaHybrid,
@@ -229,7 +229,7 @@ fn reject_market_fails_on_permissionless_market() {
     ExtBuilder::default().build().execute_with(|| {
         // Creates an advised market.
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -252,7 +252,7 @@ fn reject_market_fails_on_approved_market() {
     ExtBuilder::default().build().execute_with(|| {
         // Creates an advised market.
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             0..2,
             ScoringRule::AmmCdaHybrid,
