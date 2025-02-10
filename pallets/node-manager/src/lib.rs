@@ -24,13 +24,15 @@ use sp_runtime::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
         ValidTransaction,
     },
-    DispatchError, Perbill, RuntimeDebug, Saturating,
+    DispatchError, RuntimeDebug, Saturating,
 };
 
 pub mod offchain;
 pub mod reward;
 pub mod types;
 use crate::types::*;
+pub mod default_weights;
+pub use default_weights::WeightInfo;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -331,13 +333,15 @@ pub mod pallet {
         /// The id of the reward pot.
         #[pallet::constant]
         type RewardPotId: Get<PalletId>;
+        /// The weight information for extrinsics in this pallet.
+        type WeightInfo: WeightInfo;
     }
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Register a new node
         #[pallet::call_index(0)]
-        #[pallet::weight(1)]
+        #[pallet::weight(<T as Config>::WeightInfo::register_node())]
         pub fn register_node(
             origin: OriginFor<T>,
             node: NodeId<T>,
@@ -478,7 +482,7 @@ pub mod pallet {
 
         /// Offchain call: Submit heartbeat to show node is still alive
         #[pallet::call_index(3)]
-        #[pallet::weight(10_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::offchain_submit_heartbeat())]
         pub fn offchain_submit_heartbeat(
             origin: OriginFor<T>,
             node: NodeId<T>,
@@ -556,10 +560,11 @@ pub mod pallet {
                     reward_period_length: reward_period.length,
                     previous_period_reward: reward_amount,
                 });
+
+                return <T as Config>::WeightInfo::on_initialise();
             }
 
-            // TODO: Benchmark me
-            Weight::zero()
+            T::DbWeight::get().reads(1)
         }
 
         fn offchain_worker(n: BlockNumberFor<T>) {

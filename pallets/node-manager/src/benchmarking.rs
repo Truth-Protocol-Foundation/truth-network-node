@@ -94,6 +94,10 @@ fn create_nodes_and_hearbeat<T: Config>(
     }
 }
 
+fn set_max_batch_size<T: Config>(batch_size: u32) {
+    <MaxBatchSize<T>>::set(batch_size);
+}
+
 benchmarks! {
     register_node {
         let registrar: T::AccountId = account("registrar", 0, 0);
@@ -160,7 +164,7 @@ benchmarks! {
         assert!(<RewardAmount<T>>::get() == new_amount);
     }
 
-    on_initialise {
+    on_initialise_with_new_reward_period {
         let reward_period = <RewardPeriod<T>>::get();
         let block_number: BlockNumberFor<T> = (reward_period.first + BlockNumberFor::<T>::from(reward_period.length) + 1u32.into()).into();
 
@@ -172,6 +176,15 @@ benchmarks! {
             reward_period_index: new_reward_period,
             reward_period_length: reward_period.length,
             previous_period_reward: RewardAmount::<T>::get()}.into());
+    }
+
+    on_initialise_no_reward_period {
+        let reward_period = <RewardPeriod<T>>::get();
+        let block_number: BlockNumberFor<T> = BlockNumberFor::<T>::from(reward_period.length) - 1u32.into();
+
+    }: { Pallet::<T>::on_initialize(block_number) }
+    verify {
+        assert!(reward_period.current== <RewardPeriod<T>>::get().current);
     }
 
     offchain_submit_heartbeat {
@@ -199,8 +212,15 @@ benchmarks! {
     }
 
     offchain_pay_nodes {
-        let n in 11 .. 50000;
+        // The number of registered nodes (n) should not have any effect on the performance of this extrinsic.
+        // If this changes, we have broken something in the extrinsic.
+        let n in 1 .. 100;
+
+        // This should affect the performance of the extrinsic.
+        let b in 1 .. 100;
+
         fund_reward_pot::<T>();
+        set_max_batch_size::<T>(b);
 
         let reward_period = <RewardPeriod<T>>::get();
         let reward_period_index = reward_period.current;
@@ -220,7 +240,7 @@ benchmarks! {
     }: offchain_pay_nodes(RawOrigin::None, reward_period_index, author ,signature)
     verify {
         let max_batch_size = MaxBatchSize::<T>::get();
-        let expected_balance = max_batch_size.saturated_into::<BalanceOf<T>>().
+        let expected_balance = max_batch_size.min(n).saturated_into::<BalanceOf<T>>().
             bmul_bdiv(RewardAmount::<T>::get(), n.saturated_into::<BalanceOf<T>>())
             .unwrap();
         assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 10u32.saturated_into::<BalanceOf<T>>());

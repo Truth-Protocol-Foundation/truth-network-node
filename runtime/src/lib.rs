@@ -759,7 +759,7 @@ impl pallet_node_manager::Config for Runtime {
     type RewardPotId = NodeManagerPalletId;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
-    //type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_utility::Config for Runtime {
