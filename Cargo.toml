@@ -135,7 +135,8 @@ sp-session = { git = "https://github.com/paritytech/polkadot-sdk", branch = "rel
 sp-std = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 sp-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 sp-version = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
-
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
+sp-state-machine = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 # (client)
 pallet-prediction-markets-fuzz = { path = "pallets/prediction-markets/fuzz" }
 
@@ -153,6 +154,7 @@ pallet-prediction-markets-runtime-api = { path = "pallets/prediction-markets/run
 pallet-pm-hybrid-router = { path = "pallets/hybrid-router", default-features = false }
 pallet-pm-order-book = { path = "pallets/order-book", default-features = false }
 pallet-pm-eth-asset-registry = { path = "pallets/eth-asset-registry", default-features = false }
+pallet-node-manager = { path = "pallets/node-manager", default-features = false }
 
 # Other (client)
 clap = "4.5.4"
