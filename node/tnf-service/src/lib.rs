@@ -85,7 +85,7 @@ impl<Block: BlockT, ClientT: BlockBackend<Block> + UsageProvider<Block>> Config<
                 log::info!(
                     "⛓️  tnf-service: web3 connection has already been initialised, skipping"
                 );
-                return Ok(())
+                return Ok(());
             }
 
             let web3_init_time = Instant::now();
@@ -97,14 +97,14 @@ impl<Block: BlockT, ClientT: BlockBackend<Block> + UsageProvider<Block>> Config<
                     "💔 Error creating a web3 connection. URL is not valid {:?}",
                     &self.eth_node_url
                 );
-                return Err(server_error("Error creating a web3 connection".to_string()))
+                return Err(server_error("Error creating a web3 connection".to_string()));
             }
 
             log::info!("⏲️  web3 init task completed in: {:?}", web3_init_time.elapsed());
             web3_data_mutex.web3 = web3;
             Ok(())
         } else {
-            return Err(server_error("Failed to acquire web3 data mutex.".to_string()))
+            return Err(server_error("Failed to acquire web3 data mutex.".to_string()));
         }
     }
 }
@@ -123,7 +123,7 @@ impl TxQueryData for TransactionReceipt {
             server_error(format!("Error serialising tx receipt json to string: {:?}", e))
         })?;
 
-        return Ok(string_data.as_bytes().to_vec())
+        return Ok(string_data.as_bytes().to_vec());
     }
 }
 
@@ -136,7 +136,7 @@ impl TxQueryData for Vec<u8> {
 
 pub fn server_error(message: String) -> TideError {
     log::error!("⛓️ 💔 tnf-service {:?}", message);
-    return TideError::from_str(StatusCode::InternalServerError, format!("{:?}", message))
+    return TideError::from_str(StatusCode::InternalServerError, format!("{:?}", message));
 }
 
 pub fn hash_with_ethereum_prefix(data_to_sign: &Vec<u8>) -> [u8; 32] {
@@ -157,7 +157,7 @@ pub fn to_bytes32(data: String) -> Result<[u8; 32], TideError> {
     return <[u8; 32]>::from_hex(data.clone()).map_or_else(
         |e| Err(server_error(format!("Error converting {:?} to bytes32: {:?}", data, e))),
         |bytes32| Ok(bytes32),
-    )
+    );
 }
 
 fn to_eth_query_response<T: TxQueryData>(
@@ -184,9 +184,9 @@ fn error_due_to_low_nonce(error: &RPCError) -> bool {
     if error.code == ErrorCode::ServerError(-32000_i64) {
         let error_msg = error.to_string();
         return error_msg.to_lowercase().find("the tx doesn't have the correct nonce").is_some() ||
-            error_msg.to_lowercase().find("nonce too low").is_some()
+            error_msg.to_lowercase().find("nonce too low").is_some();
     }
-    return false
+    return false;
 }
 
 async fn send_tx(
@@ -269,14 +269,14 @@ where
     log::info!("⛓️  tnf-service: send Request");
     let post_body = req.body_bytes().await?;
     if post_body.len() > MAX_BODY_SIZE {
-        return Err(server_error(format!("Request body too large. Size: {:?}", post_body.len())))
+        return Err(server_error(format!("Request body too large. Size: {:?}", post_body.len())));
     }
     let send_request = &EthTransaction::decode(&mut &post_body[..])
         .map_err(|e| server_error(format!("Error decoding eth transaction data: {:?}", e)))?;
 
     if let Some(mut mutex_web3_data) = req.state().web3_data_mutex.try_lock() {
         if mutex_web3_data.web3.is_none() {
-            return Err(server_error("Web3 connection not setup".to_string()))
+            return Err(server_error("Web3 connection not setup".to_string()));
         }
         let keystore_path = &req.state().keystore_path;
 
@@ -303,7 +303,7 @@ where
                         send_tx(&mut *mutex_web3_data, send_request, &my_eth_address, my_priv_key)
                             .await;
                 } else {
-                    return Err(server_error(format!("Error sending tx to ethereum: {:?}", error)))
+                    return Err(server_error(format!("Error sending tx to ethereum: {:?}", error)));
                 }
             }
         }
@@ -329,7 +329,7 @@ where
     log::info!("⛓️  tnf-service: view Request");
     let post_body = req.body_bytes().await?;
     if post_body.len() > MAX_BODY_SIZE {
-        return Err(server_error(format!("Request body too large. Size: {:?}", post_body.len())))
+        return Err(server_error(format!("Request body too large. Size: {:?}", post_body.len())));
     }
 
     let view_request = &EthTransaction::decode(&mut &post_body[..])
@@ -337,7 +337,7 @@ where
 
     if let Some(mutex_web3_data) = req.state().web3_data_mutex.try_lock() {
         if mutex_web3_data.web3.is_none() {
-            return Err(server_error("Web3 connection not setup".to_string()))
+            return Err(server_error("Web3 connection not setup".to_string()));
         }
 
         let call_request = build_call_request(view_request).await?;
@@ -366,7 +366,7 @@ where
     log::info!("⛓️  tnf-service: query Request.");
     let post_body = req.body_bytes().await?;
     if post_body.len() > MAX_BODY_SIZE {
-        return Err(server_error(format!("Request body too large. Size: {:?}", post_body.len())))
+        return Err(server_error(format!("Request body too large. Size: {:?}", post_body.len())));
     }
 
     let request = &EthTransaction::decode(&mut &post_body[..])
@@ -377,7 +377,7 @@ where
 
     if let Some(mutex_web3_data) = req.state().web3_data_mutex.try_lock() {
         if mutex_web3_data.web3.is_none() {
-            return Err(server_error("Web3 connection not setup".to_string()))
+            return Err(server_error("Web3 connection not setup".to_string()));
         }
 
         let web3 = mutex_web3_data.web3.as_ref().unwrap();
@@ -403,7 +403,7 @@ where
     ClientT: BlockBackend<Block> + UsageProvider<Block> + Send + Sync + 'static,
 {
     if config.initialise_web3().await.is_err() {
-        return
+        return;
     }
 
     let port = format!(
@@ -448,19 +448,19 @@ where
     app.at("/eth/send")
         .post(|req: tide::Request<Arc<Config<Block, ClientT>>>| async move {
             // Methods that require web3 must be run within the tokio runtime (#[tokio::main])
-            return send_main(req)
+            return send_main(req);
         });
 
     app.at("/eth/view")
         .post(|req: tide::Request<Arc<Config<Block, ClientT>>>| async move {
             // Methods that require web3 must be run within the tokio runtime (#[tokio::main])
-            return view_main(req)
+            return view_main(req);
         });
 
     app.at("/eth/query")
         .post(|req: tide::Request<Arc<Config<Block, ClientT>>>| async move {
             // Methods that require web3 must be run within the tokio runtime (#[tokio::main])
-            return tx_query_main(req)
+            return tx_query_main(req);
         });
 
     app.at("/roothash/:from_block/:to_block").get(
@@ -494,7 +494,7 @@ where
                     root_hash_duration
                 );
 
-                return Ok(hex::encode(root_hash))
+                return Ok(hex::encode(root_hash));
             }
 
             // the tree is empty

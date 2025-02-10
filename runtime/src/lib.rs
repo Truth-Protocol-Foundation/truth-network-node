@@ -603,6 +603,7 @@ impl pallet_ethereum_events::Config for Runtime {
     type ReportInvalidEthereumLog = Offences;
     type WeightInfo = pallet_ethereum_events::default_weights::SubstrateWeight<Runtime>;
     type EthereumEventsFilter = EthBridgeTnfRuntimeEventsFilter;
+    type ProcessedEventsChecker = EthereumEvents;
 }
 
 impl pallet_token_manager::pallet::Config for Runtime {
@@ -659,7 +660,7 @@ pub struct OriginPrivilegeCmp;
 impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
     fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
         if left == right {
-            return Some(Ordering::Equal)
+            return Some(Ordering::Equal);
         }
 
         match (left, right) {

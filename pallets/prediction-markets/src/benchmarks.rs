@@ -252,7 +252,7 @@ where
     let bytes = account.encode();
     let mut vector: [u8; 32] = Default::default();
     vector.copy_from_slice(&bytes[0..32]);
-    return vector
+    return vector;
 }
 
 fn get_user_account<T: Config>() -> (<T as pallet_avn::Config>::AuthorityId, T::AccountId)
@@ -264,12 +264,12 @@ where
         <T as pallet_avn::Config>::AuthorityId::generate_pair(Some(mnemonic.as_bytes().to_vec()));
     let account_bytes = into_bytes::<T>(&key_pair);
     let account_id = T::AccountId::decode(&mut &account_bytes.encode()[..]).unwrap();
-    return (key_pair, account_id)
+    return (key_pair, account_id);
 }
 
 fn get_relayer<T: Config>() -> T::AccountId {
     let relayer_account: H256 = H256::repeat_byte(1);
-    return T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid relayer account id")
+    return T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid relayer account id");
 }
 
 fn get_proof<T: Config>(
@@ -281,7 +281,7 @@ fn get_proof<T: Config>(
         signer: signer.clone(),
         relayer: relayer.clone(),
         signature: sp_core::sr25519::Signature::from_slice(signature).unwrap().into(),
-    }
+    };
 }
 
 fn do_report_trusted_market<T: Config>(

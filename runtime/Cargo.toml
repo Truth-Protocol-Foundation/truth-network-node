@@ -67,7 +67,7 @@ pallet-avn-proxy = { workspace = true }
 pallet-nft-manager = { workspace = true }
 
 # Tnf pallets
-pallet-authors-manager = { path = "../pallets/authors-manager", default-features = false }
+pallet-authors-manager = { workspace = true }
 
 # Used for the node's RPCs
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
