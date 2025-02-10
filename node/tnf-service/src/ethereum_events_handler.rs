@@ -266,7 +266,7 @@ pub async fn identify_events(
     // discovery.
     let extend_discovery_to_secondary_events = event_signatures_to_find
         .iter()
-        .filter_map(|sig| ValidEvents::try_from(sig))
+        .filter_map(|sig| ValidEvents::try_from(sig).ok())
         .any(|x| all_secondary_events.contains(&x));
 
     let secondary_logs = if extend_discovery_to_secondary_events {
@@ -307,7 +307,7 @@ pub async fn identify_events(
 
 fn parse_log(log: Log, events_registry: &EventRegistry) -> Result<DiscoveredEvent, AppError> {
     if log.topics.is_empty() {
-        return Err(AppError::MissingEventSignature)
+        return Err(AppError::MissingEventSignature);
     }
     log::debug!("⛓️ Parsing discovered log: {:?}", &log);
 
@@ -390,7 +390,7 @@ where
                 log::info!(
                     "⛓️  avn-service: web3 connection has already been initialised, skipping"
                 );
-                return Ok(())
+                return Ok(());
             }
 
             let web3_init_time = Instant::now();
@@ -402,7 +402,7 @@ where
                     "💔 Error creating a web3 connection. URL is not valid {:?}",
                     &self.eth_node_url
                 );
-                return Err(server_error("Error creating a web3 connection".to_string()))
+                return Err(server_error("Error creating a web3 connection".to_string()));
             }
 
             log::info!("⏲️  web3 init task completed in: {:?}", web3_init_time.elapsed());
@@ -437,14 +437,14 @@ where
         match config.initialise_web3().await {
             Ok(_) => {
                 log::info!("Successfully initialized web3 connection.");
-                return Ok(())
+                return Ok(());
             },
             Err(e) => {
                 attempts += 1;
                 log::error!("Failed to initialize web3 (attempt {}): {:?}", attempts, e);
                 if attempts >= RETRY_LIMIT {
                     log::error!("Reached maximum retry limit for initializing web3.");
-                    return Err(AppError::Web3RetryLimitReached)
+                    return Err(AppError::Web3RetryLimitReached);
                 }
                 sleep(Duration::from_secs(RETRY_DELAY)).await;
             },
@@ -470,7 +470,7 @@ fn find_current_node_author<T>(
                     CurrentNodeAuthor::new(Public::from_raw(author.0), Public::from_raw(author.1))
                 })
             })
-            .nth(0)
+            .nth(0);
     }
 
     None
@@ -489,7 +489,7 @@ where
 {
     if let Err(e) = initialize_web3_with_retries(&config).await {
         log::error!("Web3 initialization ultimately failed: {:?}", e);
-        return
+        return;
     }
 
     let events_registry = EventRegistry::new();
@@ -511,7 +511,7 @@ where
             find_current_node_author(authors.clone(), node_signing_keys.clone())
         {
             current_node_author = node_author;
-            break
+            break;
         }
         log::error!("Author not found. Will attempt again after a while. Chain signing keys: {:?}, keystore keys: {:?}.",
             authors,
@@ -519,7 +519,7 @@ where
         );
 
         sleep(Duration::from_secs(10 * SLEEP_TIME)).await;
-        continue
+        continue;
     }
 
     log::info!("Current node author address set: {:?}", current_node_author);

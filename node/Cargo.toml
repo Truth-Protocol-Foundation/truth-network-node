@@ -61,7 +61,7 @@ pallet-avn = { workspace = true }
 pallet-eth-bridge = { workspace = true }
 pallet-eth-bridge-runtime-api = { workspace = true }
 sp-avn-common = { workspace = true }
-pallet-authors-manager = { path = "../pallets/authors-manager", default-features = false }
+pallet-authors-manager = { workspace = true }
 
 # These dependencies are used for the node template's RPCs
 jsonrpsee = { version = "0.16.2", features = ["server"] }

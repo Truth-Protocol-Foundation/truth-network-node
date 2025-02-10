@@ -69,10 +69,10 @@ pub fn setup_web3_connection(url: &String) -> Option<Web3<Http>> {
     let transport_init_result = web3::transports::Http::new(url);
 
     if transport_init_result.is_err() {
-        return None
+        return None;
     }
     let transport = transport_init_result.expect("Already checked");
-    return Some(web3::Web3::new(transport))
+    return Some(web3::Web3::new(transport));
 }
 
 pub async fn get_nonce_from_ethereum(
@@ -84,7 +84,7 @@ pub async fn get_nonce_from_ethereum(
         format!("sender address ({:?}) is not a valid Ethereum address", sender_eth_address)
     );
 
-    return Ok(web3.eth().transaction_count(H160::from_slice(sender_eth_address), None).await?)
+    return Ok(web3.eth().transaction_count(H160::from_slice(sender_eth_address), None).await?);
 }
 
 /// Note: this is called by the signer which has different ethereum types to web3
