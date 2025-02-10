@@ -28,10 +28,16 @@ frame_support::construct_runtime!(
     pub enum TestRuntime
     {
         System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         NodeManager: pallet_node_manager::{Pallet, Call, Storage, Event<T>, Config<T>},
         AVN: pallet_avn::{Pallet, Storage, Event, Config<T>},
     }
 );
+
+parameter_types! {
+    pub const RewardPotId: PalletId = NODE_MANAGER_PALLET_ID;
+}
+
 impl Config for TestRuntime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -39,6 +45,7 @@ impl Config for TestRuntime {
     type SignerId = UintAuthorityId;
     type Public = AccountId;
     type Signature = Signature;
+    type RewardPotId = RewardPotId;
     type WeightInfo = ();
 }
 
@@ -93,6 +100,26 @@ impl pallet_avn::Config for TestRuntime {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const ExistentialDeposit: u64 = 0u64;
+}
+
+impl pallet_balances::Config for TestRuntime {
+    type MaxLocks = ();
+    type Balance = u128;
+    type DustRemoval = ();
+    type RuntimeEvent = RuntimeEvent;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type MaxReserves = ();
+    type ReserveIdentifier = [u8; 8];
+    type WeightInfo = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type FreezeIdentifier = ();
+    type MaxHolds = ConstU32<0>;
+    type MaxFreezes = ConstU32<0>;
+}
+
 pub struct ExtBuilder {
     pub storage: sp_runtime::Storage,
 }
@@ -109,7 +136,10 @@ impl ExtBuilder {
     pub fn with_genesis_config(mut self) -> Self {
         let _ = pallet_node_manager::GenesisConfig::<TestRuntime> {
             _phantom: Default::default(),
+            reward_period: 30u32,
+            max_batch_size: 10u32,
             heartbeat_period: 10u32,
+            reward_amount: 20 * BASE,
         }
         .assimilate_storage(&mut self.storage);
         self

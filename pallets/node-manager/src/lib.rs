@@ -26,7 +26,9 @@ use sp_runtime::{
     },
     DispatchError, RuntimeDebug, Saturating,
 };
+
 pub mod offchain;
+pub mod reward;
 pub mod types;
 use crate::types::*;
 pub mod default_weights;
@@ -52,8 +54,17 @@ pub mod sr25519 {
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::*;
 
+const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
+pub type AVN<T> = avn::Pallet<T>;
+pub type Author<T> =
+    Validator<<T as avn::Config>::AuthorityId, <T as frame_system::Config>::AccountId>;
+pub use pallet::*;
+
+pub(crate) type BalanceOf<T> =
+    <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 pub(crate) type RewardPeriodIndex = u64;
 /// A type alias for a unique identifier of a node
 pub(crate) type NodeId<T> = <T as frame_system::Config>::AccountId;
@@ -98,14 +109,45 @@ pub mod pallet {
     #[pallet::storage]
     pub type NodeRegistrar<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
+    /// The maximum batch size to pay rewards
+    #[pallet::storage]
+    pub type MaxBatchSize<T: Config> = StorageValue<_, u32, ValueQuery>;
+
     /// The heartbeat period in blocks
     #[pallet::storage]
     pub type HeartbeatPeriod<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// The total amount to pay out for each period
+    #[pallet::storage]
+    pub type RewardAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    /// Map of reward pot amounts for each reward period.
+    #[pallet::storage]
+    pub(super) type RewardPot<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        RewardPeriodIndex,
+        RewardPotInfo<BalanceOf<T>>,
+        OptionQuery,
+    >;
+
     /// Tracks the current reward period.
     #[pallet::storage]
     #[pallet::getter(fn current_reward_period)]
     pub(super) type RewardPeriod<T: Config> =
         StorageValue<_, RewardPeriodInfo<BlockNumberFor<T>>, ValueQuery>;
+
+    /// The earliest reward period that has not been fully paid.
+    #[pallet::storage]
+    #[pallet::getter(fn oldest_unpaid_period)]
+    pub(super) type OldestUnpaidRewardPeriodIndex<T: Config> =
+        StorageValue<_, RewardPeriodIndex, ValueQuery>;
+
+    /// Stores a `PaymentPointer` for the last node we successfully paid in a given period.
+    #[pallet::storage]
+    #[pallet::getter(fn last_paid_pointer)]
+    pub(super) type LastPaidPointer<T: Config> =
+        StorageValue<_, PaymentPointer<T::AccountId>, OptionQuery>;
 
     /// DoubleMap storing each node's uptime for a given reward period.
     #[pallet::storage]
@@ -128,16 +170,20 @@ pub mod pallet {
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub _phantom: sp_std::marker::PhantomData<T>,
+        pub max_batch_size: u32,
         pub reward_period: u32,
         pub heartbeat_period: u32,
+        pub reward_amount: BalanceOf<T>,
     }
 
     impl<T: Config> Default for GenesisConfig<T> {
         fn default() -> Self {
             Self {
                 _phantom: Default::default(),
+                max_batch_size: 0,
                 reward_period: 0,
                 heartbeat_period: 0,
+                reward_amount: Default::default(),
             }
         }
     }
@@ -145,6 +191,8 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
+            RewardAmount::<T>::set(self.reward_amount);
+            MaxBatchSize::<T>::set(self.max_batch_size);
             HeartbeatPeriod::<T>::set(self.heartbeat_period);
 
             let reward_period: RewardPeriodInfo<BlockNumberFor<T>> =
@@ -171,12 +219,32 @@ pub mod pallet {
             reward_period_length: u32,
             previous_period_reward: BalanceOf<T>,
         },
+        /// We finished paying all nodes for a particular period.
+        RewardPayoutCompleted { reward_period_index: RewardPeriodIndex },
+        /// Node received a reward.
+        RewardPaid {
+            reward_period: RewardPeriodIndex,
+            owner: T::AccountId,
+            node: NodeId<T>,
+            amount: BalanceOf<T>,
+        },
+        /// An error occurred while paying a reward.
+        ErrorPayingReward {
+            reward_period: RewardPeriodIndex,
+            node: NodeId<T>,
+            amount: BalanceOf<T>,
+            error: DispatchError,
+        },
         /// A new node registrar has been set
         NodeRegistrarSet { new_registrar: T::AccountId },
+        /// A new reward payment batch size has been set
+        BatchSizeSet { new_size: u32 },
         /// A new heartbeat period (in blocks) was set.
         HeartbeatPeriodSet { new_heartbeat_period: u32 },
         /// A new heartbeat has been received
         HeartbeatReceived { reward_period_index: RewardPeriodIndex, node: NodeId<T> },
+        /// A new reward amount is set
+        RewardAmountSet { new_amount: BalanceOf<T> },
     }
 
     // Pallet Errors
@@ -184,6 +252,10 @@ pub mod pallet {
     pub enum Error<T> {
         /// The node registrar account is invalid
         InvalidRegistrar,
+        /// The node address of the last paid node is not recognised
+        InvalidNodePointer,
+        /// The period index of the last paid node is invalid
+        InvalidPeriodPointer,
         /// The node registrar account is not set
         RegistrarNotSet,
         /// Node has already been registered
@@ -192,10 +264,14 @@ pub mod pallet {
         InvalidSigningKey,
         /// The reward period is invalid
         RewardPeriodInvalid,
+        /// The batch size is 0 or invalid
+        BatchSizeInvalid,
         /// The heartbeat period is invalid
         HeartbeatPeriodInvalid,
         /// The heartbeat period is 0
         HeartbeatPeriodZero,
+        /// The reward pot does not have enough funds to pay rewards
+        InsufficientBalanceForReward,
         /// The total uptime for the period was not found
         TotalUptimeNotFound,
         /// The node uptime for the period was not found
@@ -212,6 +288,8 @@ pub mod pallet {
         NodeNotRegistered,
         /// Failed to aquire a lock on the Offchain db
         FailedToAcquireOcwDbLock,
+        /// The reward amount is 0
+        RewardAmountZero,
     }
 
     #[pallet::config]
@@ -249,6 +327,10 @@ pub mod pallet {
             + Encode
             + TypeInfo
             + From<sp_core::sr25519::Signature>;
+
+        /// The id of the reward pot.
+        #[pallet::constant]
+        type RewardPotId: Get<PalletId>;
         /// The weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
@@ -316,6 +398,12 @@ pub mod pallet {
                     });
                     return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_period()).into());
                 },
+                AdminConfig::BatchSize(size) => {
+                    ensure!(size > 0, Error::<T>::BatchSizeInvalid);
+                    <MaxBatchSize<T>>::put(size.clone());
+                    Self::deposit_event(Event::BatchSizeSet { new_size: size });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_batch_size()).into());
+                },
                 AdminConfig::Heartbeat(period) => {
                     let reward_period = RewardPeriod::<T>::get().length;
                     ensure!(period > 0, Error::<T>::HeartbeatPeriodZero);
@@ -324,9 +412,81 @@ pub mod pallet {
                     Self::deposit_event(Event::HeartbeatPeriodSet { new_heartbeat_period: period });
                     return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat()).into());
                 },
+                AdminConfig::RewardAmount(amount) => {
+                    ensure!(amount > BalanceOf::<T>::zero(), Error::<T>::RewardAmountZero);
+                    <RewardAmount<T>>::put(amount.clone());
+                    Self::deposit_event(Event::RewardAmountSet { new_amount: amount });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_amount()).into());
+                },
             }
         }
-        // Implement me
+
+        /// Offchain call: pay and remove up to `MAX_BATCH_SIZE` nodes in the oldest unpaid period.
+        #[pallet::call_index(2)]
+        #[pallet::weight(10_000)]
+        pub fn offchain_pay_nodes(
+            origin: OriginFor<T>,
+            reward_period_index: RewardPeriodIndex,
+            _author: Author<T>,
+            _signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
+        ) -> DispatchResult {
+            ensure_none(origin)?;
+
+            let oldest_period = OldestUnpaidRewardPeriodIndex::<T>::get();
+            let current_period = RewardPeriod::<T>::get().current;
+
+            // Only pay for completed periods
+            ensure!(
+                reward_period_index == oldest_period && oldest_period < current_period,
+                Error::<T>::InvalidRewardPaymentRequest
+            );
+
+            let total_heartbeats = TotalUptime::<T>::get(&oldest_period);
+            let maybe_node_uptime = NodeUptime::<T>::iter_prefix(oldest_period).next();
+
+            if total_heartbeats == 0 && maybe_node_uptime.is_none() {
+                // No nodes to pay for this period so complete it
+                Self::complete_reward_payout(oldest_period);
+                return Ok(());
+            }
+
+            ensure!(total_heartbeats > 0, Error::<T>::TotalUptimeNotFound);
+            ensure!(maybe_node_uptime.is_some(), Error::<T>::NodeUptimeNotFound);
+
+            let total_reward = Self::get_total_reward(&oldest_period)?;
+
+            let mut paid_nodes = Vec::new();
+            let mut last_node_paid: Option<T::AccountId> = None;
+            let mut iter;
+
+            match LastPaidPointer::<T>::get() {
+                Some(pointer) => {
+                    iter = Self::get_iterator_from_last_paid(oldest_period, pointer)?;
+                },
+                None => {
+                    iter = NodeUptime::<T>::iter_prefix(oldest_period);
+                },
+            }
+
+            for (node, uptime) in iter.by_ref().take(MaxBatchSize::<T>::get() as usize) {
+                let reward_amount =
+                    Self::calculate_reward(uptime.count, &total_heartbeats, &total_reward)?;
+                Self::pay_reward(&oldest_period, node.clone(), reward_amount)?;
+
+                last_node_paid = Some(node.clone());
+                paid_nodes.push(node.clone());
+            }
+
+            Self::remove_paid_nodes(oldest_period, paid_nodes);
+
+            if iter.next().is_some() {
+                Self::update_last_paid_pointer(oldest_period, last_node_paid);
+            } else {
+                Self::complete_reward_payout(oldest_period);
+            }
+
+            Ok(())
+        }
 
         /// Offchain call: Submit heartbeat to show node is still alive
         #[pallet::call_index(3)]
@@ -414,8 +574,18 @@ pub mod pallet {
 
             return <T as Config>::WeightInfo::on_initialise_no_reward_period();
         }
+
         fn offchain_worker(n: BlockNumberFor<T>) {
             log::info!("🌐 OCW for node manager");
+
+            let maybe_author = Self::try_get_node_author(n);
+            if let Some(author) = maybe_author {
+                let oldest_unpaid_period = OldestUnpaidRewardPeriodIndex::<T>::get();
+                Self::trigger_payment_if_required(oldest_unpaid_period, author);
+                // If this is an author node, we don't need to send a heartbeat
+                return;
+            }
+
             Self::send_heartbeat_if_required(n);
         }
     }
@@ -430,6 +600,27 @@ pub mod pallet {
                 _ => return InvalidTransaction::Call.into(),
             }
             match call {
+                Call::offchain_pay_nodes { reward_period_index, author, signature } =>
+                    if AVN::<T>::signature_is_valid(
+                        // Technically this signature can be replayed for the duration of the
+                        // reward period but in reality, since we only
+                        // accept locally produced transactions and we don'
+                        // t propagate them, only an author can submit this transaction and there
+                        // is nothing to gain.
+                        &(PAYOUT_REWARD_CONTEXT, reward_period_index),
+                        &author,
+                        signature,
+                    ) {
+                        ValidTransaction::with_tag_prefix("NodeManagerPayout")
+                            .and_provides((call, reward_period_index))
+                            .priority(TransactionPriority::max_value())
+                            // We don't propagate this transaction,
+                            // it ensures only block authors can pay rewards
+                            .propagate(false)
+                            .build()
+                    } else {
+                        InvalidTransaction::Custom(1u8).into()
+                    },
                 Call::offchain_submit_heartbeat {
                     node,
                     reward_period_index,
