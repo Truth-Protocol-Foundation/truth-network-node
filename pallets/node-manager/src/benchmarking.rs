@@ -275,7 +275,7 @@ benchmarks! {
         let expected_balance = max_batch_size.min(n).saturated_into::<BalanceOf<T>>().
             bmul_bdiv(RewardAmount::<T>::get(), n.saturated_into::<BalanceOf<T>>())
             .unwrap();
-        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1000u32.saturated_into::<BalanceOf<T>>());
+        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1_000u32.saturated_into::<BalanceOf<T>>());
     }
 }
 
