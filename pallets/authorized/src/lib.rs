@@ -376,7 +376,7 @@ where
     use sp_runtime::{traits::AccountIdConversion, Perbill};
 
     Market {
-        base_asset: Asset::Tnf,
+        base_asset: Asset::Tru,
         market_id: Default::default(),
         creation: MarketCreation::Permissionless,
         creator_fee: Perbill::zero(),

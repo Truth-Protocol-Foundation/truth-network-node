@@ -34,7 +34,7 @@ fn schedule_early_close_emits_event() {
     ExtBuilder::default().build().execute_with(|| {
         let end = 100;
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..end,
             ScoringRule::AmmCdaHybrid,
@@ -70,7 +70,7 @@ fn sudo_schedule_early_close_at_block_works() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -143,7 +143,7 @@ fn sudo_schedule_early_close_at_timeframe_works() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Timestamp(start..end),
@@ -216,7 +216,7 @@ fn schedule_early_close_block_fails_if_early_close_request_too_late() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -249,7 +249,7 @@ fn schedule_early_close_timestamp_fails_if_early_close_request_too_late() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Timestamp(start..end),
@@ -279,7 +279,7 @@ fn schedule_early_close_as_market_creator_works() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),

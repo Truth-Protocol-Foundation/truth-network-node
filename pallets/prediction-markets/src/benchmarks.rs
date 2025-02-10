@@ -78,7 +78,7 @@ fn create_market_common_parameters<T: Config>(
         caller = actual_caller;
     }
 
-    T::AssetManager::deposit(Asset::Tnf, &caller, (100000u128 * BASE).saturated_into()).unwrap();
+    T::AssetManager::deposit(Asset::Tru, &caller, (100000u128 * BASE).saturated_into()).unwrap();
     let oracle = caller.clone();
     let deadlines = Deadlines::<BlockNumberFor<T>> {
         grace_period: 1_u32.into(),
@@ -109,7 +109,7 @@ fn create_market_common<T: Config + pallet_timestamp::Config>(
         create_market_common_parameters::<T>(dispute_mechanism.is_some(), maybe_caller)?;
     WhitelistedMarketCreators::<T>::insert(&caller, ());
     Call::<T>::create_market {
-        base_asset: Asset::Tnf,
+        base_asset: Asset::Tru,
         creator_fee,
         oracle,
         period,
@@ -297,7 +297,7 @@ where
         create_market_common_parameters::<T>(false, caller_account_id.clone())?;
     WhitelistedMarketCreators::<T>::insert(&caller, ());
     Call::<T>::create_market {
-        base_asset: Asset::Tnf,
+        base_asset: Asset::Tru,
         creator_fee: Perbill::zero(),
         oracle: caller.clone(),
         period: MarketPeriod::Timestamp(start..end),
@@ -487,7 +487,7 @@ benchmarks! {
         let outcome = OutcomeReport::Scalar(0);
         let disputor = account("disputor", 1, 0);
         <T as pallet::Config>::AssetManager::deposit(
-            Asset::Tnf,
+            Asset::Tru,
             &disputor,
             u128::MAX.saturated_into(),
         ).unwrap();
@@ -537,7 +537,7 @@ benchmarks! {
 
         let disputor = account("disputor", 1, 0);
         <T as pallet::Config>::AssetManager::deposit(
-            Asset::Tnf,
+            Asset::Tru,
             &disputor,
             u128::MAX.saturated_into(),
         ).unwrap();
@@ -635,7 +635,7 @@ benchmarks! {
         }
     }: _(
             RawOrigin::Signed(caller),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             oracle,
             period,
@@ -660,7 +660,7 @@ benchmarks! {
             create_market_common_parameters::<T>(true, None)?;
         WhitelistedMarketCreators::<T>::insert(&caller, ());
         Call::<T>::create_market {
-            base_asset: Asset::Tnf,
+            base_asset: Asset::Tru,
             creator_fee: Perbill::zero(),
             oracle: oracle.clone(),
             period: period.clone(),
@@ -692,7 +692,7 @@ benchmarks! {
         };
     }: _(
             RawOrigin::Signed(caller),
-            Asset::Tnf,
+            Asset::Tru,
             market_id,
             oracle,
             period,
@@ -734,7 +734,7 @@ benchmarks! {
         for i in 0..pallet_pm_court::Pallet::<T>::necessary_draws_weight(0usize) {
             let juror: T::AccountId = account("Jurori", i.try_into().unwrap(), 0);
             <T as pallet::Config>::AssetManager::deposit(
-                Asset::Tnf,
+                Asset::Tru,
                 &juror,
                 (u128::MAX / 2).saturated_into(),
             ).unwrap();
@@ -746,7 +746,7 @@ benchmarks! {
 
         let disputor: T::AccountId = account("Disputor", 1, 0);
         <T as pallet::Config>::AssetManager::deposit(
-            Asset::Tnf,
+            Asset::Tru,
             &disputor,
             u128::MAX.saturated_into(),
         ).unwrap();
@@ -1385,7 +1385,7 @@ benchmarks! {
         let m in 0..63; // Number of markets closing on the same block.
         let n in 2..T::MaxCategories::get() as u32; // Number of assets in the market.
 
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let range_start = (5 * MILLISECS_PER_BLOCK) as u64;
         let range_end = (100 * MILLISECS_PER_BLOCK) as u64;
         let period = MarketPeriod::Timestamp(range_start..range_end);
@@ -1430,7 +1430,7 @@ benchmarks! {
         let relayer_account_id = get_relayer::<T>();
         let (caller_key_pair, caller_account_id) = get_user_account::<T>();
 
-        let base_asset = Asset::Tnf;
+        let base_asset = Asset::Tru;
         let range_start = (5 * MILLISECS_PER_BLOCK) as u64;
         let range_end = (100 * MILLISECS_PER_BLOCK) as u64;
         let period = MarketPeriod::Timestamp(range_start..range_end);

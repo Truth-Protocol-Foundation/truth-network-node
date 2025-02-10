@@ -32,7 +32,7 @@ fn on_initialize_skips_the_genesis_block() {
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             alice(),
             MarketPeriod::Timestamp(0..end),

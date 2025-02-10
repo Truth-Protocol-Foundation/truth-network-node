@@ -31,7 +31,7 @@ fn close_trusted_market_works() {
         WhitelistedMarketCreators::<Runtime>::insert(&market_creator, ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(market_creator),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -82,7 +82,7 @@ fn fails_if_caller_is_not_market_creator() {
         WhitelistedMarketCreators::<Runtime>::insert(&market_creator, ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(market_creator),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -113,7 +113,7 @@ fn close_trusted_market_fails_if_not_trusted() {
         WhitelistedMarketCreators::<Runtime>::insert(&market_creator, ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(market_creator),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),
@@ -160,7 +160,7 @@ fn close_trusted_market_fails_if_invalid_market_state(status: MarketStatus) {
         WhitelistedMarketCreators::<Runtime>::insert(&market_creator, ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(market_creator),
-            Asset::Tnf,
+            Asset::Tru,
             Perbill::zero(),
             bob(),
             MarketPeriod::Block(0..end),

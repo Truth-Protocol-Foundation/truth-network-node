@@ -56,7 +56,7 @@ fn buy_complete_set_works() {
     };
 
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
 
     ExtBuilder::default().build().execute_with(|| {
@@ -68,7 +68,7 @@ fn buy_complete_set_works() {
 fn buy_complete_fails_on_zero_amount() {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -95,7 +95,7 @@ fn buy_complete_set_fails_on_insufficient_balance() {
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
 
     ExtBuilder::default().build().execute_with(|| {
@@ -111,7 +111,7 @@ fn buy_complete_set_fails_on_insufficient_balance() {
 fn buy_complete_set_fails_if_market_is_not_active(status: MarketStatus) {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -132,7 +132,7 @@ fn buy_complete_set_fails_if_market_is_not_active(status: MarketStatus) {
 fn buy_complete_set_fails_if_market_has_wrong_scoring_rule(scoring_rule: ScoringRule) {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Permissionless,
             0..2,
             scoring_rule,

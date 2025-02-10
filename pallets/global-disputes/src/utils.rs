@@ -38,7 +38,7 @@ where
 
     prediction_market_primitives::types::Market {
         market_id: Default::default(),
-        base_asset: prediction_market_primitives::types::Asset::Tnf,
+        base_asset: prediction_market_primitives::types::Asset::Tru,
         creation: prediction_market_primitives::types::MarketCreation::Permissionless,
         creator_fee: sp_runtime::Perbill::zero(),
         creator: T::GlobalDisputesPalletId::get().into_account_truncating(),

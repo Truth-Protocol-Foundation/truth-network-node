@@ -424,7 +424,7 @@ fn place_order_fails_if_market_not_found() {
     ExtBuilder::default().build().execute_with(|| {
         let market_id = 0u128;
 
-        let maker_asset = Asset::Tnf;
+        let maker_asset = Asset::Tru;
         let taker_asset = Asset::CategoricalOutcome(0, 2);
 
         assert_noop!(

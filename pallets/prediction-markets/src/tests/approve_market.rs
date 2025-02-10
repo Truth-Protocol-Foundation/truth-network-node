@@ -30,7 +30,7 @@ use sp_runtime::DispatchError;
 fn fails_if_market_status_is_not_proposed(market_status: MarketStatus) {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -54,7 +54,7 @@ fn fails_if_market_status_is_not_proposed(market_status: MarketStatus) {
 fn it_allows_advisory_origin_to_approve_markets() {
     ExtBuilder::default().build().execute_with(|| {
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -84,7 +84,7 @@ fn market_with_edit_request_cannot_be_approved() {
     ExtBuilder::default().build().execute_with(|| {
         // Creates an advised market.
         simple_create_categorical_market(
-            Asset::Tnf,
+            Asset::Tru,
             MarketCreation::Advised,
             0..2,
             ScoringRule::AmmCdaHybrid,
@@ -112,7 +112,7 @@ fn market_with_edit_request_cannot_be_approved() {
 
 #[test]
 fn approve_market_correctly_unreserves_advisory_bond() {
-    // NOTE: Bonds are always in TNF, irrespective of base_asset.
+    // NOTE: Bonds are always in TRU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
@@ -142,7 +142,7 @@ fn approve_market_correctly_unreserves_advisory_bond() {
         assert!(market.bonds.creation.unwrap().is_settled);
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tnf);
+        test(Asset::Tru);
     });
 
     ExtBuilder::default().build().execute_with(|| {
