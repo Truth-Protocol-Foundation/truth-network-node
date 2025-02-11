@@ -244,8 +244,22 @@ benchmarks! {
 
     #[extra]
     pay_nodes_constant_batch_size {
-        // Prove that the extrinsic is constant time with respect to the batch size.
-        // Even if the number of registered nodes increases
+        /* Prove that the read/write is constant time with respect to the batch size.
+           Even if the number of registered nodes (n) increases. You should see something like:
+
+             Median Slopes Analysis
+             ========
+             -- Extrinsic Time --
+
+             Model:
+             Time ~=    514.2
+                + n    0.554 µs
+
+             Reads = 30 + (0 * n)
+             Writes = 13 + (0 * n)
+             Recorded proof Size = 2601 + (12 * n)
+
+        */
 
         // This should NOT affect the performance of the extrinsic. The execution time should be constant.
         let n in 1 .. 100;
