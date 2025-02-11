@@ -432,13 +432,13 @@ pub mod pallet {
 
         /// Offchain call: pay and remove up to `MAX_BATCH_SIZE` nodes in the oldest unpaid period.
         #[pallet::call_index(2)]
-        #[pallet::weight(10_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::offchain_pay_nodes(1_000))]
         pub fn offchain_pay_nodes(
             origin: OriginFor<T>,
             reward_period_index: RewardPeriodIndex,
             _author: Author<T>,
             _signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
-        ) -> DispatchResult {
+        ) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
 
             let oldest_period = OldestUnpaidRewardPeriodIndex::<T>::get();
@@ -456,7 +456,7 @@ pub mod pallet {
             if total_heartbeats == 0 && maybe_node_uptime.is_none() {
                 // No nodes to pay for this period so complete it
                 Self::complete_reward_payout(oldest_period);
-                return Ok(());
+                return Ok(Some(<T as Config>::WeightInfo::offchain_pay_nodes(1u32)).into());
             }
 
             ensure!(total_heartbeats > 0, Error::<T>::TotalUptimeNotFound);
@@ -486,7 +486,7 @@ pub mod pallet {
                 paid_nodes.push(node.clone());
             }
 
-            Self::remove_paid_nodes(oldest_period, paid_nodes);
+            Self::remove_paid_nodes(oldest_period, &paid_nodes);
 
             if iter.next().is_some() {
                 Self::update_last_paid_pointer(oldest_period, last_node_paid);
@@ -494,7 +494,9 @@ pub mod pallet {
                 Self::complete_reward_payout(oldest_period);
             }
 
-            Ok(())
+            return Ok(
+                Some(<T as Config>::WeightInfo::offchain_pay_nodes(paid_nodes.len() as u32)).into()
+            );
         }
 
         /// Offchain call: Submit heartbeat to show node is still alive

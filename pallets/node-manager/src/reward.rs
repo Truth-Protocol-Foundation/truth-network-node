@@ -71,11 +71,11 @@ impl<T: Config> Pallet<T> {
 
     pub fn remove_paid_nodes(
         period_index: RewardPeriodIndex,
-        paid_nodes_to_remove: Vec<T::AccountId>,
+        paid_nodes_to_remove: &Vec<T::AccountId>,
     ) {
         // Remove the paid nodes. We do this separatly to avoid changing the map while iterating
         // it
-        for node in &paid_nodes_to_remove {
+        for node in paid_nodes_to_remove {
             NodeUptime::<T>::remove(period_index, node);
         }
     }
