@@ -6,16 +6,24 @@ use crate::{self as pallet_node_manager, *};
 use common_primitives::constants::{currency::BASE, NODE_MANAGER_PALLET_ID};
 use frame_support::{parameter_types, weights::Weight};
 use frame_system as system;
-use sp_core::{
-    offchain::testing::{OffchainState, PendingRequest},
+pub use sp_core::{
+    offchain::{
+        testing::{
+            OffchainState, PendingRequest, PoolState, TestOffchainExt, TestTransactionPoolExt,
+        },
+        OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
+    },
     sr25519, H256,
 };
+use parity_scale_codec::alloc::sync::Arc;
+use parking_lot::RwLock;
+
 use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
-    traits::{BlakeTwo256, ConvertInto, IdentifyAccount, IdentityLookup, Verify},
+    traits::{BlakeTwo256, IdentityLookup, Verify},
     BuildStorage, Perbill, SaturatedConversion,
 };
-use sp_state_machine::BasicExternalities;
+
 use std::cell::RefCell;
 
 pub type Signature = sr25519::Signature;
@@ -31,6 +39,7 @@ frame_support::construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         NodeManager: pallet_node_manager::{Pallet, Call, Storage, Event<T>, Config<T>},
         AVN: pallet_avn::{Pallet, Storage, Event, Config<T>},
+        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
     }
 );
 
@@ -120,8 +129,20 @@ impl pallet_balances::Config for TestRuntime {
     type MaxFreezes = ConstU32<0>;
 }
 
+impl pallet_timestamp::Config for TestRuntime {
+    type Moment = u64;
+    type OnTimestampSet = ();
+    type MinimumPeriod = frame_support::traits::ConstU64<12000>;
+    type WeightInfo = ();
+}
+
 pub struct ExtBuilder {
     pub storage: sp_runtime::Storage,
+    offchain_state: Option<Arc<RwLock<OffchainState>>>,
+    pool_state: Option<Arc<RwLock<PoolState>>>,
+    txpool_extension: Option<TestTransactionPoolExt>,
+    offchain_extension: Option<TestOffchainExt>,
+    offchain_registered: bool,
 }
 
 impl ExtBuilder {
@@ -130,7 +151,14 @@ impl ExtBuilder {
             .build_storage()
             .unwrap()
             .into();
-        Self { storage }
+
+        Self { storage,
+            pool_state: None,
+            offchain_state: None,
+            txpool_extension: None,
+            offchain_extension: None,
+            offchain_registered: false,
+        }
     }
 
     pub fn with_genesis_config(mut self) -> Self {
@@ -145,10 +173,39 @@ impl ExtBuilder {
         self
     }
 
+    pub fn for_offchain_worker(mut self) -> Self {
+        assert!(!self.offchain_registered);
+        let (offchain, offchain_state) = TestOffchainExt::new();
+        let (pool, pool_state) = TestTransactionPoolExt::new();
+        self.txpool_extension = Some(pool);
+        self.offchain_extension = Some(offchain);
+        self.pool_state = Some(pool_state);
+        self.offchain_state = Some(offchain_state);
+        self.offchain_registered = true;
+        self
+    }
+
     pub fn as_externality(self) -> sp_io::TestExternalities {
         let mut ext = sp_io::TestExternalities::from(self.storage);
         // Events do not get emitted on block 0, so we increment the block here
         ext.execute_with(|| frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into()));
         ext
+    }
+
+    pub fn as_externality_with_state(
+        self,
+    ) -> (sp_io::TestExternalities, Arc<RwLock<PoolState>>, Arc<RwLock<OffchainState>>) {
+        assert!(self.offchain_registered);
+        let mut ext = sp_io::TestExternalities::from(self.storage);
+        ext.register_extension(OffchainDbExt::new(self.offchain_extension.clone().unwrap()));
+        ext.register_extension(OffchainWorkerExt::new(self.offchain_extension.unwrap()));
+        ext.register_extension(TransactionPoolExt::new(self.txpool_extension.unwrap()));
+        assert!(self.pool_state.is_some());
+        assert!(self.offchain_state.is_some());
+        ext.execute_with(|| {
+            Timestamp::set_timestamp(1);
+            frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into())
+        });
+        (ext, self.pool_state.unwrap(), self.offchain_state.unwrap())
     }
 }

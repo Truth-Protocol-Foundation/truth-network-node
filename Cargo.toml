@@ -180,6 +180,7 @@ rand = { version = "0.8.5", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
 serde = { version = "1.0.198", default-features = false }
 typenum = { version = "1.17.0", default-features = false }
+parking_lot = { version = "0.12.0" }
 
 # Aventus
 sp-avn-common = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.7.2", default-features = false }
