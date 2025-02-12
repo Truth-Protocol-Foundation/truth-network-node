@@ -6,25 +6,21 @@ use crate::{self as pallet_node_manager, *};
 use common_primitives::constants::{currency::BASE, NODE_MANAGER_PALLET_ID};
 use frame_support::{parameter_types, weights::Weight};
 use frame_system as system;
+pub use parity_scale_codec::alloc::sync::Arc;
+pub use parking_lot::RwLock;
 pub use sp_core::{
     offchain::{
-        testing::{
-            OffchainState, PendingRequest, PoolState, TestOffchainExt, TestTransactionPoolExt,
-        },
+        testing::{OffchainState, PoolState, TestOffchainExt, TestTransactionPoolExt},
         OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
     },
     sr25519, H256,
 };
-use parity_scale_codec::alloc::sync::Arc;
-use parking_lot::RwLock;
 
-use sp_runtime::{
+pub use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, Verify},
-    BuildStorage, Perbill, SaturatedConversion,
+    BuildStorage, Perbill,
 };
-
-use std::cell::RefCell;
 
 pub type Signature = sr25519::Signature;
 pub type AccountId = <Signature as Verify>::Signer;
@@ -152,7 +148,8 @@ impl ExtBuilder {
             .unwrap()
             .into();
 
-        Self { storage,
+        Self {
+            storage,
             pool_state: None,
             offchain_state: None,
             txpool_extension: None,
@@ -164,9 +161,9 @@ impl ExtBuilder {
     pub fn with_genesis_config(mut self) -> Self {
         let _ = pallet_node_manager::GenesisConfig::<TestRuntime> {
             _phantom: Default::default(),
-            reward_period: 30u32,
+            reward_period: 20u32,
             max_batch_size: 10u32,
-            heartbeat_period: 10u32,
+            heartbeat_period: 5u32,
             reward_amount: 20 * BASE,
         }
         .assimilate_storage(&mut self.storage);
@@ -208,4 +205,23 @@ impl ExtBuilder {
         });
         (ext, self.pool_state.unwrap(), self.offchain_state.unwrap())
     }
+}
+
+/// Rolls desired block number of times.
+pub(crate) fn roll_forward(num_blocks_to_roll: u64) {
+    let mut current_block = System::block_number();
+    let target_block = current_block + num_blocks_to_roll;
+    while current_block < target_block {
+        current_block = roll_one_block();
+    }
+}
+
+pub(crate) fn roll_one_block() -> u64 {
+    Balances::on_finalize(System::block_number());
+    System::on_finalize(System::block_number());
+    System::set_block_number(System::block_number() + 1);
+    System::on_initialize(System::block_number());
+    Balances::on_initialize(System::block_number());
+    NodeManager::on_initialize(System::block_number());
+    System::block_number()
 }

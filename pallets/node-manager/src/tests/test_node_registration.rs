@@ -51,7 +51,9 @@ fn registration_succeeds() {
         // Total node counter is increased
         assert_eq!(<TotalRegisteredNodes<TestRuntime>>::get(), 1);
         // The correct event is emitted
-        System::assert_last_event(Event::NodeRegistered { owner: context.owner, node: context.node_id }.into());
+        System::assert_last_event(
+            Event::NodeRegistered { owner: context.owner, node: context.node_id }.into(),
+        );
     });
 }
 
@@ -71,13 +73,15 @@ mod fails_when {
                 signing_key: <mock::TestRuntime as pallet::Config>::SignerId::generate_pair(None),
             };
 
-            assert_noop!(NodeManager::register_node(
-                context.origin,
-                context.node_id,
-                context.owner,
-                context.signing_key,
-            ),
-            Error::<TestRuntime>::RegistrarNotSet);
+            assert_noop!(
+                NodeManager::register_node(
+                    context.origin,
+                    context.node_id,
+                    context.owner,
+                    context.signing_key,
+                ),
+                Error::<TestRuntime>::RegistrarNotSet
+            );
         });
     }
 
@@ -87,13 +91,15 @@ mod fails_when {
         ext.execute_with(|| {
             let context = Context::default();
             let bad_origin = RuntimeOrigin::signed(context.owner.clone());
-            assert_noop!(NodeManager::register_node(
-                bad_origin,
-                context.node_id,
-                context.owner,
-                context.signing_key,
-            ),
-            Error::<TestRuntime>::InvalidRegistrar);
+            assert_noop!(
+                NodeManager::register_node(
+                    bad_origin,
+                    context.node_id,
+                    context.owner,
+                    context.signing_key,
+                ),
+                Error::<TestRuntime>::InvalidRegistrar
+            );
         });
     }
 
@@ -109,14 +115,15 @@ mod fails_when {
                 context.signing_key.clone(),
             ));
 
-            assert_noop!(NodeManager::register_node(
-                context.origin,
-                context.node_id,
-                context.owner,
-                context.signing_key,
-            ),
-            Error::<TestRuntime>::DuplicateNode);
+            assert_noop!(
+                NodeManager::register_node(
+                    context.origin,
+                    context.node_id,
+                    context.owner,
+                    context.signing_key,
+                ),
+                Error::<TestRuntime>::DuplicateNode
+            );
         });
     }
-
 }
