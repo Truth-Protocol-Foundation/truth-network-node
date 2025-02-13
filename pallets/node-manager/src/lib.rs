@@ -41,6 +41,9 @@ mod benchmarking;
 #[path = "tests/mock.rs"]
 mod mock;
 #[cfg(test)]
+#[path = "tests/test_admin.rs"]
+mod test_admin;
+#[cfg(test)]
 #[path = "tests/test_heartbeat.rs"]
 mod test_heartbeat;
 #[cfg(test)]
@@ -389,7 +392,9 @@ pub mod pallet {
 
             match config {
                 AdminConfig::NodeRegistrar(registrar) => {
-                    <NodeRegistrar<T>>::set(Some(registrar.clone()));
+                    <NodeRegistrar<T>>::mutate(|maybe_registrar| {
+                        *maybe_registrar = Some(registrar.clone())
+                    });
                     Self::deposit_event(Event::NodeRegistrarSet { new_registrar: registrar });
                     return Ok(Some(<T as Config>::WeightInfo::set_admin_config_registrar()).into());
                 },
@@ -399,7 +404,7 @@ pub mod pallet {
                     let mut reward_period = RewardPeriod::<T>::get();
                     let (index, old_period) = (reward_period.current, reward_period.length);
                     reward_period.length = period;
-                    <RewardPeriod<T>>::put(reward_period);
+                    <RewardPeriod<T>>::mutate(|p| *p = reward_period);
                     Self::deposit_event(Event::RewardPeriodLengthSet {
                         period_index: index,
                         old_reward_period_length: old_period,
@@ -411,7 +416,7 @@ pub mod pallet {
                 },
                 AdminConfig::BatchSize(size) => {
                     ensure!(size > 0, Error::<T>::BatchSizeInvalid);
-                    <MaxBatchSize<T>>::put(size.clone());
+                    <MaxBatchSize<T>>::mutate(|s| *s = size.clone());
                     Self::deposit_event(Event::BatchSizeSet { new_size: size });
                     return Ok(
                         Some(<T as Config>::WeightInfo::set_admin_config_reward_batch_size())
@@ -422,7 +427,7 @@ pub mod pallet {
                     let reward_period = RewardPeriod::<T>::get().length;
                     ensure!(period > 0, Error::<T>::HeartbeatPeriodZero);
                     ensure!(period < reward_period, Error::<T>::HeartbeatPeriodInvalid);
-                    <HeartbeatPeriod<T>>::put(period.clone());
+                    <HeartbeatPeriod<T>>::mutate(|p| *p = period.clone());
                     Self::deposit_event(Event::HeartbeatPeriodSet { new_heartbeat_period: period });
                     return Ok(
                         Some(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat()).into()
@@ -430,7 +435,7 @@ pub mod pallet {
                 },
                 AdminConfig::RewardAmount(amount) => {
                     ensure!(amount > BalanceOf::<T>::zero(), Error::<T>::RewardAmountZero);
-                    <RewardAmount<T>>::put(amount.clone());
+                    <RewardAmount<T>>::mutate(|a| *a = amount.clone());
                     Self::deposit_event(Event::RewardAmountSet { new_amount: amount });
                     return Ok(
                         Some(<T as Config>::WeightInfo::set_admin_config_reward_amount()).into()
@@ -568,12 +573,12 @@ pub mod pallet {
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         // Keep this logic light and bounded
         fn on_initialize(n: BlockNumberFor<T>) -> Weight {
-            let mut reward_period = RewardPeriod::<T>::get();
+            let reward_period = RewardPeriod::<T>::get();
             let reward_period_index = reward_period.current;
 
             if reward_period.should_update(n) {
-                reward_period.update(n);
-                RewardPeriod::<T>::put(reward_period);
+                let reward_period = reward_period.update(n);
+                RewardPeriod::<T>::mutate(|p| *p = reward_period);
 
                 // take a snapshot of the reward pot amount to pay for the previous reward period
                 let reward_amount = RewardAmount::<T>::get();
