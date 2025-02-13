@@ -96,9 +96,9 @@ pub mod pallet {
         OptionQuery,
     >;
 
-    // This is mainly used for performance reasons. It is better to have a single value storage than
-    // iterate over a huge map.
     /// Total registered nodes.
+    /// Note: This is mainly used for performance reasons. It is better to have a single value storage
+    /// than iterate over a huge map.
     #[pallet::storage]
     pub type TotalRegisteredNodes<T: Config> = StorageValue<_, u32, ValueQuery>;
 
@@ -260,7 +260,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         /// The node registrar account is invalid
-        InvalidRegistrar,
+        OriginNotRegistrar,
         /// The node address of the last paid node is not recognised
         InvalidNodePointer,
         /// The period index of the last paid node is invalid
@@ -357,7 +357,7 @@ pub mod pallet {
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
             let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
-            ensure!(who == registrar, Error::<T>::InvalidRegistrar);
+            ensure!(who == registrar, Error::<T>::OriginNotRegistrar);
             ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
 
             <OwnedNodes<T>>::insert(&owner, &node, ());
