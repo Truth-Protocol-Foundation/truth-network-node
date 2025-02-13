@@ -45,6 +45,7 @@ impl SubstrateCli for Cli {
         Ok(match id {
             "dev" => Box::new(chain_spec::development_config()?),
             "dev-testnet" => Box::new(chain_spec::dev_testnet_config()?),
+            "public-testnet" => Box::new(chain_spec::public_testnet_config()?),
             "testnet" => Box::new(chain_spec::testnet_config()?),
             "" | "local" => Box::new(chain_spec::local_testnet_config()?),
             path =>
