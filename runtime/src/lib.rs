@@ -36,6 +36,7 @@ use sp_version::RuntimeVersion;
 
 use pallet_avn::sr25519::AuthorityId as AvnId;
 pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
+use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 
 pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
@@ -45,7 +46,7 @@ pub use prediction_market_primitives::{constants::*, types::*};
 pub use common_primitives::{
     constants::{
         currency::*, BLOCKS_PER_DAY, BLOCKS_PER_HOUR, BLOCKS_PER_YEAR, MILLISECS_PER_BLOCK,
-        SLOT_DURATION,
+        NODE_MANAGER_PALLET_ID, SLOT_DURATION,
     },
     types::{AccountId, Balance, BlockNumber},
 };
@@ -251,7 +252,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 1,
+    spec_version: 2,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -746,6 +747,21 @@ impl pallet_authors_manager::Config for Runtime {
     type BridgeInterface = EthBridge;
 }
 
+parameter_types! {
+    pub const NodeManagerPalletId: PalletId = NODE_MANAGER_PALLET_ID;
+}
+
+impl pallet_node_manager::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type SignerId = NodeManagerKeyId;
+    type Currency = Balances;
+    type RewardPotId = NodeManagerPalletId;
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
+    type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
+}
+
 impl pallet_utility::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -1183,6 +1199,7 @@ construct_runtime!(
         AuthorsManager: pallet_authors_manager = 22,
         NftManager: pallet_nft_manager = 23,
         AnchorSummary: pallet_summary::<Instance2> = 26,
+        NodeManager: pallet_node_manager = 27,
 
         // Prediction Market pallets
         AdvisoryCommittee: pallet_collective::<Instance1>::{Call, Config<T>, Event<T>, Origin<T>, Pallet, Storage} = 30,
@@ -1199,7 +1216,6 @@ construct_runtime!(
         NeoSwaps: pallet_pm_neo_swaps::{Call, Event<T>, Pallet, Storage} = 45,
         Orderbook: pallet_pm_order_book::{Call, Event<T>, Pallet, Storage} = 46,
         HybridRouter: pallet_pm_hybrid_router::{Call, Event<T>, Pallet, Storage} = 47,
-
     }
 );
 
@@ -1258,6 +1274,7 @@ mod benches {
         [pallet_token_manager, TokenManager]
         [pallet_avn_proxy, AvnProxy]
         [pallet_nft_manager, NftManager]
+        [pallet_node_manager, NodeManager]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
         // Tnf pallets
