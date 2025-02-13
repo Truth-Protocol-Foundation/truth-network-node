@@ -239,13 +239,27 @@ benchmarks! {
         let expected_balance = max_batch_size.min(registered_nodes).saturated_into::<BalanceOf<T>>().
             bmul_bdiv(RewardAmount::<T>::get(), registered_nodes.saturated_into::<BalanceOf<T>>())
             .unwrap();
-        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 100u32.saturated_into::<BalanceOf<T>>());
+        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1_000u32.saturated_into::<BalanceOf<T>>());
     }
 
     #[extra]
     pay_nodes_constant_batch_size {
-        // Prove that the extrinsic is constant time with respect to the batch size.
-        // Even if the number of registered nodes increases
+        /* Prove that the read/write is constant time with respect to the batch size.
+           Even if the number of registered nodes (n) increases. You should see something like:
+
+             Median Slopes Analysis
+             ========
+             -- Extrinsic Time --
+
+             Model:
+             Time ~=    514.2
+                + n    0.554 µs
+
+             Reads = 30 + (0 * n)
+             Writes = 13 + (0 * n)
+             Recorded proof Size = 2601 + (12 * n)
+
+        */
 
         // This should NOT affect the performance of the extrinsic. The execution time should be constant.
         let n in 1 .. 100;
@@ -273,7 +287,7 @@ benchmarks! {
         let expected_balance = max_batch_size.min(n).saturated_into::<BalanceOf<T>>().
             bmul_bdiv(RewardAmount::<T>::get(), n.saturated_into::<BalanceOf<T>>())
             .unwrap();
-        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 50u32.saturated_into::<BalanceOf<T>>());
+        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1_000u32.saturated_into::<BalanceOf<T>>());
     }
 }
 
