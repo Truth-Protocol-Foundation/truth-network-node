@@ -31,9 +31,10 @@ impl<
     }
 
     /// New reward period
-    pub fn update(&mut self, now: B) {
-        self.current = self.current.saturating_add(1u64);
-        self.first = now;
+    pub fn update(&self, now: B) -> Self {
+        let current = self.current.saturating_add(1u64);
+        let first = now;
+        Self { current, first, length: self.length }
     }
 }
 
