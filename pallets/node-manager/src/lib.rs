@@ -69,9 +69,9 @@ pub mod pallet {
         OptionQuery,
     >;
 
-    // This is mainly used for performance reasons. It is better to have a single value storage than
-    // iterate over a huge map.
     /// Total registered nodes.
+    /// Note: This is mainly used for performance reasons. It is better to have a single value storage
+    /// than iterate over a huge map.
     #[pallet::storage]
     pub type TotalRegisteredNodes<T: Config> = StorageValue<_, u32, ValueQuery>;
 
