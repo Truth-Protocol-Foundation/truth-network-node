@@ -2,7 +2,7 @@
 use crate::*;
 // We allow up to 5 blocks for ocw transactions
 const BLOCK_INCLUSION_PERIOD: u32 = 5;
-const OCW_ID: &'static [u8; 22] = b"node_manager::last_run";
+pub const OCW_ID: &'static [u8; 22] = b"node_manager::last_run";
 const OC_HB_DB_PREFIX: &[u8] = b"tnf/node-manager-heartbeat/";
 
 impl<T: Config> Pallet<T> {
@@ -136,18 +136,19 @@ impl<T: Config> Pallet<T> {
     }
 
     pub fn get_node_from_signing_key() -> Option<(T::AccountId, T::SignerId)> {
-        let registered_node_id = StorageValueRef::persistent(REGISTERED_NODE_KEY)
-            .get::<T::AccountId>()
-            .ok()
-            .flatten()?;
-
         let mut local_keys = T::SignerId::all();
         local_keys.sort();
 
-        if let Some(node_info) = NodeRegistry::<T>::get(&registered_node_id) {
-            // If the registered node’s signing key is present locally, return it.
-            if local_keys.binary_search(&node_info.signing_key).is_ok() {
-                return Some((registered_node_id, node_info.signing_key));
+        if let Some(registered_node_id) = StorageValueRef::persistent(REGISTERED_NODE_KEY)
+            .get::<T::AccountId>()
+            .ok()
+            .flatten()
+        {
+            if let Some(node_info) = NodeRegistry::<T>::get(&registered_node_id) {
+                // If the registered node’s signing key is present locally, return it.
+                if local_keys.binary_search(&node_info.signing_key).is_ok() {
+                    return Some((registered_node_id, node_info.signing_key));
+                }
             }
         }
 

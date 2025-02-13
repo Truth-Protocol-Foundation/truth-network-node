@@ -6,14 +6,23 @@ use crate::{self as pallet_node_manager, *};
 use common_primitives::constants::{currency::BASE, NODE_MANAGER_PALLET_ID};
 use frame_support::{parameter_types, weights::Weight};
 use frame_system as system;
-use sp_core::{
-    offchain::testing::{OffchainState, PendingRequest},
+use pallet_session as session;
+pub use parity_scale_codec::alloc::sync::Arc;
+pub use parking_lot::RwLock;
+pub use prediction_market_primitives::test_helper::TestAccount;
+pub use sp_core::{
+    offchain::{
+        testing::{
+            OffchainState, PendingRequest, PoolState, TestOffchainExt, TestTransactionPoolExt,
+        },
+        OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
+    },
     sr25519, H256,
 };
-use sp_runtime::{
+pub use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
-    traits::{BlakeTwo256, ConvertInto, IdentifyAccount, IdentityLookup, Verify},
-    BuildStorage, Perbill, SaturatedConversion,
+    traits::{BlakeTwo256, ConvertInto, IdentityLookup, Verify},
+    BuildStorage, Perbill,
 };
 use sp_state_machine::BasicExternalities;
 use std::cell::RefCell;
@@ -31,6 +40,8 @@ frame_support::construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         NodeManager: pallet_node_manager::{Pallet, Call, Storage, Event<T>, Config<T>},
         AVN: pallet_avn::{Pallet, Storage, Event, Config<T>},
+        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
     }
 );
 
@@ -46,6 +57,32 @@ impl Config for TestRuntime {
     type Public = AccountId;
     type Signature = Signature;
     type RewardPotId = RewardPotId;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const Period: u64 = 1;
+    pub const Offset: u64 = 0;
+}
+
+pub struct TestSessionManager;
+impl session::SessionManager<AccountId> for TestSessionManager {
+    fn new_session(_new_index: u32) -> Option<Vec<AccountId>> {
+        AUTHORS.with(|l| l.borrow_mut().take())
+    }
+    fn end_session(_: u32) {}
+    fn start_session(_: u32) {}
+}
+
+impl session::Config for TestRuntime {
+    type SessionManager = TestSessionManager;
+    type Keys = UintAuthorityId;
+    type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+    type SessionHandler = (AVN,);
+    type RuntimeEvent = RuntimeEvent;
+    type ValidatorId = AccountId;
+    type ValidatorIdOf = ConvertInto;
+    type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
     type WeightInfo = ();
 }
 
@@ -120,8 +157,34 @@ impl pallet_balances::Config for TestRuntime {
     type MaxFreezes = ConstU32<0>;
 }
 
+impl pallet_timestamp::Config for TestRuntime {
+    type Moment = u64;
+    type OnTimestampSet = ();
+    type MinimumPeriod = frame_support::traits::ConstU64<12000>;
+    type WeightInfo = ();
+}
+
+pub fn author_id_1() -> AccountId {
+    TestAccount::new([17u8; 32]).account_id()
+}
+pub fn author_id_2() -> AccountId {
+    TestAccount::new([19u8; 32]).account_id()
+}
+
+thread_local! {
+    pub static AUTHORS: RefCell<Option<Vec<AccountId>>> = RefCell::new(Some(vec![
+        author_id_1(),
+        author_id_2(),
+    ]));
+}
+
 pub struct ExtBuilder {
     pub storage: sp_runtime::Storage,
+    offchain_state: Option<Arc<RwLock<OffchainState>>>,
+    pool_state: Option<Arc<RwLock<PoolState>>>,
+    txpool_extension: Option<TestTransactionPoolExt>,
+    offchain_extension: Option<TestOffchainExt>,
+    offchain_registered: bool,
 }
 
 impl ExtBuilder {
@@ -130,18 +193,58 @@ impl ExtBuilder {
             .build_storage()
             .unwrap()
             .into();
-        Self { storage }
+
+        Self {
+            storage,
+            pool_state: None,
+            offchain_state: None,
+            txpool_extension: None,
+            offchain_extension: None,
+            offchain_registered: false,
+        }
     }
 
     pub fn with_genesis_config(mut self) -> Self {
         let _ = pallet_node_manager::GenesisConfig::<TestRuntime> {
             _phantom: Default::default(),
-            reward_period: 30u32,
+            reward_period: 20u32,
             max_batch_size: 10u32,
-            heartbeat_period: 10u32,
+            heartbeat_period: 5u32,
             reward_amount: 20 * BASE,
         }
         .assimilate_storage(&mut self.storage);
+        self
+    }
+
+    pub fn with_authors(mut self) -> Self {
+        let authors: Vec<AccountId> = AUTHORS.with(|l| l.borrow_mut().take().unwrap());
+
+        BasicExternalities::execute_with_storage(&mut self.storage, || {
+            for ref k in &authors {
+                frame_system::Pallet::<TestRuntime>::inc_providers(k);
+            }
+        });
+
+        let _ = pallet_session::GenesisConfig::<TestRuntime> {
+            keys: authors
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| (v, v, UintAuthorityId((i as u32).into())))
+                .collect(),
+        }
+        .assimilate_storage(&mut self.storage);
+        self
+    }
+
+    pub fn for_offchain_worker(mut self) -> Self {
+        assert!(!self.offchain_registered);
+        let (offchain, offchain_state) = TestOffchainExt::new();
+        let (pool, pool_state) = TestTransactionPoolExt::new();
+        self.txpool_extension = Some(pool);
+        self.offchain_extension = Some(offchain);
+        self.pool_state = Some(pool_state);
+        self.offchain_state = Some(offchain_state);
+        self.offchain_registered = true;
         self
     }
 
@@ -151,4 +254,52 @@ impl ExtBuilder {
         ext.execute_with(|| frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into()));
         ext
     }
+
+    pub fn as_externality_with_state(
+        self,
+    ) -> (sp_io::TestExternalities, Arc<RwLock<PoolState>>, Arc<RwLock<OffchainState>>) {
+        assert!(self.offchain_registered);
+        let mut ext = sp_io::TestExternalities::from(self.storage);
+        ext.register_extension(OffchainDbExt::new(self.offchain_extension.clone().unwrap()));
+        ext.register_extension(OffchainWorkerExt::new(self.offchain_extension.unwrap()));
+        ext.register_extension(TransactionPoolExt::new(self.txpool_extension.unwrap()));
+        assert!(self.pool_state.is_some());
+        assert!(self.offchain_state.is_some());
+        ext.execute_with(|| {
+            Timestamp::set_timestamp(1);
+            frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into())
+        });
+        (ext, self.pool_state.unwrap(), self.offchain_state.unwrap())
+    }
+}
+
+/// Rolls desired block number of times.
+pub(crate) fn roll_forward(num_blocks_to_roll: u64) {
+    let mut current_block = System::block_number();
+    let target_block = current_block + num_blocks_to_roll;
+    while current_block < target_block {
+        current_block = roll_one_block();
+    }
+}
+
+pub(crate) fn roll_one_block() -> u64 {
+    Balances::on_finalize(System::block_number());
+    System::on_finalize(System::block_number());
+    System::set_block_number(System::block_number() + 1);
+    System::on_initialize(System::block_number());
+    Balances::on_initialize(System::block_number());
+    NodeManager::on_initialize(System::block_number());
+    System::block_number()
+}
+
+pub fn mock_get_finalised_block(state: &mut OffchainState, response: &Option<Vec<u8>>) {
+    let url = "http://127.0.0.1:2020/latest_finalised_block".to_string();
+
+    state.expect_request(PendingRequest {
+        method: "GET".into(),
+        uri: url.into(),
+        response: response.clone(),
+        sent: true,
+        ..Default::default()
+    });
 }

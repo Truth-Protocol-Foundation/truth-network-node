@@ -40,6 +40,15 @@ mod benchmarking;
 #[cfg(test)]
 #[path = "tests/mock.rs"]
 mod mock;
+#[cfg(test)]
+#[path = "tests/test_heartbeat.rs"]
+mod test_heartbeat;
+#[cfg(test)]
+#[path = "tests/test_node_registration.rs"]
+mod test_node_registration;
+#[cfg(test)]
+#[path = "tests/test_reward_payment.rs"]
+mod test_reward_payment;
 
 // Definition of the crypto to use for signing
 pub mod sr25519 {
