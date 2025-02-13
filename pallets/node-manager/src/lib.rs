@@ -28,6 +28,9 @@ use sp_runtime::{
 };
 pub mod types;
 use crate::types::*;
+pub mod default_weights;
+pub use default_weights::WeightInfo;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
@@ -48,7 +51,9 @@ pub mod sr25519 {
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::*;
 
+const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+pub(crate) type RewardPeriodIndex = u64;
 /// A type alias for a unique identifier of a node
 pub(crate) type NodeId<T> = <T as frame_system::Config>::AccountId;
 #[frame_support::pallet]
@@ -91,6 +96,50 @@ pub mod pallet {
     #[pallet::storage]
     pub type NodeRegistrar<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
+    /// The heartbeat period in blocks
+    #[pallet::storage]
+    pub type HeartbeatPeriod<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// DoubleMap storing each node's uptime for a given reward period.
+    #[pallet::storage]
+    #[pallet::getter(fn node_uptime)]
+    pub(super) type NodeUptime<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        RewardPeriodIndex,
+        Blake2_128Concat,
+        NodeId<T>,
+        UptimeInfo<BlockNumberFor<T>>,
+        OptionQuery,
+    >;
+
+    /// The total uptime for each reward period.
+    #[pallet::storage]
+    pub(super) type TotalUptime<T: Config> =
+        StorageMap<_, Blake2_128Concat, RewardPeriodIndex, u64, ValueQuery>;
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub _phantom: sp_std::marker::PhantomData<T>,
+        pub heartbeat_period: u32,
+    }
+
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                _phantom: Default::default(),
+                heartbeat_period: 0,
+            }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            HeartbeatPeriod::<T>::set(self.heartbeat_period);
+        }
+    }
+
     // Pallet Events
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -99,6 +148,10 @@ pub mod pallet {
         NodeRegistered { owner: T::AccountId, node: NodeId<T> },
         /// A new node registrar has been set
         NodeRegistrarSet { new_registrar: T::AccountId },
+        /// A new heartbeat period (in blocks) was set.
+        HeartbeatPeriodSet { new_heartbeat_period: u32 },
+        /// A new heartbeat has been received
+        HeartbeatReceived { reward_period_index: RewardPeriodIndex, node: NodeId<T> },
     }
 
     // Pallet Errors
@@ -110,6 +163,22 @@ pub mod pallet {
         RegistrarNotSet,
         /// Node has already been registered
         DuplicateNode,
+        /// The heartbeat period is invalid
+        HeartbeatPeriodInvalid,
+        /// The heartbeat period is 0
+        HeartbeatPeriodZero,
+        /// The total uptime for the period was not found
+        TotalUptimeNotFound,
+        /// The node uptime for the period was not found
+        NodeUptimeNotFound,
+        /// Heartbeat has already been submitted
+        DuplicateHeartbeat,
+        /// Heartbeat submission is not valid
+        InvalidHeartbeat,
+        /// The node is not registered
+        NodeNotRegistered,
+        /// Failed to aquire a lock on the Offchain db
+        FailedToAcquireOcwDbLock,
     }
 
     #[pallet::config]
@@ -120,6 +189,11 @@ pub mod pallet {
         type RuntimeEvent: From<Event<Self>>
             + Into<<Self as frame_system::Config>::RuntimeEvent>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        /// The overarching call type.
+        type RuntimeCall: Parameter
+            + Dispatchable<RuntimeOrigin = <Self as frame_system::Config>::RuntimeOrigin>
+            + IsSubType<Call<Self>>
+            + From<Call<Self>>;
         /// The currency type for this module.
         type Currency: Currency<Self::AccountId>;
         // The identifier type for an offchain transaction signer.
@@ -172,20 +246,164 @@ pub mod pallet {
 
             Ok(())
         }
+
+        /// Set admin configurations
+        #[pallet::call_index(1)]
+        #[pallet::weight(
+            <T as Config>::WeightInfo::register_node()
+            .max(<T as Config>::WeightInfo::set_admin_config_registrar())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_period())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_batch_size())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_amount())
+        )]
+        pub fn set_admin_config(
+            origin: OriginFor<T>,
+            config: AdminConfig<T::AccountId, BalanceOf<T>>,
+        ) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
+
+            match config {
+                AdminConfig::NodeRegistrar(registrar) => {
+                    <NodeRegistrar<T>>::set(Some(registrar.clone()));
+                    Self::deposit_event(Event::NodeRegistrarSet { new_registrar: registrar });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_registrar()).into());
+                },
+                AdminConfig::Heartbeat(period) => {
+                    let reward_period = RewardPeriod::<T>::get().length;
+                    ensure!(period > 0, Error::<T>::HeartbeatPeriodZero);
+                    ensure!(period < reward_period, Error::<T>::HeartbeatPeriodInvalid);
+                    <HeartbeatPeriod<T>>::put(period.clone());
+                    Self::deposit_event(Event::HeartbeatPeriodSet { new_heartbeat_period: period });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat()).into());
+                },
+            }
+        }
         // Implement me
+
+        /// Offchain call: Submit heartbeat to show node is still alive
+        #[pallet::call_index(3)]
+        #[pallet::weight(<T as Config>::WeightInfo::offchain_submit_heartbeat())]
+        pub fn offchain_submit_heartbeat(
+            origin: OriginFor<T>,
+            node: NodeId<T>,
+            reward_period_index: RewardPeriodIndex,
+            // This helps prevent signature re-use
+            heartbeat_count: u64,
+            _signature: <T::SignerId as RuntimeAppPublic>::Signature,
+        ) -> DispatchResult {
+            ensure_none(origin)?;
+
+            ensure!(<NodeRegistry<T>>::contains_key(&node), Error::<T>::NodeNotRegistered);
+            let current_reward_period = RewardPeriod::<T>::get().current;
+            let maybe_uptime_info = <NodeUptime<T>>::get(reward_period_index, &node);
+
+            ensure!(current_reward_period == reward_period_index, Error::<T>::InvalidHeartbeat);
+
+            if let Some(uptime_info) = maybe_uptime_info {
+                let expected_submission = uptime_info.last_reported +
+                    BlockNumberFor::<T>::from(HeartbeatPeriod::<T>::get());
+                ensure!(
+                    frame_system::Pallet::<T>::block_number() > expected_submission,
+                    Error::<T>::DuplicateHeartbeat
+                );
+                ensure!(heartbeat_count == uptime_info.count, Error::<T>::InvalidHeartbeat);
+            } else {
+                ensure!(heartbeat_count == 0, Error::<T>::InvalidHeartbeat);
+            }
+
+            <NodeUptime<T>>::mutate(&current_reward_period, &node, |maybe_info| {
+                if let Some(info) = maybe_info.as_mut() {
+                    info.count = info.count.saturating_add(1);
+                    info.last_reported = frame_system::Pallet::<T>::block_number();
+                } else {
+                    *maybe_info = Some(UptimeInfo {
+                        count: 1,
+                        last_reported: frame_system::Pallet::<T>::block_number(),
+                    });
+                }
+            });
+
+            <TotalUptime<T>>::mutate(&current_reward_period, |total| {
+                *total = total.saturating_add(1);
+            });
+
+            Self::deposit_event(Event::HeartbeatReceived {
+                reward_period_index: current_reward_period,
+                node,
+            });
+
+            Ok(())
+        }
     }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         // Implement me
+
+        fn offchain_worker(n: BlockNumberFor<T>) {
+            log::info!("🌐 OCW for node manager");
+            Self::send_heartbeat_if_required(n);
+        }
     }
 
     #[pallet::validate_unsigned]
     impl<T: Config> ValidateUnsigned for Pallet<T> {
-        // Implement me
+        type Call = Call<T>;
+        fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            // Discard unsinged tx's not coming from the local OCW.
+            match source {
+                TransactionSource::Local | TransactionSource::InBlock => { /* allowed */ },
+                _ => return InvalidTransaction::Call.into(),
+            }
+            match call {
+                Call::offchain_submit_heartbeat {
+                    node,
+                    reward_period_index,
+                    heartbeat_count,
+                    signature,
+                } => {
+                    let node_info = NodeRegistry::<T>::get(&node);
+                    match node_info {
+                        Some(info) => {
+                            if Self::signature_is_valid(
+                                &(HEARTBEAT_CONTEXT, heartbeat_count, reward_period_index),
+                                &info.signing_key,
+                                signature,
+                            ) {
+                                return ValidTransaction::with_tag_prefix("NodeManagerHeartbeat")
+                                    .and_provides(call)
+                                    .priority(TransactionPriority::max_value())
+                                    .build();
+                            } else {
+                                return InvalidTransaction::Custom(2u8).into();
+                            }
+                        },
+                        _ => InvalidTransaction::Custom(3u8).into(),
+                    }
+                },
+                _ => InvalidTransaction::Call.into(),
+            }
+        }
     }
 
     impl<T: Config> Pallet<T> {
-        // Implement me
+        pub fn signature_is_valid<D: Encode>(
+            data: &D,
+            signer: &T::SignerId,
+            signature: &<T::SignerId as RuntimeAppPublic>::Signature,
+        ) -> bool {
+            let signature_valid =
+                data.using_encoded(|encoded_data| signer.verify(&encoded_data, &signature));
+
+            log::info!(
+                "🪲 Validating signature: [ data {:?} - account {:?} - signature {:?} ] Result: {}",
+                data.encode(),
+                signer.encode(),
+                signature,
+                signature_valid
+            );
+            return signature_valid
+        }
     }
 }

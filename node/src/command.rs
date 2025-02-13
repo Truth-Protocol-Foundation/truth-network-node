@@ -227,6 +227,7 @@ pub fn run() -> sc_cli::Result<()> {
             let tnf_config = TnfCliConfiguration {
                 tnf_service_port: cli.run.tnf_service_port,
                 ethereum_node_url: cli.run.eth_node_url,
+                registered_node_id: cli.run.registered_node_id,
             };
             runner.run_node_until_exit(|config| async move {
                 crypto::set_default_ss58_version(TNF_CHAIN_PREFIX.into());
