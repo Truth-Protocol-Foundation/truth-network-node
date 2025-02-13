@@ -9,6 +9,25 @@ use frame_system::{EventRecord, RawOrigin};
 use prediction_market_primitives::math::fixed::FixedMulDiv;
 use sp_runtime::SaturatedConversion;
 
+// Macro for comparing fixed point u128.
+#[allow(unused_macros)]
+macro_rules! assert_approx {
+    ($left:expr, $right:expr, $precision:expr $(,)?) => {
+        match (&$left, &$right, &$precision) {
+            (left_val, right_val, precision_val) => {
+                let diff = if *left_val > *right_val {
+                    *left_val - *right_val
+                } else {
+                    *right_val - *left_val
+                };
+                if diff > $precision {
+                    panic!("{:?} is not {:?}-close to {:?}", *left_val, *precision_val, *right_val);
+                }
+            },
+        }
+    };
+}
+
 fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
     let events = frame_system::Pallet::<T>::events();
     let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
@@ -48,6 +67,33 @@ fn create_heartbeat<T: Config>(node: NodeId<T>, reward_period_index: RewardPerio
 
     <TotalUptime<T>>::insert(reward_period_index, total_uptime + 1u64);
 }
+
+fn fund_reward_pot<T: Config>() {
+    let reward_amount = RewardAmount::<T>::get() * 2000u32.into();
+    let reward_pot_address = Pallet::<T>::compute_reward_account_id();
+    T::Currency::make_free_balance_be(&reward_pot_address, reward_amount);
+}
+
+fn create_author<T: Config>() -> Author<T> {
+    let account = account("dummy_validator", 0, 0);
+    let key = <T as avn::Config>::AuthorityId::generate_pair(Some("//bob".as_bytes().to_vec()));
+    Author::<T>::new(account, key)
+}
+
+fn create_nodes_and_hearbeat<T: Config>(
+    owner: T::AccountId,
+    reward_period_index: RewardPeriodIndex,
+    node_to_create: u32,
+) {
+    for i in 1..=node_to_create {
+        let node: NodeId<T> = account("node", i, i);
+        let _ = register_new_node::<T>(node.clone(), owner.clone());
+        create_heartbeat::<T>(node.clone(), reward_period_index);
+    }
+}
+
+fn set_max_batch_size<T: Config>(batch_size: u32) {
+    <MaxBatchSize<T>>::set(batch_size);
 }
 
 benchmarks! {
@@ -64,6 +110,7 @@ benchmarks! {
         assert!(<NodeRegistry<T>>::contains_key(node.clone()));
         assert_last_event::<T>(Event::NodeRegistered {owner, node}.into());
     }
+
     set_admin_config_registrar {
         let registrar: T::AccountId = account("registrar", 0, 0);
         set_registrar::<T>(registrar.clone());
@@ -74,6 +121,7 @@ benchmarks! {
     verify {
         assert!(<NodeRegistrar<T>>::get() == Some(new_registrar));
     }
+
     set_admin_config_reward_period {
         let current_reward_period = <RewardPeriod<T>>::get().length;
         let new_reward_period = current_reward_period + 1u32;
@@ -84,6 +132,16 @@ benchmarks! {
         assert!(<RewardPeriod<T>>::get().length == new_reward_period);
     }
 
+    set_admin_config_reward_batch_size {
+        let current_batch_size = <MaxBatchSize<T>>::get();
+        let new_batch_size = current_batch_size + 1u32;
+        let config = AdminConfig::BatchSize(new_batch_size);
+
+    }: set_admin_config(RawOrigin::Root, config.clone())
+    verify {
+        assert!(<MaxBatchSize<T>>::get() == new_batch_size);
+    }
+
     set_admin_config_reward_heartbeat {
         let current_heartbeat = <HeartbeatPeriod<T>>::get();
         let new_heartbeat = current_heartbeat + 1u32;
@@ -92,6 +150,16 @@ benchmarks! {
     }: set_admin_config(RawOrigin::Root, config.clone())
     verify {
         assert!(<HeartbeatPeriod<T>>::get() == new_heartbeat);
+    }
+
+    set_admin_config_reward_amount {
+        let current_amount = <RewardAmount<T>>::get();
+        let new_amount = current_amount + 1u32.into();
+        let config = AdminConfig::RewardAmount(new_amount);
+
+    }: set_admin_config(RawOrigin::Root, config.clone())
+    verify {
+        assert!(<RewardAmount<T>>::get() == new_amount);
     }
 
     on_initialise_with_new_reward_period {
@@ -141,6 +209,72 @@ benchmarks! {
         assert_last_event::<T>(Event::HeartbeatReceived {reward_period_index, node}.into());
     }
 
+    offchain_pay_nodes {
+        let registered_nodes = 1001;
+
+        // This should affect the performance of the extrinsic.
+        let b in 1 .. 1000;
+
+        fund_reward_pot::<T>();
+        set_max_batch_size::<T>(b);
+
+        let reward_period = <RewardPeriod<T>>::get();
+        let reward_period_index = reward_period.current;
+        let owner: T::AccountId = account("owner", 0, 0);
+        let author = create_author::<T>();
+
+        create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, registered_nodes);
+
+        // Move forward to the next reward period
+        <frame_system::Pallet<T>>::set_block_number((reward_period.length + 1).into());
+        let current_block_number = frame_system::Pallet::<T>::block_number();
+        <frame_system::Pallet<T>>::set_block_number(current_block_number + reward_period.length.into());
+        Pallet::<T>::on_initialize(current_block_number);
+        let signature = author.key.sign(
+            &(PAYOUT_REWARD_CONTEXT, reward_period_index).encode()
+        ).expect("Error signing");
+    }: offchain_pay_nodes(RawOrigin::None, reward_period_index, author ,signature)
+    verify {
+        let max_batch_size = MaxBatchSize::<T>::get();
+        let expected_balance = max_batch_size.min(registered_nodes).saturated_into::<BalanceOf<T>>().
+            bmul_bdiv(RewardAmount::<T>::get(), registered_nodes.saturated_into::<BalanceOf<T>>())
+            .unwrap();
+        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 100u32.saturated_into::<BalanceOf<T>>());
+    }
+
+    #[extra]
+    pay_nodes_constant_batch_size {
+        // Prove that the extrinsic is constant time with respect to the batch size.
+        // Even if the number of registered nodes increases
+
+        // This should NOT affect the performance of the extrinsic. The execution time should be constant.
+        let n in 1 .. 100;
+
+        fund_reward_pot::<T>();
+
+        let reward_period = <RewardPeriod<T>>::get();
+        let reward_period_index = reward_period.current;
+        let owner: T::AccountId = account("owner", 0, 0);
+        let author = create_author::<T>();
+
+        create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, n);
+
+        // Move forward to the next reward period
+        <frame_system::Pallet<T>>::set_block_number((reward_period.length + 1).into());
+        let current_block_number = frame_system::Pallet::<T>::block_number();
+        <frame_system::Pallet<T>>::set_block_number(current_block_number + reward_period.length.into());
+        Pallet::<T>::on_initialize(current_block_number);
+        let signature = author.key.sign(
+            &(PAYOUT_REWARD_CONTEXT, reward_period_index).encode()
+        ).expect("Error signing");
+    }: offchain_pay_nodes(RawOrigin::None, reward_period_index, author ,signature)
+    verify {
+        let max_batch_size = MaxBatchSize::<T>::get();
+        let expected_balance = max_batch_size.min(n).saturated_into::<BalanceOf<T>>().
+            bmul_bdiv(RewardAmount::<T>::get(), n.saturated_into::<BalanceOf<T>>())
+            .unwrap();
+        assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 50u32.saturated_into::<BalanceOf<T>>());
+    }
 }
 
 impl_benchmark_test_suite!(
