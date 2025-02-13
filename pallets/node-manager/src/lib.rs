@@ -26,6 +26,7 @@ use sp_runtime::{
     },
     DispatchError, RuntimeDebug, Saturating,
 };
+pub mod offchain;
 pub mod types;
 use crate::types::*;
 pub mod default_weights;
@@ -99,6 +100,11 @@ pub mod pallet {
     /// The heartbeat period in blocks
     #[pallet::storage]
     pub type HeartbeatPeriod<T: Config> = StorageValue<_, u32, ValueQuery>;
+    /// Tracks the current reward period.
+    #[pallet::storage]
+    #[pallet::getter(fn current_reward_period)]
+    pub(super) type RewardPeriod<T: Config> =
+        StorageValue<_, RewardPeriodInfo<BlockNumberFor<T>>, ValueQuery>;
 
     /// DoubleMap storing each node's uptime for a given reward period.
     #[pallet::storage]
@@ -121,6 +127,7 @@ pub mod pallet {
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub _phantom: sp_std::marker::PhantomData<T>,
+        pub reward_period: u32,
         pub heartbeat_period: u32,
     }
 
@@ -128,6 +135,7 @@ pub mod pallet {
         fn default() -> Self {
             Self {
                 _phantom: Default::default(),
+                reward_period: 0,
                 heartbeat_period: 0,
             }
         }
@@ -137,6 +145,10 @@ pub mod pallet {
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
             HeartbeatPeriod::<T>::set(self.heartbeat_period);
+
+            let reward_period: RewardPeriodInfo<BlockNumberFor<T>> =
+                RewardPeriodInfo::new(0u64, 0u32.into(), self.reward_period);
+            <RewardPeriod<T>>::put(reward_period);
         }
     }
 
@@ -146,6 +158,18 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// A new node has been registered
         NodeRegistered { owner: T::AccountId, node: NodeId<T> },
+        /// A new reward period (in blocks) was set.
+        RewardPeriodLengthSet {
+            period_index: u64,
+            old_reward_period_length: u32,
+            new_reward_period_length: u32,
+        },
+        /// A new reward period was initialized.
+        NewRewardPeriodStarted {
+            reward_period_index: RewardPeriodIndex,
+            reward_period_length: u32,
+            previous_period_reward: BalanceOf<T>,
+        },
         /// A new node registrar has been set
         NodeRegistrarSet { new_registrar: T::AccountId },
         /// A new heartbeat period (in blocks) was set.
@@ -163,6 +187,10 @@ pub mod pallet {
         RegistrarNotSet,
         /// Node has already been registered
         DuplicateNode,
+        /// The signing key of the node is invalid
+        InvalidSigningKey,
+        /// The reward period is invalid
+        RewardPeriodInvalid,
         /// The heartbeat period is invalid
         HeartbeatPeriodInvalid,
         /// The heartbeat period is 0
@@ -171,6 +199,10 @@ pub mod pallet {
         TotalUptimeNotFound,
         /// The node uptime for the period was not found
         NodeUptimeNotFound,
+        /// The node owner was not found
+        NodeOwnerNotFound,
+        /// The reward payment request is invalid
+        InvalidRewardPaymentRequest,
         /// Heartbeat has already been submitted
         DuplicateHeartbeat,
         /// Heartbeat submission is not valid
@@ -269,6 +301,20 @@ pub mod pallet {
                     Self::deposit_event(Event::NodeRegistrarSet { new_registrar: registrar });
                     return Ok(Some(<T as Config>::WeightInfo::set_admin_config_registrar()).into());
                 },
+                AdminConfig::RewardPeriod(period) => {
+                    let heartbeat = <HeartbeatPeriod<T>>::get();
+                    ensure!(period > heartbeat, Error::<T>::RewardPeriodInvalid);
+                    let mut reward_period = RewardPeriod::<T>::get();
+                    let (index, old_period) = (reward_period.current, reward_period.length);
+                    reward_period.length = period;
+                    <RewardPeriod<T>>::put(reward_period);
+                    Self::deposit_event(Event::RewardPeriodLengthSet {
+                        period_index: index,
+                        old_reward_period_length: old_period,
+                        new_reward_period_length: period,
+                    });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_reward_period()).into());
+                },
                 AdminConfig::Heartbeat(period) => {
                     let reward_period = RewardPeriod::<T>::get().length;
                     ensure!(period > 0, Error::<T>::HeartbeatPeriodZero);
@@ -339,8 +385,34 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        // Implement me
+        // Keep this logic light and bounded
+        fn on_initialize(n: BlockNumberFor<T>) -> Weight {
+            let mut reward_period = RewardPeriod::<T>::get();
+            let reward_period_index = reward_period.current;
 
+            if reward_period.should_update(n) {
+                reward_period.update(n);
+                RewardPeriod::<T>::put(reward_period);
+
+                // take a snapshot of the reward pot amount to pay for the previous reward period
+                let reward_amount = RewardAmount::<T>::get();
+                let total_heartbeats = <TotalUptime<T>>::get(reward_period_index);
+                <RewardPot<T>>::insert(
+                    reward_period_index,
+                    RewardPotInfo::<BalanceOf<T>>::new(reward_amount, total_heartbeats),
+                );
+
+                Self::deposit_event(Event::NewRewardPeriodStarted {
+                    reward_period_index: reward_period.current,
+                    reward_period_length: reward_period.length,
+                    previous_period_reward: reward_amount,
+                });
+
+                return <T as Config>::WeightInfo::on_initialise_with_new_reward_period();
+            }
+
+            return <T as Config>::WeightInfo::on_initialise_no_reward_period();
+        }
         fn offchain_worker(n: BlockNumberFor<T>) {
             log::info!("🌐 OCW for node manager");
             Self::send_heartbeat_if_required(n);

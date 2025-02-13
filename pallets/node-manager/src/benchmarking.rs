@@ -74,6 +74,16 @@ benchmarks! {
     verify {
         assert!(<NodeRegistrar<T>>::get() == Some(new_registrar));
     }
+    set_admin_config_reward_period {
+        let current_reward_period = <RewardPeriod<T>>::get().length;
+        let new_reward_period = current_reward_period + 1u32;
+        let config = AdminConfig::RewardPeriod(new_reward_period);
+
+    }: set_admin_config(RawOrigin::Root, config.clone())
+    verify {
+        assert!(<RewardPeriod<T>>::get().length == new_reward_period);
+    }
+
     set_admin_config_reward_heartbeat {
         let current_heartbeat = <HeartbeatPeriod<T>>::get();
         let new_heartbeat = current_heartbeat + 1u32;
@@ -82,6 +92,29 @@ benchmarks! {
     }: set_admin_config(RawOrigin::Root, config.clone())
     verify {
         assert!(<HeartbeatPeriod<T>>::get() == new_heartbeat);
+    }
+
+    on_initialise_with_new_reward_period {
+        let reward_period = <RewardPeriod<T>>::get();
+        let block_number: BlockNumberFor<T> = (reward_period.first + BlockNumberFor::<T>::from(reward_period.length) + 1u32.into()).into();
+
+    }: { Pallet::<T>::on_initialize(block_number) }
+    verify {
+        let new_reward_period = reward_period.current + 1u64;
+        assert!(new_reward_period== <RewardPeriod<T>>::get().current);
+        assert_last_event::<T>(Event::NewRewardPeriodStarted {
+            reward_period_index: new_reward_period,
+            reward_period_length: reward_period.length,
+            previous_period_reward: RewardAmount::<T>::get()}.into());
+    }
+
+    on_initialise_no_reward_period {
+        let reward_period = <RewardPeriod<T>>::get();
+        let block_number: BlockNumberFor<T> = BlockNumberFor::<T>::from(reward_period.length) - 1u32.into();
+
+    }: { Pallet::<T>::on_initialize(block_number) }
+    verify {
+        assert!(reward_period.current== <RewardPeriod<T>>::get().current);
     }
 
     offchain_submit_heartbeat {
