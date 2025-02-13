@@ -6,21 +6,26 @@ use crate::{self as pallet_node_manager, *};
 use common_primitives::constants::{currency::BASE, NODE_MANAGER_PALLET_ID};
 use frame_support::{parameter_types, weights::Weight};
 use frame_system as system;
+use pallet_session as session;
 pub use parity_scale_codec::alloc::sync::Arc;
 pub use parking_lot::RwLock;
+pub use prediction_market_primitives::test_helper::TestAccount;
 pub use sp_core::{
     offchain::{
-        testing::{OffchainState, PoolState, TestOffchainExt, TestTransactionPoolExt},
+        testing::{
+            OffchainState, PendingRequest, PoolState, TestOffchainExt, TestTransactionPoolExt,
+        },
         OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
     },
     sr25519, H256,
 };
-
 pub use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
-    traits::{BlakeTwo256, IdentityLookup, Verify},
+    traits::{BlakeTwo256, ConvertInto, IdentityLookup, Verify},
     BuildStorage, Perbill,
 };
+use sp_state_machine::BasicExternalities;
+use std::cell::RefCell;
 
 pub type Signature = sr25519::Signature;
 pub type AccountId = <Signature as Verify>::Signer;
@@ -36,6 +41,7 @@ frame_support::construct_runtime!(
         NodeManager: pallet_node_manager::{Pallet, Call, Storage, Event<T>, Config<T>},
         AVN: pallet_avn::{Pallet, Storage, Event, Config<T>},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
     }
 );
 
@@ -51,6 +57,32 @@ impl Config for TestRuntime {
     type Public = AccountId;
     type Signature = Signature;
     type RewardPotId = RewardPotId;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const Period: u64 = 1;
+    pub const Offset: u64 = 0;
+}
+
+pub struct TestSessionManager;
+impl session::SessionManager<AccountId> for TestSessionManager {
+    fn new_session(_new_index: u32) -> Option<Vec<AccountId>> {
+        AUTHORS.with(|l| l.borrow_mut().take())
+    }
+    fn end_session(_: u32) {}
+    fn start_session(_: u32) {}
+}
+
+impl session::Config for TestRuntime {
+    type SessionManager = TestSessionManager;
+    type Keys = UintAuthorityId;
+    type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+    type SessionHandler = (AVN,);
+    type RuntimeEvent = RuntimeEvent;
+    type ValidatorId = AccountId;
+    type ValidatorIdOf = ConvertInto;
+    type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
     type WeightInfo = ();
 }
 
@@ -132,6 +164,20 @@ impl pallet_timestamp::Config for TestRuntime {
     type WeightInfo = ();
 }
 
+pub fn author_id_1() -> AccountId {
+    TestAccount::new([17u8; 32]).account_id()
+}
+pub fn author_id_2() -> AccountId {
+    TestAccount::new([19u8; 32]).account_id()
+}
+
+thread_local! {
+    pub static AUTHORS: RefCell<Option<Vec<AccountId>>> = RefCell::new(Some(vec![
+        author_id_1(),
+        author_id_2(),
+    ]));
+}
+
 pub struct ExtBuilder {
     pub storage: sp_runtime::Storage,
     offchain_state: Option<Arc<RwLock<OffchainState>>>,
@@ -165,6 +211,26 @@ impl ExtBuilder {
             max_batch_size: 10u32,
             heartbeat_period: 5u32,
             reward_amount: 20 * BASE,
+        }
+        .assimilate_storage(&mut self.storage);
+        self
+    }
+
+    pub fn with_authors(mut self) -> Self {
+        let authors: Vec<AccountId> = AUTHORS.with(|l| l.borrow_mut().take().unwrap());
+
+        BasicExternalities::execute_with_storage(&mut self.storage, || {
+            for ref k in &authors {
+                frame_system::Pallet::<TestRuntime>::inc_providers(k);
+            }
+        });
+
+        let _ = pallet_session::GenesisConfig::<TestRuntime> {
+            keys: authors
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| (v, v, UintAuthorityId((i as u32).into())))
+                .collect(),
         }
         .assimilate_storage(&mut self.storage);
         self
@@ -224,4 +290,16 @@ pub(crate) fn roll_one_block() -> u64 {
     Balances::on_initialize(System::block_number());
     NodeManager::on_initialize(System::block_number());
     System::block_number()
+}
+
+pub fn mock_get_finalised_block(state: &mut OffchainState, response: &Option<Vec<u8>>) {
+    let url = "http://127.0.0.1:2020/latest_finalised_block".to_string();
+
+    state.expect_request(PendingRequest {
+        method: "GET".into(),
+        uri: url.into(),
+        response: response.clone(),
+        sent: true,
+        ..Default::default()
+    });
 }

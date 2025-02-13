@@ -2,7 +2,7 @@
 use crate::*;
 // We allow up to 5 blocks for ocw transactions
 const BLOCK_INCLUSION_PERIOD: u32 = 5;
-const OCW_ID: &'static [u8; 22] = b"node_manager::last_run";
+pub const OCW_ID: &'static [u8; 22] = b"node_manager::last_run";
 const OC_HB_DB_PREFIX: &[u8] = b"tnf/node-manager-heartbeat/";
 
 impl<T: Config> Pallet<T> {

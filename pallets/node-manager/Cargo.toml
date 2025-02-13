@@ -32,9 +32,11 @@ frame-benchmarking = { workspace = true, optional = true }
 [dev-dependencies]
 pallet-timestamp = { workspace = true }
 pallet-balances = { workspace = true, features=["insecure_zero_ed", "default"] }
+pallet-session = { workspace = true }
 sp-state-machine = { workspace = true }
 prediction-market-primitives = { workspace = true, features=["mock"]}
 parking_lot = {  workspace = true }
+hex = { workspace = true }
 
 [features]
 default = ["std"]
