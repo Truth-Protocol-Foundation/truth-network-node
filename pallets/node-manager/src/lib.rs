@@ -105,7 +105,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         /// The node registrar account is invalid
-        InvalidRegistrar,
+        OriginNotRegistrar,
         /// The node registrar account is not set
         RegistrarNotSet,
         /// Node has already been registered
@@ -159,7 +159,7 @@ pub mod pallet {
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
             let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
-            ensure!(who == registrar, Error::<T>::InvalidRegistrar);
+            ensure!(who == registrar, Error::<T>::OriginNotRegistrar);
             ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
 
             <OwnedNodes<T>>::insert(&owner, &node, ());
