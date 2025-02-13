@@ -97,7 +97,7 @@ mod fails_when {
                     context.owner,
                     context.signing_key,
                 ),
-                Error::<TestRuntime>::InvalidRegistrar
+                Error::<TestRuntime>::OriginNotRegistrar
             );
         });
     }
