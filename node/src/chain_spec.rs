@@ -341,16 +341,14 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
                 // Initial PoA authorities
                 testnet_candidates_keys(),
                 // Sudo account
-                // TODO update me
                 AccountId::from(hex![
-                    "8276f54bd529de582ee80d457c6ea10ce3167ffebd6eb015a1adcd7e2c2ab469"
+                    "defdc90405497fee04b4db6586666f9d4f3a62450983b0116ccd0f180fea3b73"
                 ]),
                 // Pre-funded accounts
-                // TODO update me
                 vec![
                     // Sudo account
                     AccountId::from(hex![
-                        "8276f54bd529de582ee80d457c6ea10ce3167ffebd6eb015a1adcd7e2c2ab469"
+                        "defdc90405497fee04b4db6586666f9d4f3a62450983b0116ccd0f180fea3b73"
                     ]),
                     get_account_id_from_seed::<sr25519::Public>("Bank"),
                 ],
