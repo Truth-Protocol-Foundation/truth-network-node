@@ -96,6 +96,16 @@ pub fn authority_keys_from_seed(
     )
 }
 
+fn get_default_node_manager_config() -> NodeManagerConfig {
+    return NodeManagerConfig {
+        _phantom: Default::default(),
+        reward_period: 30u32,
+        max_batch_size: 10u32,
+        heartbeat_period: 10u32,
+        reward_amount: 20 * BASE,
+    };
+}
+
 pub fn development_config() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
@@ -133,6 +143,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
                 H160(hex!("c597D0a71fFFB0bA72D7d59479dfD66132a2B0E1")),
                 tnf_dev_ethereum_public_keys(),
                 None,
+                get_default_node_manager_config(),
             )
         },
         // Bootnodes
@@ -194,66 +205,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                 H160(hex!("c597D0a71fFFB0bA72D7d59479dfD66132a2B0E1")),
                 tnf_dev_ethereum_public_keys(),
                 None,
-            )
-        },
-        // Bootnodes
-        vec![],
-        // Telemetry
-        None,
-        // Protocol ID
-        None,
-        None,
-        // Properties
-        tnf_chain_properties(),
-        // Extensions
-        None,
-    ))
-}
-
-pub fn testnet_config() -> Result<ChainSpec, String> {
-    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
-
-    Ok(ChainSpec::from_genesis(
-        // Name
-        "Tnf Testnet",
-        // ID
-        "tnf_testnet_v4",
-        ChainType::Live,
-        move || {
-            testnet_genesis(
-                wasm_binary,
-                // Initial PoA authorities
-                tnf_authorities_keys(),
-                // Sudo account
-                AccountId::from(hex![
-                    "7cd31fc71b34745337a31428d29e8d0e645c0a785862c088b850927a87878615"
-                ]),
-                // Pre-funded accounts
-                vec![
-                    // Sudo account
-                    AccountId::from(hex![
-                        "7cd31fc71b34745337a31428d29e8d0e645c0a785862c088b850927a87878615"
-                    ]),
-                ],
-                true,
-                // TNF bridge contract
-                H160(hex!("D31D4bE8B01534B04062672e5d6CC932b0e948b7")),
-                // Processed events
-                vec![(
-                    ValidEvents::Lifted.signature(),
-                    H256(hex!("ef9eb934f90153dd2f3bbf16cfd25d641f1508456b7a1d35f35eea581cda5f93")),
-                )],
-                // Lift transactions
-                vec![H256(hex!(
-                    "446cdb96c9f336fb24c6191496a4c1b15a2c2b0adb703ac4811e1813bb0dc936"
-                ))],
-                NORMAL_EVENT_CHALLENGE_PERIOD,
-                EIGHT_HOURS_SCHEDULE_PERIOD,
-                NORMAL_VOTING_PERIOD,
-                // Tnf native token contract
-                H160(hex!("bFaffD8001493Dfeb51C26748d2AfF53C2984190")),
-                tnf_testnet_ethereum_public_keys(),
-                None,
+                get_default_node_manager_config(),
             )
         },
         // Bootnodes
@@ -310,6 +262,7 @@ pub fn dev_testnet_config() -> Result<ChainSpec, String> {
                 H160(hex!("25560bD4FD693922450D99188Fab23472e59015F")),
                 dev_testnet_ethereum_public_keys(),
                 None,
+                get_default_node_manager_config(),
             )
         },
         // Bootnodes
@@ -339,7 +292,7 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
             testnet_genesis(
                 wasm_binary,
                 // Initial PoA authorities
-                testnet_candidates_keys(),
+                public_testnet_candidates_keys(),
                 // Sudo account
                 AccountId::from(hex![
                     "defdc90405497fee04b4db6586666f9d4f3a62450983b0116ccd0f180fea3b73"
@@ -364,8 +317,15 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
                 NORMAL_VOTING_PERIOD,
                 // Tnf native token contract
                 H160(hex!("6cAEfA7446E967018330cCeC5BA7A43956a45137")),
-                testnet_ethereum_public_keys(),
+                public_testnet_ethereum_public_keys(),
                 None,
+                NodeManagerConfig {
+                    _phantom: Default::default(),
+                    reward_period: BLOCKS_PER_DAY as u32,
+                    max_batch_size: 100u32,
+                    heartbeat_period: 10u32,
+                    reward_amount: 75_000_000 * BASE,
+                },
             )
         },
         // Bootnodes
@@ -521,7 +481,7 @@ pub(crate) fn dev_testnet_ethereum_public_keys() -> Vec<EthPublicKey> {
     ]
 }
 
-pub(crate) fn testnet_candidates_keys(
+pub(crate) fn public_testnet_candidates_keys(
 ) -> Vec<(AccountId, AuraId, GrandpaId, AuthorityDiscoveryId, ImOnlineId, AvnId)> {
     let initial_authorities: Vec<(
         AccountId,
@@ -630,7 +590,7 @@ pub(crate) fn testnet_candidates_keys(
     return initial_authorities;
 }
 
-pub(crate) fn testnet_ethereum_public_keys() -> Vec<EthPublicKey> {
+pub(crate) fn public_testnet_ethereum_public_keys() -> Vec<EthPublicKey> {
     return vec![
         // 0xfA61F1aECB01E7569DED655830991D1a81715a63
         ecdsa::Public::from_slice(&hex![
@@ -683,6 +643,7 @@ fn testnet_genesis(
     l2_token_contract: H160,
     eth_public_keys: Vec<EthPublicKey>,
     default_non_l2_token: Option<H160>,
+    node_manager: NodeManagerConfig,
 ) -> RuntimeGenesisConfig {
     RuntimeGenesisConfig {
         avn: pallet_avn::GenesisConfig {
@@ -775,116 +736,12 @@ fn testnet_genesis(
             },
         },
         nft_manager: Default::default(),
-        node_manager: NodeManagerConfig {
-            _phantom: Default::default(),
-            reward_period: 30u32,
-            max_batch_size: 10u32,
-            heartbeat_period: 10u32,
-            reward_amount: 20 * BASE,
-        },
+        node_manager,
         advisory_committee: Default::default(),
         tokens: Default::default(),
-        asset_registry: AssetRegistryConfig {
-            last_asset_id: Default::default(),
-            assets: vec![(
-                H160::from([1; 20]),
-                Asset::ForeignAsset(4),
-                AssetMetadata::<Balance, CustomMetadata, AssetRegistryStringLimit>::encode(
-                    &AssetMetadata {
-                        decimals: 6,
-                        name: BoundedVec::truncate_from(
-                            "Eth USDC - foreign token".as_bytes().to_vec(),
-                        ),
-                        symbol: BoundedVec::truncate_from("USDC".as_bytes().to_vec()),
-                        existential_deposit: 0,
-                        location: None,
-                        additional: CustomMetadata {
-                            eth_address: H160::from([1; 20]),
-                            allow_as_base_asset: true,
-                        },
-                    },
-                ),
-            )],
-        },
+        asset_registry: AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
         prediction_markets: PredictionMarketsConfig { vault_account: Some(root_key.clone()) },
     }
-}
-
-#[rustfmt::skip]
-fn tnf_authorities_keys(
-) -> Vec<(AccountId, AuraId, GrandpaId,AuthorityDiscoveryId, ImOnlineId, AvnId)> {
-	let initial_authorities: Vec<(AccountId, AuraId, GrandpaId, AuthorityDiscoveryId, ImOnlineId, AvnId)> = vec![
-		(
-			hex!["78155939f63f04d5d9b69cc1cfb3e98c9e7e940cec690a26cbdea7be8b9f7533"].into(),
-
-			hex!["6e4477a528d628a3dc92ade8f5c0844bf21713b7757d50a7f4079287c79d9265"].unchecked_into(),
-
-            hex!["35d944adb5498bcd8e4e27501e13aecddec28fee676dab224f7941d9080bb342"].unchecked_into(),
-
-			hex!["5ca21e88094806900d70998fb1684fbb23aa70b22af22b08bc57309c25670b6c"].unchecked_into(),
-
-			hex!["b4e69c3554c700da19ff78b383df1afae7fff8c1cdae34af472915abf799363d"].unchecked_into(),
-
-			hex!["188f539aea7c884ac5d7deb243b8ff3e14ed5eca5671e746bf6196b6e7f9f631"].unchecked_into(),
-		),
-		(
-
-			hex!["78bbb5eec6e6d79d679d44f0f6ab820d0c0b955def3b05b8f1dbb23f9048592f"].into(),
-
-			hex!["6c4fce431a884322bf5ff5abf731862fb4d4df3f6bfbeb9ea9435e6a0e9bc84a"].unchecked_into(),
-
-            hex!["4d76eef668527f71a96780ff0550004d58c66dcd4dfddb430269091d02215abb"].unchecked_into(),
-
-			hex!["bc3c04bfe155487ae9e2cb5be05e20c79796660fe16bedfc9d74c8909eb60041"].unchecked_into(),
-
-			hex!["d847db2bdcbc60c16bf4de9e33bfefff83b1f131e04b206aeed23aa03861fc68"].unchecked_into(),
-
-			hex!["50c256214f16037ca860192a6831a31f11979eb3c456cb5cc66d18b804901d62"].unchecked_into(),
-		),
-		(
-
-			hex!["e293b717b63cf1ebce61a0b4dc8a0fcc7670e7ea9638e45dcda46fe23194c377"].into(),
-
-			hex!["4e95211b1164c3951189edc84880f1ac04246c0514b247501724fab58c1d4862"].unchecked_into(),
-
-            hex!["5d9f1b2253cbb71618b439ad47433ef47a1185d49b132d9ed0a855eab4ffe525"].unchecked_into(),
-
-			hex!["faddbba8514adc9ad22513c6e1e5ca7dde46255524f0e4eab6568c3fb5221b68"].unchecked_into(),
-
-			hex!["1a82f74cf1fc4cbd7f5d79544904aacdc0fca776a8ac1ac5f778ac50b0f7ff7c"].unchecked_into(),
-
-			hex!["f0e4e31c7d876d747363af9ccb7c0aeb6980d8606da1dda70e3e52e53c893201"].unchecked_into(),
-		),
-		(
-
-			hex!["281d02bdcd58e133a269848d1dc1d730df6173f2e13a71a7007e00f0c7a6223e"].into(),
-
-			hex!["d04c5c09e4d2a38ceb7728f840f7edbc84f143cc292300f21a97a1bbec80e047"].unchecked_into(),
-
-            hex!["8d622f89a21c8552e276a4c7a07f96f47c97734da02ad9fef516685ec6d80798"].unchecked_into(),
-
-			hex!["6c3b24b9b664de6b41793d3e703b0bcc36e172def630035dbc4420b4ff8b3603"].unchecked_into(),
-
-			hex!["5cf916222842df2991cbf3103bef62bfad0b97146e893474da45d81708befa4f"].unchecked_into(),
-
-			hex!["90b3514661b5b607a22fbbd72fae4e1a15b867a9df5cb8854a4ceb3a9b27bb39"].unchecked_into(),
-		),
-		(
-
-			hex!["8af997028297e0b69be1bf436ac3a6dec6438badfdb281e637caff3c54d23642"].into(),
-
-			hex!["5202312b14f1db2fdd90aa1865e95a95e72592042e6891dff753719b61b5f761"].unchecked_into(),
-
-            hex!["b788335a95d0118828141ac70c34f462e014d73631801b8592ef27a0b9804a38"].unchecked_into(),
-
-			hex!["66568462c1c2a90f388810d38bfc6ff1783fe6efffd3ac0762b9fc9700e96016"].unchecked_into(),
-
-			hex!["bcd35266703747231ab338092a44b76b83a8a93cb4e7338323c038a83b2f9872"].unchecked_into(),
-
-			hex!["a0845dab784052b4e8ce4090dcce2ad5a58a616aeca63dce4062213e18876374"].unchecked_into(),
-		),
-	];
-	return initial_authorities;
 }
 
 fn tnf_dev_ethereum_public_keys() -> Vec<EthPublicKey> {
@@ -907,31 +764,6 @@ fn tnf_dev_ethereum_public_keys() -> Vec<EthPublicKey> {
         .unwrap(),
         ecdsa::Public::from_slice(&hex![
             "03c9a1c6b1dce4c228a1577cfa252c7120f69404d9f40e42b1137f484e95e08f61"
-        ])
-        .unwrap(),
-    ];
-}
-
-fn tnf_testnet_ethereum_public_keys() -> Vec<EthPublicKey> {
-    return vec![
-        ecdsa::Public::from_slice(&hex![
-            "02376fdd0add4a5ab1c3536422dd8647b729ad5d35ebeae5358fd54ac2ac7ce7d2"
-        ])
-        .unwrap(),
-        ecdsa::Public::from_slice(&hex![
-            "02f094c62de2f01a2f26bd1db153bcec9e57a3e94a97cd3fa3702fb4730d9084e4"
-        ])
-        .unwrap(),
-        ecdsa::Public::from_slice(&hex![
-            "036e83d53555e68cdb38f8f92be68c0610e08ebe7a6ef9c6ed5ac9dcdf575308a2"
-        ])
-        .unwrap(),
-        ecdsa::Public::from_slice(&hex![
-            "03ef2cfe2d40140b9de6b1af5b4d172e3538548bb8f3b55042294915dcbafe45fd"
-        ])
-        .unwrap(),
-        ecdsa::Public::from_slice(&hex![
-            "021473964134e3f5603ccb563dbafafff81e1047c7d7c8cd1cd62cd033f43697ef"
         ])
         .unwrap(),
     ];
