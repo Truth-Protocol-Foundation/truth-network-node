@@ -1,5 +1,6 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
+use common_primitives::constants::REGISTERED_NODE_KEY;
 use futures::{lock::Mutex, FutureExt};
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
@@ -169,6 +170,7 @@ pub fn new_full(
 
     let tnf_service_port = tnf_cli_config.tnf_service_port.clone();
     let eth_node_url: String = tnf_cli_config.ethereum_node_url.clone().unwrap_or_default();
+    let maybe_registered_node_id = tnf_cli_config.registered_node_id.clone();
 
     let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
         &client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
@@ -209,6 +211,16 @@ pub fn new_full(
                 EXTERNAL_SERVICE_PORT_NUMBER_KEY,
                 &port_number.encode(),
             );
+
+            // If the node is run with the --registered-node-id flag,
+            // set the registered node key in the offchain storage
+            if let Some(registered_node_id) = maybe_registered_node_id {
+                local_db.set(
+                    sp_core::offchain::STORAGE_PREFIX,
+                    REGISTERED_NODE_KEY,
+                    &registered_node_id.encode(),
+                );
+            }
         }
 
         task_manager.spawn_handle().spawn(

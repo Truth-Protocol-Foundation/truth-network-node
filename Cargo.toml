@@ -117,6 +117,7 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/polkadot-sdk
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
+pallet-session = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 parity-scale-codec = { version = "3.6.9", default-features = false }
 scale-info = { version = "2.11.1", default-features = false }
 sp-api = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
@@ -135,7 +136,8 @@ sp-session = { git = "https://github.com/paritytech/polkadot-sdk", branch = "rel
 sp-std = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 sp-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 sp-version = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
-
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
+sp-state-machine = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0", default-features = false }
 # (client)
 pallet-prediction-markets-fuzz = { path = "pallets/prediction-markets/fuzz" }
 
@@ -153,6 +155,7 @@ pallet-prediction-markets-runtime-api = { path = "pallets/prediction-markets/run
 pallet-pm-hybrid-router = { path = "pallets/hybrid-router", default-features = false }
 pallet-pm-order-book = { path = "pallets/order-book", default-features = false }
 pallet-pm-eth-asset-registry = { path = "pallets/eth-asset-registry", default-features = false }
+pallet-node-manager = { path = "pallets/node-manager", default-features = false }
 
 # Other (client)
 clap = "4.5.4"
@@ -172,12 +175,14 @@ fixed = { version = "=1.15.0", default-features = false, features = ["num-traits
 # Hashbrown works in no_std by default and default features are used in Rikiddo
 hashbrown = { version = "0.14.3", default-features = true }
 hex-literal = { version = "0.4.1", default-features = false }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 log = { version = "0.4.21", default-features = false }
 num-traits = { version = "0.2.18", default-features = false }
 rand = { version = "0.8.5", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
 serde = { version = "1.0.198", default-features = false }
 typenum = { version = "1.17.0", default-features = false }
+parking_lot = { version = "0.12.0" }
 
 # Aventus
 sp-avn-common = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.7.2", default-features = false }
