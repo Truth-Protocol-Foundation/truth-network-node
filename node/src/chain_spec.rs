@@ -353,9 +353,8 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Bank"),
                 ],
                 true,
-                // TODO update me
                 // TNF bridge contract
-                H160(hex!("5816CEDff9DE7c5FB13dcFb1cE9038014b929b7E")),
+                H160(hex!("ad36dB955A0C881A78842eE1C8e848a7238637e8")),
                 // Processed events
                 vec![],
                 // Lift transactions
@@ -363,9 +362,8 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
                 NORMAL_EVENT_CHALLENGE_PERIOD,
                 EIGHT_HOURS_SCHEDULE_PERIOD,
                 NORMAL_VOTING_PERIOD,
-                // TODO update me
                 // Tnf native token contract
-                H160(hex!("25560bD4FD693922450D99188Fab23472e59015F")),
+                H160(hex!("6cAEfA7446E967018330cCeC5BA7A43956a45137")),
                 testnet_ethereum_public_keys(),
                 None,
             )
