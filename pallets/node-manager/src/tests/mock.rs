@@ -19,7 +19,8 @@ pub use sp_core::{
     },
     sr25519, H256,
 };
-pub use sp_runtime::{
+use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
+use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
     traits::{BlakeTwo256, ConvertInto, IdentityLookup, Verify},
     BuildStorage, Perbill,
@@ -249,7 +250,10 @@ impl ExtBuilder {
     }
 
     pub fn as_externality(self) -> sp_io::TestExternalities {
+        let keystore = MemoryKeystore::new();
+
         let mut ext = sp_io::TestExternalities::from(self.storage);
+        ext.register_extension(KeystoreExt(Arc::new(keystore)));
         // Events do not get emitted on block 0, so we increment the block here
         ext.execute_with(|| frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into()));
         ext

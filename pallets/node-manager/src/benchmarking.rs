@@ -1,13 +1,26 @@
 //! # Node manager benchmarks
 // Copyright 2025 Truth Network.
 
-#![cfg(feature = "runtime-benchmarks")]
+// #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
 use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
 use frame_system::{EventRecord, RawOrigin};
 use prediction_market_primitives::math::fixed::FixedMulDiv;
+use sp_application_crypto::KeyTypeId;
+use sp_avn_common::Proof;
 use sp_runtime::SaturatedConversion;
+
+use sp_core::{crypto::DEV_PHRASE, H256};
+pub const BENCH_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"test");
+
+mod app_sr25519 {
+    use super::BENCH_KEY_TYPE_ID;
+    use sp_application_crypto::{app_crypto, sr25519};
+    app_crypto!(sr25519, BENCH_KEY_TYPE_ID);
+}
+
+type SignerId = app_sr25519::Public;
 
 // Macro for comparing fixed point u128.
 #[allow(unused_macros)]
@@ -28,12 +41,67 @@ macro_rules! assert_approx {
     };
 }
 
+fn get_user_account<T: Config>() -> (<T as pallet_avn::Config>::AuthorityId, T::AccountId)
+where
+    T: Config + pallet_avn::Config,
+{
+    let mnemonic: &str = DEV_PHRASE;
+    let key_pair =
+        <T as pallet_avn::Config>::AuthorityId::generate_pair(Some(mnemonic.as_bytes().to_vec()));
+    let account_bytes = into_bytes::<T>(&key_pair);
+    let account_id = T::AccountId::decode(&mut &account_bytes.encode()[..]).unwrap();
+    return (key_pair, account_id);
+}
+
+fn get_relayer<T: Config>() -> T::AccountId {
+    let relayer_account: H256 = H256::repeat_byte(1);
+    return T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid relayer account id");
+}
+
 fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
     let events = frame_system::Pallet::<T>::events();
     let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
     // compare to the last event record
     let EventRecord { event, .. } = &events[events.len().saturating_sub(1 as usize)];
     assert_eq!(event, &system_event);
+}
+
+fn into_bytes<T: Config>(account: &<T as pallet_avn::Config>::AuthorityId) -> [u8; 32] {
+    let bytes = account.encode();
+    let mut vector: [u8; 32] = [0; 32]; // Initialize with zeros
+
+    // Only copy what's available, up to 32 bytes
+    let copy_size = std::cmp::min(bytes.len(), 32);
+    vector[..copy_size].copy_from_slice(&bytes[..copy_size]);
+
+    vector
+}
+
+fn get_account_id_from_pair<T: Config>(key_pair: &T::AuthorityId) -> T::AccountId {
+    let key_bytes = key_pair.encode();
+    account("authority", 0, 0)
+}
+
+fn get_proof<T: Config>(
+    signer: T::AccountId,
+    relayer: T::AccountId,
+    signature: &sp_core::sr25519::Signature,
+) -> Proof<T::Signature, T::AccountId> {
+    return Proof {
+        signer: signer.clone(),
+        relayer: relayer.clone(),
+        signature: sp_core::sr25519::Signature::from_slice(signature)
+            .ok_or("Error signing proof")?
+            .into(),
+    };
+}
+
+fn create_proof<T: Config>(
+    signature: sp_core::sr25519::Signature,
+    signer: T::AccountId,
+    relayer: T::AccountId,
+) -> Proof<T::Signature, T::AccountId> {
+    Proof { signer, relayer, signature: signature.into() }
 }
 
 fn set_registrar<T: Config>(registrar: T::AccountId) {
@@ -240,6 +308,41 @@ benchmarks! {
             bmul_bdiv(RewardAmount::<T>::get(), registered_nodes.saturated_into::<BalanceOf<T>>())
             .unwrap();
         assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1_000u32.saturated_into::<BalanceOf<T>>());
+    }
+
+    signed_register_node {
+
+        let relayer_account_id = get_relayer::<T>();
+        let (registrar_key_pair, registrar_account_id) = get_user_account::<T>();
+
+        // let registrar: T::AccountId = account("registrar", 0, 0);
+        set_registrar::<T>(registrar_account_id.clone());
+
+        let owner: T::AccountId = account("owner", 1, 1);
+        let node: NodeId<T> = account("node", 2, 2);
+        let signing_key: T::SignerId = account("signing_key", 3, 3);
+        let relayer: T::AccountId = account("relayer", 4, 4);
+
+        let nonce = Nonces::<T>::get();
+
+        let signed_payload = encode_signed_register_node_params::<T>(
+            &relayer_account_id.clone(),
+            &registrar_account_id.clone(),
+            &node,
+            &owner,
+            &signing_key,
+            nonce
+        );
+
+        let signature = registrar_key_pair.sign(&signed_payload.encode().as_slice()).ok_or("Problem with signing")?;
+
+        let proof: Proof<T::Signature, T::AccountId> = create_proof::<T>(signature, registrar_account_id.clone(), relayer.clone(), );
+    }: signed_register_node(RawOrigin::Signed(registrar_account_id.clone()), proof.clone(), registrar_account_id.clone(), node.clone(), owner.clone(), signing_key.clone())
+    verify {
+        assert!(<OwnedNodes<T>>::contains_key(owner.clone(), node.clone()));
+        assert!(<NodeRegistry<T>>::contains_key(node.clone()));
+        assert_last_event::<T>(Event::NodeRegistered{owner, node}.into());
+        assert_eq!(Nonces::<T>::get(), nonce + 1);
     }
 
     #[extra]

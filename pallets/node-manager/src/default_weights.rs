@@ -49,6 +49,7 @@ pub trait WeightInfo {
 	fn offchain_submit_heartbeat() -> Weight;
 	fn offchain_pay_nodes(b: u32, ) -> Weight;
 	fn pay_nodes_constant_batch_size(n: u32, ) -> Weight;
+	fn signed_register_node() -> Weight;
 }
 
 /// Weights for pallet_node_manager using the Substrate node and recommended hardware.
@@ -237,6 +238,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().writes(12_u64))
 			.saturating_add(Weight::from_parts(0, 85).saturating_mul(n.into()))
 	}
+
+	fn signed_register_node() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `191`
+		//  Estimated: `3577`
+		// Minimum execution time: 21_027_000 picoseconds.
+		Weight::from_parts(25_046_000, 3577)
+			.saturating_add(T::DbWeight::get().reads(3_u64))
+			.saturating_add(T::DbWeight::get().writes(3_u64))
+	}
 }
 
 // For backwards compatibility and tests.
@@ -423,5 +434,15 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(26_u64))
 			.saturating_add(RocksDbWeight::get().writes(12_u64))
 			.saturating_add(Weight::from_parts(0, 85).saturating_mul(n.into()))
+	}
+
+	fn signed_register_node() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `191`
+		//  Estimated: `3577`
+		// Minimum execution time: 21_027_000 picoseconds.
+		Weight::from_parts(25_046_000, 3577)
+			.saturating_add(RocksDbWeight::get().reads(3_u64))
+			.saturating_add(RocksDbWeight::get().writes(3_u64))
 	}
 }

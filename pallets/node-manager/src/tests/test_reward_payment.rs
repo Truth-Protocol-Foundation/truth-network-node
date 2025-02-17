@@ -6,6 +6,7 @@ use crate::{mock::*, offchain::OCW_ID, *};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::RawOrigin;
 use prediction_market_primitives::test_helper::TestAccount;
+use sp_runtime::testing::UintAuthorityId;
 
 #[derive(Clone)]
 struct Context {

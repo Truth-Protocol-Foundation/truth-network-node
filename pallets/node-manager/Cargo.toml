@@ -27,7 +27,7 @@ common-primitives = { workspace = true }
 prediction-market-primitives = { workspace = true }
 
 # Optional imports for benchmarking
-frame-benchmarking = { workspace = true, optional = true }
+frame-benchmarking = { workspace = true, optional = true, default-features = false}
 
 [dev-dependencies]
 pallet-timestamp = { workspace = true }
@@ -37,6 +37,7 @@ sp-state-machine = { workspace = true }
 prediction-market-primitives = { workspace = true, features=["mock"]}
 parking_lot = {  workspace = true }
 hex = { workspace = true }
+sp-keystore = { workspace = true, features = ["default"]}
 
 [features]
 default = ["std"]

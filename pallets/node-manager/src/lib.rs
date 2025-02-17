@@ -70,6 +70,8 @@ const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
+pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
+
 pub type AVN<T> = avn::Pallet<T>;
 pub type Author<T> =
     Validator<<T as avn::Config>::AuthorityId, <T as frame_system::Config>::AccountId>;
@@ -83,6 +85,8 @@ pub(crate) type NodeId<T> = <T as frame_system::Config>::AccountId;
 
 #[frame_support::pallet]
 pub mod pallet {
+    use sp_avn_common::{verify_signature, Proof};
+
     use super::*;
 
     #[pallet::pallet]
@@ -178,6 +182,10 @@ pub mod pallet {
     #[pallet::storage]
     pub(super) type TotalUptime<T: Config> =
         StorageMap<_, Blake2_128Concat, RewardPeriodIndex, u64, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn nonces)]
+    pub type Nonces<T: Config> = StorageValue<_, u64, ValueQuery>;
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
@@ -302,6 +310,10 @@ pub mod pallet {
         FailedToAcquireOcwDbLock,
         /// The reward amount is 0
         RewardAmountZero,
+
+        SenderNotValid,
+
+        UnauthorizedSignedTransaction,
     }
 
     #[pallet::config]
@@ -361,16 +373,8 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
             let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
             ensure!(who == registrar, Error::<T>::OriginNotRegistrar);
-            ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
 
-            <OwnedNodes<T>>::insert(&owner, &node, ());
-            <NodeRegistry<T>>::insert(
-                &node,
-                NodeInfo::<T::SignerId, T::AccountId>::new(owner.clone(), signing_key),
-            );
-            <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_add(1));
-            Self::deposit_event(Event::NodeRegistered { owner, node });
-
+            Self::do_register_node(node, owner, signing_key)?;
             Ok(())
         }
 
@@ -567,6 +571,51 @@ pub mod pallet {
 
             Ok(())
         }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(<T as Config>::WeightInfo::signed_register_node())]
+        pub fn signed_register_node(
+            origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+            registrar: T::AccountId,
+            node: NodeId<T>,
+            owner: T::AccountId,
+            signing_key: T::SignerId,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+            ensure!(sender == registrar, Error::<T>::SenderNotValid);
+
+            let registered_registrar =
+                NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
+            ensure!(registrar == registered_registrar, Error::<T>::OriginNotRegistrar);
+
+            // Get the current nonce for signing
+            let nonce = Nonces::<T>::get();
+
+            // Create and verify the signed payload
+            let signed_payload = encode_signed_register_node_params::<T>(
+                &proof.relayer,
+                &registrar,
+                &node,
+                &owner,
+                &signing_key,
+                nonce,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload.as_slice())
+                    .is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            // Perform the actual registration
+            Self::do_register_node(node, owner, signing_key)?;
+
+            // Increment nonce
+            Nonces::<T>::mutate(|n| *n += 1);
+
+            Ok(())
+        }
     }
 
     #[pallet::hooks]
@@ -625,7 +674,7 @@ pub mod pallet {
                 _ => return InvalidTransaction::Call.into(),
             }
             match call {
-                Call::offchain_pay_nodes { reward_period_index, author, signature } =>
+                Call::offchain_pay_nodes { reward_period_index, author, signature } => {
                     if AVN::<T>::signature_is_valid(
                         // Technically this signature can be replayed for the duration of the
                         // reward period but in reality, since we only
@@ -645,7 +694,8 @@ pub mod pallet {
                             .build()
                     } else {
                         InvalidTransaction::Custom(1u8).into()
-                    },
+                    }
+                },
                 Call::offchain_submit_heartbeat {
                     node,
                     reward_period_index,
@@ -677,6 +727,25 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        fn do_register_node(
+            node: NodeId<T>,
+            owner: T::AccountId,
+            signing_key: T::SignerId,
+        ) -> DispatchResult {
+            ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
+
+            <OwnedNodes<T>>::insert(&owner, &node, ());
+            <NodeRegistry<T>>::insert(
+                &node,
+                NodeInfo::<T::SignerId, T::AccountId>::new(owner.clone(), signing_key),
+            );
+            <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_add(1));
+
+            Self::deposit_event(Event::NodeRegistered { owner, node });
+
+            Ok(())
+        }
+
         pub fn signature_is_valid<D: Encode>(
             data: &D,
             signer: &T::SignerId,
@@ -692,7 +761,51 @@ pub mod pallet {
                 signature,
                 signature_valid
             );
-            return signature_valid
+            return signature_valid;
+        }
+
+        pub fn get_encoded_call_param(
+            call: &<T as Config>::RuntimeCall,
+        ) -> Option<(&Proof<T::Signature, T::AccountId>, Vec<u8>)> {
+            let call = match call.is_sub_type() {
+                Some(call) => call,
+                None => return None,
+            };
+
+            match call {
+                Call::signed_register_node {
+                    ref proof,
+                    ref registrar,
+                    ref node,
+                    ref owner,
+                    ref signing_key,
+                } => {
+                    let nonce = Self::nonces();
+                    let encoded_data = encode_signed_register_node_params::<T>(
+                        &proof.relayer,
+                        registrar,
+                        node,
+                        owner,
+                        signing_key,
+                        nonce,
+                    );
+
+                    Some((proof, encoded_data))
+                },
+                _ => None,
+            }
         }
     }
+}
+
+pub fn encode_signed_register_node_params<T: Config>(
+    relayer: &T::AccountId,
+    registrar: &T::AccountId,
+    node: &NodeId<T>,
+    owner: &T::AccountId,
+    signing_key: &T::SignerId,
+    nonce: u64,
+) -> Vec<u8> {
+    (SIGNED_REGISTER_NODE_CONTEXT, relayer.clone(), registrar, node, owner, signing_key, nonce)
+        .encode()
 }
