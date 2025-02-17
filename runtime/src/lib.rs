@@ -537,7 +537,7 @@ impl pallet_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type MinEthBlockConfirmation = MinEthBlockConfirmation;
-    type ProcessedEventsChecker = EthereumEvents;
+    type ProcessedEventsChecker = EthBridge;
     type AccountToBytesConvert = Avn;
     type TimeProvider = pallet_timestamp::Pallet<Runtime>;
     type ReportCorroborationOffence = ();
@@ -604,7 +604,7 @@ impl pallet_ethereum_events::Config for Runtime {
     type ReportInvalidEthereumLog = Offences;
     type WeightInfo = pallet_ethereum_events::default_weights::SubstrateWeight<Runtime>;
     type EthereumEventsFilter = EthBridgeTnfRuntimeEventsFilter;
-    type ProcessedEventsChecker = EthereumEvents;
+    type ProcessedEventsChecker = EthBridge;
 }
 
 impl pallet_token_manager::pallet::Config for Runtime {
@@ -613,7 +613,7 @@ impl pallet_token_manager::pallet::Config for Runtime {
     type Currency = Balances;
     type TokenBalance = Balance;
     type TokenId = EthAddress;
-    type ProcessedEventsChecker = EthereumEvents;
+    type ProcessedEventsChecker = EthBridge;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type OnGrowthLiftedHandler = ();
@@ -641,7 +641,7 @@ impl pallet_avn_proxy::Config for Runtime {
 impl pallet_nft_manager::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
-    type ProcessedEventsChecker = EthereumEvents;
+    type ProcessedEventsChecker = EthBridge;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type BatchBound = pallet_nft_manager::BatchNftBound;
