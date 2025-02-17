@@ -584,7 +584,7 @@ pub mod pallet {
             let sender = ensure_signed(origin)?;
             ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
 
-            let registered_registrar =
+            let registrar =
                 NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
             ensure!(registrar == registered_registrar, Error::<T>::OriginNotRegistrar);
 
