@@ -774,7 +774,6 @@ pub mod pallet {
                     let nonce = Self::nonces();
                     let encoded_data = encode_signed_register_node_params::<T>(
                         &proof.relayer,
-                        &proof.signer,
                         node,
                         owner,
                         signing_key,
@@ -791,12 +790,11 @@ pub mod pallet {
 
 pub fn encode_signed_register_node_params<T: Config>(
     relayer: &T::AccountId,
-    registrar: &T::AccountId,
     node: &NodeId<T>,
     owner: &T::AccountId,
     signing_key: &T::SignerId,
     nonce: u64,
 ) -> Vec<u8> {
-    (SIGNED_REGISTER_NODE_CONTEXT, relayer.clone(), registrar, node, owner, signing_key, nonce)
+    (SIGNED_REGISTER_NODE_CONTEXT, relayer.clone(), node, owner, signing_key, nonce)
         .encode()
 }

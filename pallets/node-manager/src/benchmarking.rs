@@ -1,7 +1,7 @@
 //! # Node manager benchmarks
 // Copyright 2025 Truth Network.
 
-// #![cfg(feature = "runtime-benchmarks")]
+#![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
 use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
