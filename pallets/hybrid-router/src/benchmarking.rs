@@ -354,6 +354,7 @@ mod benchmarks {
         let signature = buyer_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
         let proof: Proof<T::Signature, T::AccountId> =
             get_proof::<T>(buyer_account_id.clone(), relayer_account_id, &signature);
+        let market_nonce = MarketNonces::<T>::get(buyer_account_id.clone(), market_id.clone());
 
         #[extrinsic_call]
         signed_buy(
@@ -369,10 +370,12 @@ mod benchmarks {
         );
 
         let buyer_limit_order = T::Orderbook::order(o as u128).unwrap();
+        let new_nonce = MarketNonces::<T>::get(buyer_account_id.clone(), market_id);
         assert_eq!(buyer_limit_order.market_id, market_id);
         assert_eq!(buyer_limit_order.maker, buyer_account_id);
         assert_eq!(buyer_limit_order.maker_asset, base_asset);
         assert_eq!(buyer_limit_order.taker_asset, asset);
+        assert_eq!(new_nonce, market_nonce + 1);
     }
 
     #[benchmark]
@@ -445,6 +448,7 @@ mod benchmarks {
         let signature = seller_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
         let proof: Proof<T::Signature, T::AccountId> =
             get_proof::<T>(seller_account_id.clone(), relayer_account_id, &signature);
+        let market_nonce = MarketNonces::<T>::get(seller_account_id.clone(), market_id.clone());
 
         #[extrinsic_call]
         signed_sell(
@@ -460,10 +464,12 @@ mod benchmarks {
         );
 
         let seller_limit_order = T::Orderbook::order(o as u128).unwrap();
+        let new_nonce = MarketNonces::<T>::get(seller_account_id.clone(), market_id);
         assert_eq!(seller_limit_order.market_id, market_id);
         assert_eq!(seller_limit_order.maker, seller_account_id);
         assert_eq!(seller_limit_order.maker_asset, asset);
         assert_eq!(seller_limit_order.taker_asset, base_asset);
+        assert_eq!(new_nonce, market_nonce + 1);
     }
 
     impl_benchmark_test_suite!(
