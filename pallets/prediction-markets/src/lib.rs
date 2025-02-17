@@ -1599,7 +1599,7 @@ mod pallet {
 
             let weight = Self::do_redeem(who.clone(), market_id)?;
 
-            MarketNonces::<T>::mutate(who, market_id, |nonce| *nonce + 1);
+            MarketNonces::<T>::mutate(who, market_id, |nonce| *nonce += 1);
 
             Ok(Some(weight).into())
         }
