@@ -577,7 +577,6 @@ pub mod pallet {
         pub fn signed_register_node(
             origin: OriginFor<T>,
             proof: Proof<T::Signature, T::AccountId>,
-            registrar: T::AccountId,
             node: NodeId<T>,
             owner: T::AccountId,
             signing_key: T::SignerId,
