@@ -702,7 +702,7 @@ pub mod pallet {
                     let node_info = NodeRegistry::<T>::get(&node);
                     match node_info {
                         Some(info) => {
-                            if Self::unsigned_signature_is_valid(
+                            if Self::offchain_signature_is_valid(
                                 &(HEARTBEAT_CONTEXT, heartbeat_count, reward_period_index),
                                 &info.signing_key,
                                 signature,
@@ -743,7 +743,7 @@ pub mod pallet {
             Ok(())
         }
 
-        pub fn unsigned_signature_is_valid<D: Encode>(
+        pub fn offchain_signature_is_valid<D: Encode>(
             data: &D,
             signer: &T::SignerId,
             signature: &<T::SignerId as RuntimeAppPublic>::Signature,
