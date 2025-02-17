@@ -310,8 +310,7 @@ pub mod pallet {
         FailedToAcquireOcwDbLock,
         /// The reward amount is 0
         RewardAmountZero,
-
-        SenderNotValid,
+SenderIsNotSigner,
 
         UnauthorizedSignedTransaction,
     }
