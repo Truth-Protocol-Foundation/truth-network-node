@@ -410,7 +410,7 @@ mod pallet {
                 strategy,
             )?;
 
-            MarketNonces::<T>::mutate(who, market_id, |nonce| *nonce + 1);
+            MarketNonces::<T>::mutate(who, market_id, |nonce| *nonce += 1);
             Ok(().into())
         }
 
@@ -463,7 +463,7 @@ mod pallet {
                 strategy,
             )?;
 
-            MarketNonces::<T>::mutate(who, market_id, |nonce| *nonce + 1);
+            MarketNonces::<T>::mutate(who, market_id, |nonce| *nonce += 1);
             Ok(().into())
         }
     }

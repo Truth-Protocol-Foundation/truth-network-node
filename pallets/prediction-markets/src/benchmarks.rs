@@ -1662,12 +1662,16 @@ benchmarks! {
 
         let signed_payload =
             (REPORT_OUTCOME_CONTEXT, relayer_account_id.clone(), 0u64, market_id, outcome.clone());
-
+        let market_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
         let signature = caller_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
         let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(caller_account_id.clone(), relayer_account_id, &signature);
         let call = Call::<T>::signed_report { proof, market_id, outcome };
     }: {
-        call.dispatch_bypass_filter(RawOrigin::Signed(caller_account_id).into())?;
+        call.dispatch_bypass_filter(RawOrigin::Signed(caller_account_id.clone()).into())?;
+    }
+    verify {
+        let new_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
+        assert_eq!(new_nonce, market_nonce + 1);
     }
 
     signed_redeem_shares_categorical {
@@ -1676,14 +1680,18 @@ benchmarks! {
         let (caller, market_id) = setup_redeem_shares_common::<T>(
             MarketType::Categorical(T::MaxCategories::get()), &Some(caller_account_id.clone())
         )?;
-
+        let market_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
         let signed_payload =
             (REDEEM_SHARES, relayer_account_id.clone(), 0u64, market_id);
 
         let signature = caller_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
         let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(caller_account_id.clone(), relayer_account_id, &signature);
 
-    }: redeem_shares(RawOrigin::Signed(caller), market_id)
+    }: signed_redeem_shares(RawOrigin::Signed(caller.clone()), proof, market_id)
+    verify {
+        let new_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
+        assert_eq!(new_nonce, market_nonce + 1);
+    }
 
     signed_redeem_shares_scalar {
         let relayer_account_id = get_relayer::<T>();
@@ -1691,14 +1699,18 @@ benchmarks! {
         let (caller, market_id) = setup_redeem_shares_common::<T>(
             MarketType::Scalar(0u128..=u128::MAX), &Some(caller_account_id.clone())
         )?;
-
+        let market_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
         let signed_payload =
             (REDEEM_SHARES, relayer_account_id.clone(), 0u64, market_id);
 
         let signature = caller_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
         let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(caller_account_id.clone(), relayer_account_id, &signature);
 
-    }: redeem_shares(RawOrigin::Signed(caller), market_id)
+    }: signed_redeem_shares(RawOrigin::Signed(caller.clone()), proof, market_id)
+    verify {
+        let new_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
+        assert_eq!(new_nonce, market_nonce + 1);
+    }
 
     impl_benchmark_test_suite!(
         PredictionMarket,
