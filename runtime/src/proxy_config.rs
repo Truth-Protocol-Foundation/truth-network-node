@@ -140,7 +140,6 @@ impl ProvableProxy<RuntimeCall, Signature, AccountId> for AvnProxyConfig {
                 strategy: _,
             }) => return Some(proof.clone()),
             RuntimeCall::NodeManager(pallet_node_manager::Call::signed_register_node {
-                registrar: _,
                 proof,
                 node: _,
                 owner: _,
