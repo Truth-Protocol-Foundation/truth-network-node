@@ -584,8 +584,7 @@ pub mod pallet {
             let sender = ensure_signed(origin)?;
             ensure!(sender == proof.signer, Error::<T>::SenderNotValid);
 
-            let registrar =
-                NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
+            let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
             ensure!(registrar == sender, Error::<T>::OriginNotRegistrar);
 
             // Get the current nonce for signing
@@ -771,12 +770,7 @@ pub mod pallet {
             };
 
             match call {
-                Call::signed_register_node {
-                    ref proof,
-                    ref node,
-                    ref owner,
-                    ref signing_key,
-                } => {
+                Call::signed_register_node { ref proof, ref node, ref owner, ref signing_key } => {
                     let nonce = Self::nonces();
                     let encoded_data = encode_signed_register_node_params::<T>(
                         &proof.relayer,
