@@ -85,7 +85,7 @@ pub(crate) type NodeId<T> = <T as frame_system::Config>::AccountId;
 
 #[frame_support::pallet]
 pub mod pallet {
-    use sp_avn_common::{verify_signature, Proof};
+    use sp_avn_common::{verify_signature, InnerCallValidator, Proof};
 
     use super::*;
 
@@ -702,7 +702,7 @@ pub mod pallet {
                     let node_info = NodeRegistry::<T>::get(&node);
                     match node_info {
                         Some(info) => {
-                            if Self::signature_is_valid(
+                            if Self::unsigned_signature_is_valid(
                                 &(HEARTBEAT_CONTEXT, heartbeat_count, reward_period_index),
                                 &info.signing_key,
                                 signature,
@@ -743,7 +743,7 @@ pub mod pallet {
             Ok(())
         }
 
-        pub fn signature_is_valid<D: Encode>(
+        pub fn unsigned_signature_is_valid<D: Encode>(
             data: &D,
             signer: &T::SignerId,
             signature: &<T::SignerId as RuntimeAppPublic>::Signature,
@@ -784,6 +784,22 @@ pub mod pallet {
                 },
                 _ => None,
             }
+        }
+    }
+
+    impl<T: Config> InnerCallValidator for Pallet<T> {
+        type Call = <T as Config>::RuntimeCall;
+
+        fn signature_is_valid(call: &Box<Self::Call>) -> bool {
+            if let Some((proof, signed_payload)) = Self::get_encoded_call_param(call) {
+                return verify_signature::<T::Signature, T::AccountId>(
+                    &proof,
+                    &signed_payload.as_slice(),
+                )
+                .is_ok();
+            }
+
+            return false;
         }
     }
 }
