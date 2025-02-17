@@ -20,7 +20,7 @@ pub use sp_core::{
     sr25519, H256,
 };
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
-use sp_runtime::{
+pub use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
     traits::{BlakeTwo256, ConvertInto, IdentityLookup, Verify},
     BuildStorage, Perbill,
