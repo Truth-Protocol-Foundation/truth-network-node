@@ -582,7 +582,7 @@ pub mod pallet {
             signing_key: T::SignerId,
         ) -> DispatchResult {
             let sender = ensure_signed(origin)?;
-            ensure!(sender == registrar, Error::<T>::SenderNotValid);
+            ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
 
             let registered_registrar =
                 NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
