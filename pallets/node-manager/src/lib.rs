@@ -594,7 +594,6 @@ pub mod pallet {
             // Create and verify the signed payload
             let signed_payload = encode_signed_register_node_params::<T>(
                 &proof.relayer,
-                &registrar,
                 &node,
                 &owner,
                 &signing_key,
