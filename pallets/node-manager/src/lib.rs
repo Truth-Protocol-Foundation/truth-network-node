@@ -311,7 +311,6 @@ pub mod pallet {
         /// The reward amount is 0
         RewardAmountZero,
 SenderIsNotSigner,
-
         UnauthorizedSignedTransaction,
     }
 
