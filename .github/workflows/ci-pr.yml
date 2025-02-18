@@ -1,7 +1,7 @@
 name: CI PR
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened, ready_for_review, edited]
     branches:
       - main
@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
-      
+
       - name: Install cargo-edit
         uses: baptiste0928/cargo-install@v2
         with:
