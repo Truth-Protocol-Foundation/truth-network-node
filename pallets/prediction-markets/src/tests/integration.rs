@@ -321,7 +321,7 @@ fn full_scalar_market_lifecycle() {
 
 #[test]
 fn authorized_correctly_resolves_disputed_market() {
-    // NOTE: Bonds are always in TRU, irrespective of base_asset.
+    // NOTE: Bonds are always in TRUU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         let end = 2;
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
@@ -740,7 +740,7 @@ fn it_resolves_a_disputed_court_market() {
 
 #[test]
 fn outsider_reports_wrong_outcome() {
-    // NOTE: Bonds are always in TRU, irrespective of base_asset.
+    // NOTE: Bonds are always in TRUU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
 

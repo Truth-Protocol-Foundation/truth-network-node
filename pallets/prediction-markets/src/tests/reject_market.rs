@@ -121,7 +121,7 @@ fn it_allows_the_advisory_origin_to_reject_markets_with_edit_request() {
 
 #[test]
 fn reject_market_unreserves_oracle_bond_and_slashes_advisory_bond() {
-    // NOTE: Bonds are always in TRU, irrespective of base_asset.
+    // NOTE: Bonds are always in TRUU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         simple_create_categorical_market(
             base_asset,
@@ -130,8 +130,8 @@ fn reject_market_unreserves_oracle_bond_and_slashes_advisory_bond() {
             ScoringRule::AmmCdaHybrid,
         );
 
-        // Give alice() `SENTINEL_AMOUNT` free and reserved TRU; we record the free balance to check
-        // that the AdvisoryBond gets slashed but the OracleBond gets unreserved.
+        // Give alice() `SENTINEL_AMOUNT` free and reserved TRUU; we record the free balance to
+        // check that the AdvisoryBond gets slashed but the OracleBond gets unreserved.
         assert_ok!(AssetManager::deposit(Asset::Tru, &alice(), 2 * SENTINEL_AMOUNT));
         assert_ok!(Balances::reserve_named(
             &PredictionMarkets::reserve_id(),

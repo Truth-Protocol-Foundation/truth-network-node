@@ -23,7 +23,7 @@ use prediction_market_primitives::types::OutcomeReport;
 
 #[test]
 fn admin_move_market_to_resolved_resolves_reported_market() {
-    // NOTE: Bonds are always in TRU, irrespective of base_asset.
+    // NOTE: Bonds are always in TRUU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         let end = 33;
         simple_create_categorical_market(
@@ -34,8 +34,8 @@ fn admin_move_market_to_resolved_resolves_reported_market() {
         );
         let market_id = 0;
 
-        // Give alice() `SENTINEL_AMOUNT` free and reserved TRU; we record the free balance to check
-        // that the correct bonds are unreserved!
+        // Give alice() `SENTINEL_AMOUNT` free and reserved TRUU; we record the free balance to
+        // check that the correct bonds are unreserved!
         assert_ok!(AssetManager::deposit(Asset::Tru, &alice(), 2 * SENTINEL_AMOUNT));
         assert_ok!(Balances::reserve_named(
             &PredictionMarkets::reserve_id(),
@@ -93,7 +93,7 @@ fn admin_move_market_to_resolved_resolves_reported_market() {
 
 #[test]
 fn admin_move_market_to_resolved_resolves_disputed_market() {
-    // NOTE: Bonds are always in TRU, irrespective of base_asset.
+    // NOTE: Bonds are always in TRUU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         let end = 33;
         simple_create_categorical_market(
@@ -104,8 +104,8 @@ fn admin_move_market_to_resolved_resolves_disputed_market() {
         );
         let market_id = 0;
 
-        // Give alice() `SENTINEL_AMOUNT` free and reserved TRU; we record the free balance to check
-        // that the correct bonds are unreserved!
+        // Give alice() `SENTINEL_AMOUNT` free and reserved TRUU; we record the free balance to
+        // check that the correct bonds are unreserved!
         assert_ok!(AssetManager::deposit(Asset::Tru, &alice(), 2 * SENTINEL_AMOUNT));
         assert_ok!(Balances::reserve_named(
             &PredictionMarkets::reserve_id(),
