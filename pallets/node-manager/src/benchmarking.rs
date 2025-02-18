@@ -7,6 +7,7 @@ use super::*;
 use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
 use frame_system::{EventRecord, RawOrigin};
 use prediction_market_primitives::math::fixed::FixedMulDiv;
+use sp_avn_common::Proof;
 use sp_runtime::SaturatedConversion;
 
 // Macro for comparing fixed point u128.
@@ -94,6 +95,14 @@ fn create_nodes_and_hearbeat<T: Config>(
 
 fn set_max_batch_size<T: Config>(batch_size: u32) {
     <MaxBatchSize<T>>::set(batch_size);
+}
+
+fn get_proof<T: Config>(
+    relayer: &T::AccountId,
+    signer: &T::AccountId,
+    signature: sp_core::sr25519::Signature,
+) -> Proof<T::Signature, T::AccountId> {
+    return Proof { signer: signer.clone(), relayer: relayer.clone(), signature: signature.into() }
 }
 
 benchmarks! {
@@ -288,6 +297,35 @@ benchmarks! {
             bmul_bdiv(RewardAmount::<T>::get(), n.saturated_into::<BalanceOf<T>>())
             .unwrap();
         assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1_000u32.saturated_into::<BalanceOf<T>>());
+    }
+
+    signed_register_node {
+        let registrar_key = crate::sr25519::app_sr25519::Public::generate_pair(None);
+        let registrar: T::AccountId =
+            T::AccountId::decode(&mut Encode::encode(&registrar_key).as_slice()).expect("valid account id");
+        set_registrar::<T>(registrar.clone());
+
+        let relayer: T::AccountId = account("relayer", 11, 11);
+        let owner: T::AccountId = account("owner", 1, 1);
+        let node: NodeId<T> = account("node", 2, 2);
+        let signing_key: T::SignerId = account("signing_key", 3, 3);
+        let now = frame_system::Pallet::<T>::block_number();
+
+        let signed_payload = encode_signed_register_node_params::<T>(
+            &relayer.clone(),
+            &node,
+            &owner,
+            &signing_key,
+            &now.clone(),
+        );
+
+        let signature = registrar_key.sign(&signed_payload).ok_or("Error signing proof")?;
+        let proof = get_proof::<T>(&relayer.clone(), &registrar, signature.into());
+    }: signed_register_node(RawOrigin::Signed(registrar.clone()), proof.clone(), node.clone(), owner.clone(), signing_key.clone(), now)
+    verify {
+        assert!(<OwnedNodes<T>>::contains_key(owner.clone(), node.clone()));
+        assert!(<NodeRegistry<T>>::contains_key(node.clone()));
+        assert_last_event::<T>(Event::NodeRegistered{owner, node}.into());
     }
 }
 

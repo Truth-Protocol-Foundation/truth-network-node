@@ -55,7 +55,7 @@ mod test_reward_payment;
 
 // Definition of the crypto to use for signing
 pub mod sr25519 {
-    mod app_sr25519 {
+    pub mod app_sr25519 {
         use sp_application_crypto::{app_crypto, sr25519, KeyTypeId};
         app_crypto!(sr25519, KeyTypeId(*b"nodk"));
     }
@@ -70,6 +70,8 @@ const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
+pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
+
 pub type AVN<T> = avn::Pallet<T>;
 pub type Author<T> =
     Validator<<T as avn::Config>::AuthorityId, <T as frame_system::Config>::AccountId>;
@@ -83,6 +85,8 @@ pub(crate) type NodeId<T> = <T as frame_system::Config>::AccountId;
 
 #[frame_support::pallet]
 pub mod pallet {
+    use sp_avn_common::{verify_signature, InnerCallValidator, Proof};
+
     use super::*;
 
     #[pallet::pallet]
@@ -302,6 +306,12 @@ pub mod pallet {
         FailedToAcquireOcwDbLock,
         /// The reward amount is 0
         RewardAmountZero,
+        /// The sender is not the signer
+        SenderIsNotSigner,
+        /// Proxy signature failed to verification
+        UnauthorizedSignedTransaction,
+        /// The signed transaction has expired
+        SignedTransactionExpired,
     }
 
     #[pallet::config]
@@ -343,6 +353,9 @@ pub mod pallet {
         /// The id of the reward pot.
         #[pallet::constant]
         type RewardPotId: Get<PalletId>;
+        /// The lifetime (in blocks) of a signed transaction.
+        #[pallet::constant]
+        type SignedTxLifetime: Get<u32>;
         /// The weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
@@ -361,16 +374,8 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
             let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
             ensure!(who == registrar, Error::<T>::OriginNotRegistrar);
-            ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
 
-            <OwnedNodes<T>>::insert(&owner, &node, ());
-            <NodeRegistry<T>>::insert(
-                &node,
-                NodeInfo::<T::SignerId, T::AccountId>::new(owner.clone(), signing_key),
-            );
-            <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_add(1));
-            Self::deposit_event(Event::NodeRegistered { owner, node });
-
+            Self::do_register_node(node, owner, signing_key)?;
             Ok(())
         }
 
@@ -567,6 +572,47 @@ pub mod pallet {
 
             Ok(())
         }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(<T as Config>::WeightInfo::signed_register_node())]
+        pub fn signed_register_node(
+            origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+            node: NodeId<T>,
+            owner: T::AccountId,
+            signing_key: T::SignerId,
+            block_number: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+            ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
+
+            let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
+            ensure!(registrar == sender, Error::<T>::OriginNotRegistrar);
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
+
+            // Create and verify the signed payload
+            let signed_payload = encode_signed_register_node_params::<T>(
+                &proof.relayer,
+                &node,
+                &owner,
+                &signing_key,
+                &block_number,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            // Perform the actual registration
+            Self::do_register_node(node, owner, signing_key)?;
+
+            Ok(())
+        }
     }
 
     #[pallet::hooks]
@@ -625,7 +671,7 @@ pub mod pallet {
                 _ => return InvalidTransaction::Call.into(),
             }
             match call {
-                Call::offchain_pay_nodes { reward_period_index, author, signature } =>
+                Call::offchain_pay_nodes { reward_period_index, author, signature } => {
                     if AVN::<T>::signature_is_valid(
                         // Technically this signature can be replayed for the duration of the
                         // reward period but in reality, since we only
@@ -645,7 +691,8 @@ pub mod pallet {
                             .build()
                     } else {
                         InvalidTransaction::Custom(1u8).into()
-                    },
+                    }
+                },
                 Call::offchain_submit_heartbeat {
                     node,
                     reward_period_index,
@@ -655,7 +702,7 @@ pub mod pallet {
                     let node_info = NodeRegistry::<T>::get(&node);
                     match node_info {
                         Some(info) => {
-                            if Self::signature_is_valid(
+                            if Self::offchain_signature_is_valid(
                                 &(HEARTBEAT_CONTEXT, heartbeat_count, reward_period_index),
                                 &info.signing_key,
                                 signature,
@@ -677,7 +724,26 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn signature_is_valid<D: Encode>(
+        fn do_register_node(
+            node: NodeId<T>,
+            owner: T::AccountId,
+            signing_key: T::SignerId,
+        ) -> DispatchResult {
+            ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
+
+            <OwnedNodes<T>>::insert(&owner, &node, ());
+            <NodeRegistry<T>>::insert(
+                &node,
+                NodeInfo::<T::SignerId, T::AccountId>::new(owner.clone(), signing_key),
+            );
+            <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_add(1));
+
+            Self::deposit_event(Event::NodeRegistered { owner, node });
+
+            Ok(())
+        }
+
+        pub fn offchain_signature_is_valid<D: Encode>(
             data: &D,
             signer: &T::SignerId,
             signature: &<T::SignerId as RuntimeAppPublic>::Signature,
@@ -692,7 +758,63 @@ pub mod pallet {
                 signature,
                 signature_valid
             );
-            return signature_valid
+            return signature_valid;
+        }
+
+        pub fn get_encoded_call_param(
+            call: &<T as Config>::RuntimeCall,
+        ) -> Option<(&Proof<T::Signature, T::AccountId>, Vec<u8>)> {
+            let call = match call.is_sub_type() {
+                Some(call) => call,
+                None => return None,
+            };
+
+            match call {
+                Call::signed_register_node {
+                    ref proof,
+                    ref node,
+                    ref owner,
+                    ref signing_key,
+                    ref block_number,
+                } => {
+                    let encoded_data = encode_signed_register_node_params::<T>(
+                        &proof.relayer,
+                        node,
+                        owner,
+                        signing_key,
+                        block_number,
+                    );
+
+                    Some((proof, encoded_data))
+                },
+                _ => None,
+            }
         }
     }
+
+    impl<T: Config> InnerCallValidator for Pallet<T> {
+        type Call = <T as Config>::RuntimeCall;
+
+        fn signature_is_valid(call: &Box<Self::Call>) -> bool {
+            if let Some((proof, signed_payload)) = Self::get_encoded_call_param(call) {
+                return verify_signature::<T::Signature, T::AccountId>(
+                    &proof,
+                    &signed_payload.as_slice(),
+                )
+                .is_ok();
+            }
+
+            return false;
+        }
+    }
+}
+
+pub fn encode_signed_register_node_params<T: Config>(
+    relayer: &T::AccountId,
+    node: &NodeId<T>,
+    owner: &T::AccountId,
+    signing_key: &T::SignerId,
+    block_number: &BlockNumberFor<T>,
+) -> Vec<u8> {
+    (SIGNED_REGISTER_NODE_CONTEXT, relayer.clone(), node, owner, signing_key, block_number).encode()
 }

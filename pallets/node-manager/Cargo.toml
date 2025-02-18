@@ -37,6 +37,8 @@ sp-state-machine = { workspace = true }
 prediction-market-primitives = { workspace = true, features=["mock"]}
 parking_lot = {  workspace = true }
 hex = { workspace = true }
+sp-avn-common = { workspace = true, features=["test-utils"] }
+sp-keystore = { workspace = true, features = ["default"]}
 
 [features]
 default = ["std"]

@@ -162,7 +162,7 @@ impl<T: Config> Pallet<T> {
                     .ok()
                     .map(|_| (node_id, info.signing_key))
             })
-            .nth(0)
+            .nth(0);
     }
 
     pub fn should_send_heartbeat(
@@ -223,7 +223,7 @@ impl<T: Config> Pallet<T> {
                 // Allow BLOCK_INCLUSION_PERIOD blocks for the transaction to be included
                 return current_block <=
                     last_submission
-                        .saturating_add(BlockNumberFor::<T>::from(BLOCK_INCLUSION_PERIOD))
+                        .saturating_add(BlockNumberFor::<T>::from(BLOCK_INCLUSION_PERIOD));
             },
             _ => false,
         }

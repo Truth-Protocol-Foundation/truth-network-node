@@ -252,7 +252,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 5,
+    spec_version: 6,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -759,6 +759,7 @@ impl pallet_node_manager::Config for Runtime {
     type RewardPotId = NodeManagerPalletId;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
+    type SignedTxLifetime = ConstU32<64>;
     type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
 }
 

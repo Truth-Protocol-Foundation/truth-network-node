@@ -19,6 +19,7 @@ pub use sp_core::{
     },
     sr25519, H256,
 };
+use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 pub use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
     traits::{BlakeTwo256, ConvertInto, IdentityLookup, Verify},
@@ -57,6 +58,7 @@ impl Config for TestRuntime {
     type Public = AccountId;
     type Signature = Signature;
     type RewardPotId = RewardPotId;
+    type SignedTxLifetime = ConstU32<64>;
     type WeightInfo = ();
 }
 
@@ -249,7 +251,10 @@ impl ExtBuilder {
     }
 
     pub fn as_externality(self) -> sp_io::TestExternalities {
+        let keystore = MemoryKeystore::new();
+
         let mut ext = sp_io::TestExternalities::from(self.storage);
+        ext.register_extension(KeystoreExt(Arc::new(keystore)));
         // Events do not get emitted on block 0, so we increment the block here
         ext.execute_with(|| frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into()));
         ext
