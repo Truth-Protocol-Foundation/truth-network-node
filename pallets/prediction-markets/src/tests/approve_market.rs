@@ -112,7 +112,7 @@ fn market_with_edit_request_cannot_be_approved() {
 
 #[test]
 fn approve_market_correctly_unreserves_advisory_bond() {
-    // NOTE: Bonds are always in TRU, irrespective of base_asset.
+    // NOTE: Bonds are always in TRUU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         reserve_sentinel_amounts();
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());

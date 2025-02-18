@@ -47,7 +47,7 @@ fn genesis_issuance_should_work() {
         let metadata2 = AssetMetadata {
             decimals: 18,
             name: BoundedVec::truncate_from("tnf native token".as_bytes().to_vec()),
-            symbol: BoundedVec::truncate_from("TRU".as_bytes().to_vec()),
+            symbol: BoundedVec::truncate_from("TRUU".as_bytes().to_vec()),
             existential_deposit: 0,
             location: None,
             additional: CustomMetadata { eth_address: H160::from([2; 20]) },

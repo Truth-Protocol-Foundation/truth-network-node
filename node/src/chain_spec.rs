@@ -40,7 +40,7 @@ pub(crate) mod constants {
 
 pub(crate) fn tnf_chain_properties() -> Option<Properties> {
     let mut properties = Properties::new();
-    properties.insert("tokenSymbol".into(), "TRU".into());
+    properties.insert("tokenSymbol".into(), "TRUU".into());
     properties.insert("tokenDecimals".into(), 10.into());
     properties.insert("ss58Format".into(), TNF_CHAIN_PREFIX.into());
     return Some(properties);
@@ -650,7 +650,7 @@ fn testnet_genesis(
             ..Default::default()
         },
         balances: BalancesConfig {
-            // Configure endowed accounts with initial balance of 100 TRU (BASE)
+            // Configure endowed accounts with initial balance of 100 TRUU (BASE)
             balances: endowed_accounts.iter().cloned().map(|k| (k, 100 * BASE)).collect(),
         },
         aura: AuraConfig { authorities: vec![] },

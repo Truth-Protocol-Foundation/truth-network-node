@@ -23,11 +23,11 @@ use common_primitives::constants::MILLISECS_PER_BLOCK;
 
 #[test]
 fn on_market_close_auto_rejects_expired_advised_market() {
-    // NOTE: Bonds are always in TRU, irrespective of base_asset.
+    // NOTE: Bonds are always in TRUU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
-        // Give alice() `SENTINEL_AMOUNT` free and reserved TRU; we record the free balance to check
-        // that the AdvisoryBond and the OracleBond gets unreserved, when the advised market
-        // expires.
+        // Give alice() `SENTINEL_AMOUNT` free and reserved TRUU; we record the free balance to
+        // check that the AdvisoryBond and the OracleBond gets unreserved, when the advised
+        // market expires.
         assert_ok!(AssetManager::deposit(Asset::Tru, &alice(), 2 * SENTINEL_AMOUNT));
         assert_ok!(Balances::reserve_named(
             &PredictionMarkets::reserve_id(),
@@ -72,9 +72,9 @@ fn on_market_close_auto_rejects_expired_advised_market() {
 #[test]
 fn on_market_close_auto_rejects_expired_advised_market_with_edit_request() {
     let test = |base_asset: AssetOf<Runtime>| {
-        // Give alice() `SENTINEL_AMOUNT` free and reserved TRU; we record the free balance to check
-        // that the AdvisoryBond and the OracleBond gets unreserved, when the advised market
-        // expires.
+        // Give alice() `SENTINEL_AMOUNT` free and reserved TRUU; we record the free balance to
+        // check that the AdvisoryBond and the OracleBond gets unreserved, when the advised
+        // market expires.
         assert_ok!(AssetManager::deposit(Asset::Tru, &alice(), 2 * SENTINEL_AMOUNT));
         assert_ok!(Balances::reserve_named(
             &PredictionMarkets::reserve_id(),

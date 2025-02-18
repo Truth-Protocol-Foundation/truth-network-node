@@ -201,7 +201,7 @@ impl WeightToFeePolynomial for WeightToFee {
     type Balance = Balance;
     fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
         // We adjust the fee conversion so that the Extrinsic Base Weight corresponds to 150 micro
-        // TRU fee.
+        // TRUU fee.
         let p = 150 * MICRO_BASE;
         let q = Balance::from(ExtrinsicBaseWeight::get().ref_time());
         smallvec![WeightToFeeCoefficient {
@@ -445,9 +445,9 @@ parameter_types! {
     // This value was adjusted so that the length fee of an extrinsic is roughly
     // in line with the weight fees.
     // An extrinsic usually has a payload with a few hundred bytes, and its weight
-    // fee should be of a few milli TRU.
+    // fee should be of a few milli TRUU.
     // In consequence TransactionByteFee should be set at a few MICRO_BASE.
-    // The actual value here was chosen to be a round number so that a Token Transfer be around 2mTRU, and a TRU transfer be around 1 mTRU.
+    // The actual value here was chosen to be a round number so that a Token Transfer be around 2mTRU, and a TRUU transfer be around 1 mTRUU.
     pub const TransactionByteFee: Balance = 5 * MICRO_BASE;
     pub const OperationalFeeMultiplier: u8 = 5;
 }
@@ -521,7 +521,6 @@ impl EthereumEventsFilterTrait for EthBridgeTnfRuntimeEventsFilter {
     fn get() -> EthBridgeEventsFilter {
         let allowed_events: BTreeSet<ValidEvents> = vec![
             ValidEvents::AvtLowerClaimed,
-            ValidEvents::Erc20DirectTransfer,
             ValidEvents::Lifted,
             ValidEvents::LiftedToPredictionMarket,
         ]
