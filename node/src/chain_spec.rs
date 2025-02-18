@@ -8,28 +8,22 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::Properties;
 use sc_service::ChainType;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_avn_common::event_types::ValidEvents;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, ecdsa, sr25519, ByteArray, Pair, Public, H160, H256};
-use sp_runtime::{
-    traits::{IdentifyAccount, Verify},
-    BoundedVec,
-};
+use sp_runtime::traits::{IdentifyAccount, Verify};
 use tnf_node_runtime::{
-    opaque::SessionKeys, AccountId, AnchorSummaryConfig, Asset, AssetRegistryConfig,
-    AssetRegistryStringLimit, AuraConfig, AuthorsManagerConfig, BalancesConfig, CustomMetadata,
-    EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, NodeManagerConfig,
-    PredictionMarketsConfig, RuntimeGenesisConfig, SessionConfig, Signature, SudoConfig,
-    SummaryConfig, SystemConfig, TokenManagerConfig, WASM_BINARY,
+    opaque::SessionKeys, AccountId, AnchorSummaryConfig, AssetRegistryConfig, AuraConfig,
+    AuthorsManagerConfig, BalancesConfig, EthBridgeConfig, EthereumEventsConfig, GrandpaConfig,
+    ImOnlineConfig, NodeManagerConfig, PredictionMarketsConfig, RuntimeGenesisConfig,
+    SessionConfig, Signature, SudoConfig, SummaryConfig, SystemConfig, TokenManagerConfig,
+    WASM_BINARY,
 };
 
-use codec::Encode;
 use common_primitives::{
     constants::{currency::*, *},
     types::BlockNumber,
 };
-pub use orml_traits::asset_registry::AssetMetadata;
 
 pub(crate) type EthPublicKey = ecdsa::Public;
 pub(crate) mod constants {

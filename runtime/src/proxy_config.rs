@@ -144,6 +144,7 @@ impl ProvableProxy<RuntimeCall, Signature, AccountId> for AvnProxyConfig {
                 node: _,
                 owner: _,
                 signing_key: _,
+                block_number: _,
             }) => return Some(proof.clone()),
             _ => None,
         }
@@ -155,21 +156,18 @@ impl InnerCallValidator for AvnProxyConfig {
 
     fn signature_is_valid(call: &Box<Self::Call>) -> bool {
         match **call {
-            RuntimeCall::EthereumEvents(..) => {
-                return pallet_ethereum_events::Pallet::<Runtime>::signature_is_valid(call)
-            },
-            RuntimeCall::TokenManager(..) => {
-                return pallet_token_manager::Pallet::<Runtime>::signature_is_valid(call)
-            },
-            RuntimeCall::NftManager(..) => {
-                return pallet_nft_manager::Pallet::<Runtime>::signature_is_valid(call)
-            },
-            RuntimeCall::PredictionMarkets(..) => {
-                return pallet_prediction_markets::Pallet::<Runtime>::signature_is_valid(call)
-            },
-            RuntimeCall::HybridRouter(..) => {
-                return pallet_pm_hybrid_router::Pallet::<Runtime>::signature_is_valid(call)
-            },
+            RuntimeCall::EthereumEvents(..) =>
+                return pallet_ethereum_events::Pallet::<Runtime>::signature_is_valid(call),
+            RuntimeCall::TokenManager(..) =>
+                return pallet_token_manager::Pallet::<Runtime>::signature_is_valid(call),
+            RuntimeCall::NftManager(..) =>
+                return pallet_nft_manager::Pallet::<Runtime>::signature_is_valid(call),
+            RuntimeCall::PredictionMarkets(..) =>
+                return pallet_prediction_markets::Pallet::<Runtime>::signature_is_valid(call),
+            RuntimeCall::HybridRouter(..) =>
+                return pallet_pm_hybrid_router::Pallet::<Runtime>::signature_is_valid(call),
+            RuntimeCall::NodeManager(..) =>
+                return pallet_node_manager::Pallet::<Runtime>::signature_is_valid(call),
             _ => false,
         }
     }

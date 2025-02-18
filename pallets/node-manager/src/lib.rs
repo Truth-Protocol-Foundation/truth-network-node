@@ -55,7 +55,7 @@ mod test_reward_payment;
 
 // Definition of the crypto to use for signing
 pub mod sr25519 {
-    mod app_sr25519 {
+    pub mod app_sr25519 {
         use sp_application_crypto::{app_crypto, sr25519, KeyTypeId};
         app_crypto!(sr25519, KeyTypeId(*b"nodk"));
     }
@@ -183,10 +183,6 @@ pub mod pallet {
     pub(super) type TotalUptime<T: Config> =
         StorageMap<_, Blake2_128Concat, RewardPeriodIndex, u64, ValueQuery>;
 
-    #[pallet::storage]
-    #[pallet::getter(fn nonces)]
-    pub type Nonces<T: Config> = StorageValue<_, u64, ValueQuery>;
-
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub _phantom: sp_std::marker::PhantomData<T>,
@@ -310,8 +306,12 @@ pub mod pallet {
         FailedToAcquireOcwDbLock,
         /// The reward amount is 0
         RewardAmountZero,
-SenderIsNotSigner,
+        /// The sender is not the signer
+        SenderIsNotSigner,
+        /// Proxy signature failed to verification
         UnauthorizedSignedTransaction,
+        /// The signed transaction has expired
+        SignedTransactionExpired,
     }
 
     #[pallet::config]
@@ -353,6 +353,9 @@ SenderIsNotSigner,
         /// The id of the reward pot.
         #[pallet::constant]
         type RewardPotId: Get<PalletId>;
+        /// The lifetime (in blocks) of a signed transaction.
+        #[pallet::constant]
+        type SignedTxLifetime: Get<u32>;
         /// The weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
@@ -578,15 +581,18 @@ SenderIsNotSigner,
             node: NodeId<T>,
             owner: T::AccountId,
             signing_key: T::SignerId,
+            block_number: BlockNumberFor<T>,
         ) -> DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
 
             let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
             ensure!(registrar == sender, Error::<T>::OriginNotRegistrar);
-
-            // Get the current nonce for signing
-            let nonce = Nonces::<T>::get();
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
 
             // Create and verify the signed payload
             let signed_payload = encode_signed_register_node_params::<T>(
@@ -594,20 +600,16 @@ SenderIsNotSigner,
                 &node,
                 &owner,
                 &signing_key,
-                nonce,
+                &block_number,
             );
 
             ensure!(
-                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload.as_slice())
-                    .is_ok(),
+                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload).is_ok(),
                 Error::<T>::UnauthorizedSignedTransaction
             );
 
             // Perform the actual registration
             Self::do_register_node(node, owner, signing_key)?;
-
-            // Increment nonce
-            Nonces::<T>::mutate(|n| *n += 1);
 
             Ok(())
         }
@@ -768,14 +770,19 @@ SenderIsNotSigner,
             };
 
             match call {
-                Call::signed_register_node { ref proof, ref node, ref owner, ref signing_key } => {
-                    let nonce = Self::nonces();
+                Call::signed_register_node {
+                    ref proof,
+                    ref node,
+                    ref owner,
+                    ref signing_key,
+                    ref block_number,
+                } => {
                     let encoded_data = encode_signed_register_node_params::<T>(
                         &proof.relayer,
                         node,
                         owner,
                         signing_key,
-                        nonce,
+                        block_number,
                     );
 
                     Some((proof, encoded_data))
@@ -807,8 +814,7 @@ pub fn encode_signed_register_node_params<T: Config>(
     node: &NodeId<T>,
     owner: &T::AccountId,
     signing_key: &T::SignerId,
-    nonce: u64,
+    block_number: &BlockNumberFor<T>,
 ) -> Vec<u8> {
-    (SIGNED_REGISTER_NODE_CONTEXT, relayer.clone(), node, owner, signing_key, nonce)
-        .encode()
+    (SIGNED_REGISTER_NODE_CONTEXT, relayer.clone(), node, owner, signing_key, block_number).encode()
 }

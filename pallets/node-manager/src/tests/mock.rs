@@ -58,6 +58,7 @@ impl Config for TestRuntime {
     type Public = AccountId;
     type Signature = Signature;
     type RewardPotId = RewardPotId;
+    type SignedTxLifetime = ConstU32<64>;
     type WeightInfo = ();
 }
 
