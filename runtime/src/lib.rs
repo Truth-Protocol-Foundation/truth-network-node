@@ -252,7 +252,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 4,
+    spec_version: 5,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -537,7 +537,7 @@ impl pallet_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type MinEthBlockConfirmation = MinEthBlockConfirmation;
-    type ProcessedEventsChecker = EthBridge;
+    type ProcessedEventsChecker = ProcessedEventCustodian;
     type AccountToBytesConvert = Avn;
     type TimeProvider = pallet_timestamp::Pallet<Runtime>;
     type ReportCorroborationOffence = ();
@@ -604,7 +604,7 @@ impl pallet_ethereum_events::Config for Runtime {
     type ReportInvalidEthereumLog = Offences;
     type WeightInfo = pallet_ethereum_events::default_weights::SubstrateWeight<Runtime>;
     type EthereumEventsFilter = EthBridgeTnfRuntimeEventsFilter;
-    type ProcessedEventsChecker = EthBridge;
+    type ProcessedEventsChecker = ProcessedEventCustodian;
 }
 
 impl pallet_token_manager::pallet::Config for Runtime {
@@ -613,7 +613,7 @@ impl pallet_token_manager::pallet::Config for Runtime {
     type Currency = Balances;
     type TokenBalance = Balance;
     type TokenId = EthAddress;
-    type ProcessedEventsChecker = EthBridge;
+    type ProcessedEventsChecker = ProcessedEventCustodian;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type OnGrowthLiftedHandler = ();
@@ -641,7 +641,7 @@ impl pallet_avn_proxy::Config for Runtime {
 impl pallet_nft_manager::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
-    type ProcessedEventsChecker = EthBridge;
+    type ProcessedEventsChecker = ProcessedEventCustodian;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type BatchBound = pallet_nft_manager::BatchNftBound;
@@ -1579,5 +1579,26 @@ impl_runtime_apis! {
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).expect("execute-block failed")
         }
+    }
+}
+
+use pallet_avn::{EventMigration, ProcessedEventsChecker};
+use sp_avn_common::{bounds::ProcessingBatchBound, event_types::EthEventId};
+use sp_runtime::BoundedVec;
+
+pub struct ProcessedEventCustodian {}
+impl ProcessedEventsChecker for ProcessedEventCustodian {
+    fn processed_event_exists(event_id: &EthEventId) -> bool {
+        EthBridge::processed_event_exists(event_id) ||
+            EthereumEvents::processed_event_exists(event_id)
+    }
+
+    fn add_processed_event(event_id: &EthEventId, accepted: bool) -> Result<(), ()> {
+        frame_support::ensure!(!Self::processed_event_exists(event_id), ());
+        EthBridge::add_processed_event(event_id, accepted)
+    }
+
+    fn get_events_to_migrate() -> Option<BoundedVec<EventMigration, ProcessingBatchBound>> {
+        EthereumEvents::get_events_to_migrate()
     }
 }
