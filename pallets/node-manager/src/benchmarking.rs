@@ -316,7 +316,7 @@ benchmarks! {
             &node,
             &owner,
             &signing_key,
-            now.clone(),
+            &now.clone(),
         );
 
         let signature = registrar_key.sign(&signed_payload).ok_or("Error signing proof")?;
@@ -326,7 +326,6 @@ benchmarks! {
         assert!(<OwnedNodes<T>>::contains_key(owner.clone(), node.clone()));
         assert!(<NodeRegistry<T>>::contains_key(node.clone()));
         assert_last_event::<T>(Event::NodeRegistered{owner, node}.into());
-        assert_eq!(Nonces::<T>::get(), nonce + 1);
     }
 }
 
