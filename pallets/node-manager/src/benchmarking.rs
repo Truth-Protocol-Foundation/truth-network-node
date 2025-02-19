@@ -105,6 +105,10 @@ fn get_proof<T: Config>(
     return Proof { signer: signer.clone(), relayer: relayer.clone(), signature: signature.into() }
 }
 
+fn enable_rewards<T: Config>() {
+    <RewardEnabled<T>>::set(true);
+}
+
 benchmarks! {
     register_node {
         let registrar: T::AccountId = account("registrar", 0, 0);
@@ -184,7 +188,7 @@ benchmarks! {
     on_initialise_with_new_reward_period {
         let reward_period = <RewardPeriod<T>>::get();
         let block_number: BlockNumberFor<T> = (reward_period.first + BlockNumberFor::<T>::from(reward_period.length) + 1u32.into()).into();
-
+        enable_rewards::<T>();
     }: { Pallet::<T>::on_initialize(block_number) }
     verify {
         let new_reward_period = reward_period.current + 1u64;
@@ -198,13 +202,15 @@ benchmarks! {
     on_initialise_no_reward_period {
         let reward_period = <RewardPeriod<T>>::get();
         let block_number: BlockNumberFor<T> = BlockNumberFor::<T>::from(reward_period.length) - 1u32.into();
-
+        enable_rewards::<T>();
     }: { Pallet::<T>::on_initialize(block_number) }
     verify {
         assert!(reward_period.current== <RewardPeriod<T>>::get().current);
     }
 
     offchain_submit_heartbeat {
+        enable_rewards::<T>();
+
         let reward_period = <RewardPeriod<T>>::get();
         let reward_period_index = reward_period.current;
         let node: NodeId<T> = account("node", 0, 0);
@@ -234,6 +240,7 @@ benchmarks! {
         // This should affect the performance of the extrinsic.
         let b in 1 .. 1000;
 
+        enable_rewards::<T>();
         fund_reward_pot::<T>();
         set_max_batch_size::<T>(b);
 
@@ -283,6 +290,7 @@ benchmarks! {
         // This should NOT affect the performance of the extrinsic. The execution time should be constant.
         let n in 1 .. 100;
 
+        enable_rewards::<T>();
         fund_reward_pot::<T>();
 
         let reward_period = <RewardPeriod<T>>::get();
