@@ -252,7 +252,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 7,
+    spec_version: 8,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -300,7 +300,7 @@ parameter_types! {
         .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
         .build_or_panic();
 
-    pub const SS58Prefix: u16= 2024;
+    pub const SS58Prefix: u16= 42;
     pub const MaxAuthorities: u32 = 32;
     pub const ReportLongevity: u64 = Period::get() as u64 * 2u64;
 }
