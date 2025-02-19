@@ -171,6 +171,16 @@ benchmarks! {
         assert!(<RewardAmount<T>>::get() == new_amount);
     }
 
+    set_admin_config_reward_enabled {
+        let current_flag = <RewardEnabled<T>>::get();
+        let new_flag = !current_flag;
+        let config = AdminConfig::RewardToggle(new_flag);
+
+    }: set_admin_config(RawOrigin::Root, config.clone())
+    verify {
+        assert!(<RewardEnabled<T>>::get() == new_flag);
+    }
+
     on_initialise_with_new_reward_period {
         let reward_period = <RewardPeriod<T>>::get();
         let block_number: BlockNumberFor<T> = (reward_period.first + BlockNumberFor::<T>::from(reward_period.length) + 1u32.into()).into();

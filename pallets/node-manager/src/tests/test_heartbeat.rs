@@ -477,4 +477,71 @@ mod fails_when {
             assert_eq!(false, pool_state.read().transactions.is_empty());
         });
     }
+
+    #[test]
+    fn rewards_are_disabled() {
+        let (mut ext, _ool_state, _offchain_state) = ExtBuilder::build_default()
+            .with_genesis_config()
+            .for_offchain_worker()
+            .as_externality_with_state();
+        ext.execute_with(|| {
+            let mut context = Context::default();
+            //Disable rewards
+            RewardEnabled::<TestRuntime>::put(false);
+
+            let key_id = 987;
+            context.signing_key = UintAuthorityId(key_id);
+            register_node(&context);
+
+            let call = crate::Call::offchain_submit_heartbeat {
+                node: context.node_id,
+                reward_period_index: 1u64,
+                heartbeat_count: 1u64,
+                signature: context
+                    .signing_key
+                    .sign(&("DummyProof").encode())
+                    .expect("Error signing"),
+            };
+
+            assert_noop!(
+                <NodeManager as ValidateUnsigned>::validate_unsigned(
+                    TransactionSource::Local,
+                    &call
+                ),
+                InvalidTransaction::Custom(ERROR_CODE_REWARD_DISABLED)
+            );
+        });
+    }
+
+    #[test]
+    fn unsigned_calls_are_not_local() {
+        let (mut ext, _pool_state, _offchain_state) = ExtBuilder::build_default()
+            .with_genesis_config()
+            .for_offchain_worker()
+            .as_externality_with_state();
+        ext.execute_with(|| {
+            let mut context = Context::default();
+            let key_id = 987;
+            context.signing_key = UintAuthorityId(key_id);
+            register_node(&context);
+
+            let call = crate::Call::offchain_submit_heartbeat {
+                node: context.node_id,
+                reward_period_index: 1u64,
+                heartbeat_count: 1u64,
+                signature: context
+                    .signing_key
+                    .sign(&("DummyProof").encode())
+                    .expect("Error signing"),
+            };
+
+            assert_noop!(
+                <NodeManager as ValidateUnsigned>::validate_unsigned(
+                    TransactionSource::External,
+                    &call
+                ),
+                InvalidTransaction::Call
+            );
+        });
+    }
 }

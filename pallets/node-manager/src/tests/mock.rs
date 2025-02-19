@@ -256,7 +256,10 @@ impl ExtBuilder {
         let mut ext = sp_io::TestExternalities::from(self.storage);
         ext.register_extension(KeystoreExt(Arc::new(keystore)));
         // Events do not get emitted on block 0, so we increment the block here
-        ext.execute_with(|| frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into()));
+        ext.execute_with(|| {
+            frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into());
+            RewardEnabled::<TestRuntime>::put(true);
+        });
         ext
     }
 
@@ -272,7 +275,8 @@ impl ExtBuilder {
         assert!(self.offchain_state.is_some());
         ext.execute_with(|| {
             Timestamp::set_timestamp(1);
-            frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into())
+            frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into());
+            RewardEnabled::<TestRuntime>::put(true);
         });
         (ext, self.pool_state.unwrap(), self.offchain_state.unwrap())
     }

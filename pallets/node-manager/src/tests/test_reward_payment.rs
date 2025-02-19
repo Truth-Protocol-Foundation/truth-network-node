@@ -382,4 +382,42 @@ mod fails_when {
             );
         });
     }
+
+    #[test]
+    fn rewards_are_disabled() {
+        let (mut ext, _pool_state, _offchain_state) = ExtBuilder::build_default()
+            .with_genesis_config()
+            .with_authors()
+            .for_offchain_worker()
+            .as_externality_with_state();
+        ext.execute_with(|| {
+            let node_count = <MaxBatchSize<TestRuntime>>::get();
+            let _ = Context::new(node_count as u8);
+
+            //Disable rewards
+            RewardEnabled::<TestRuntime>::put(false);
+
+            let reward_period = <RewardPeriod<TestRuntime>>::get();
+            let reward_period_length = reward_period.length as u64;
+
+            // Complete a reward period
+            roll_forward((reward_period_length - System::block_number()) + 1);
+
+            let call = crate::Call::offchain_pay_nodes {
+                reward_period_index: 1u64,
+                author: mock::AVN::active_validators()[0].clone(),
+                signature: UintAuthorityId(1u64)
+                    .sign(&("DummyProof").encode())
+                    .expect("Error signing"),
+            };
+
+            assert_noop!(
+                <NodeManager as ValidateUnsigned>::validate_unsigned(
+                    TransactionSource::Local,
+                    &call
+                ),
+                InvalidTransaction::Custom(ERROR_CODE_REWARD_DISABLED)
+            );
+        });
+    }
 }

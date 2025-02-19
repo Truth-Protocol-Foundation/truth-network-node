@@ -214,3 +214,20 @@ mod reward_amount {
         }
     }
 }
+
+mod reward_enabled {
+    use super::*;
+
+    #[test]
+    fn can_be_set() {
+        let mut ext = ExtBuilder::build_default().with_genesis_config().as_externality();
+        ext.execute_with(|| {
+            let current_flag = RewardEnabled::<TestRuntime>::get();
+            let new_flag = !current_flag;
+
+            let config = AdminConfig::RewardToggle(new_flag);
+            assert_ok!(NodeManager::set_admin_config(RawOrigin::Root.into(), config,));
+            System::assert_last_event(Event::RewardToggled { enabled: new_flag }.into());
+        });
+    }
+}
