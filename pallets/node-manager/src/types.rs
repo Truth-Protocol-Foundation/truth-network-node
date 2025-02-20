@@ -124,4 +124,5 @@ pub enum AdminConfig<AccountId, Balance> {
     BatchSize(u32),
     Heartbeat(u32),
     RewardAmount(Balance),
+    RewardToggle(bool),
 }

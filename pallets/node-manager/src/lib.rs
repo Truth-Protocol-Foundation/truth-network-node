@@ -72,6 +72,16 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
 
+// Error codes returned by validate unsigned methods
+/// Invalid signature for `paying` transaction
+pub const ERROR_CODE_INVALID_PAY_SIGNATURE: u8 = 1;
+/// Invalid signature for `heartbeat` transaction
+pub const ERROR_CODE_INVALID_HEARTBEAT_SIGNATURE: u8 = 2;
+/// Node not found
+pub const ERROR_CODE_INVALID_NODE: u8 = 3;
+/// Rewards are disabled
+pub const ERROR_CODE_REWARD_DISABLED: u8 = 4;
+
 pub type AVN<T> = avn::Pallet<T>;
 pub type Author<T> =
     Validator<<T as avn::Config>::AuthorityId, <T as frame_system::Config>::AccountId>;
@@ -183,6 +193,10 @@ pub mod pallet {
     pub(super) type TotalUptime<T: Config> =
         StorageMap<_, Blake2_128Concat, RewardPeriodIndex, u64, ValueQuery>;
 
+    /// Controls if rewards are enabled
+    #[pallet::storage]
+    pub(super) type RewardEnabled<T: Config> = StorageValue<_, bool, ValueQuery>;
+
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub _phantom: sp_std::marker::PhantomData<T>,
@@ -261,6 +275,8 @@ pub mod pallet {
         HeartbeatReceived { reward_period_index: RewardPeriodIndex, node: NodeId<T> },
         /// A new reward amount is set
         RewardAmountSet { new_amount: BalanceOf<T> },
+        /// Reward payment has been toggled
+        RewardToggled { enabled: bool },
     }
 
     // Pallet Errors
@@ -388,6 +404,7 @@ pub mod pallet {
             .max(<T as Config>::WeightInfo::set_admin_config_reward_batch_size())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_amount())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_toggle())
         )]
         pub fn set_admin_config(
             origin: OriginFor<T>,
@@ -444,6 +461,13 @@ pub mod pallet {
                     Self::deposit_event(Event::RewardAmountSet { new_amount: amount });
                     return Ok(
                         Some(<T as Config>::WeightInfo::set_admin_config_reward_amount()).into()
+                    );
+                },
+                AdminConfig::RewardToggle(enabled) => {
+                    <RewardEnabled<T>>::mutate(|e| *e = enabled.clone());
+                    Self::deposit_event(Event::RewardToggled { enabled });
+                    return Ok(
+                        Some(<T as Config>::WeightInfo::set_admin_config_reward_toggle()).into()
                     );
                 },
             }
@@ -621,8 +645,9 @@ pub mod pallet {
         fn on_initialize(n: BlockNumberFor<T>) -> Weight {
             let reward_period = RewardPeriod::<T>::get();
             let reward_period_index = reward_period.current;
+            let rewards_enabled = <RewardEnabled<T>>::get();
 
-            if reward_period.should_update(n) {
+            if rewards_enabled && reward_period.should_update(n) {
                 let reward_period = reward_period.update(n);
                 RewardPeriod::<T>::mutate(|p| *p = reward_period);
 
@@ -648,6 +673,11 @@ pub mod pallet {
 
         fn offchain_worker(n: BlockNumberFor<T>) {
             log::info!("🌐 OCW for node manager");
+
+            if <RewardEnabled<T>>::get() == false {
+                log::warn!("🌐 OCW - rewards are disabled, skipping");
+                return;
+            }
 
             let maybe_author = Self::try_get_node_author(n);
             if let Some(author) = maybe_author {
@@ -691,7 +721,7 @@ pub mod pallet {
                             .propagate(false)
                             .build()
                     } else {
-                        InvalidTransaction::Custom(1u8).into()
+                        InvalidTransaction::Custom(ERROR_CODE_INVALID_PAY_SIGNATURE).into()
                     }
                 },
                 Call::offchain_submit_heartbeat {
@@ -713,10 +743,13 @@ pub mod pallet {
                                     .priority(TransactionPriority::max_value())
                                     .build();
                             } else {
-                                return InvalidTransaction::Custom(2u8).into();
+                                return InvalidTransaction::Custom(
+                                    ERROR_CODE_INVALID_HEARTBEAT_SIGNATURE,
+                                )
+                                .into();
                             }
                         },
-                        _ => InvalidTransaction::Custom(3u8).into(),
+                        _ => InvalidTransaction::Custom(ERROR_CODE_INVALID_NODE).into(),
                     }
                 },
                 _ => InvalidTransaction::Call.into(),
