@@ -269,6 +269,32 @@ mod given_a_reward_period {
             assert_eq!(false, pool_state.read().transactions.is_empty());
         });
     }
+
+    #[test]
+    fn external_unsigned_calls_are_allowed() {
+        let (mut ext, pool_state, _offchain_state) = ExtBuilder::build_default()
+            .with_genesis_config()
+            .for_offchain_worker()
+            .as_externality_with_state();
+        ext.execute_with(|| {
+            let context = Context::default();
+            register_node(&context);
+
+            NodeManager::offchain_worker(System::block_number());
+            assert_eq!(false, pool_state.read().transactions.is_empty());
+            let runtime_call = pop_tx_from_mempool(pool_state.clone());
+
+            match runtime_call.call {
+                RuntimeCall::NodeManager(call) => {
+                    assert_ok!(<NodeManager as ValidateUnsigned>::validate_unsigned(
+                        TransactionSource::External,
+                        &call
+                    ));
+                },
+                _ => assert!(false),
+            }
+        });
+    }
 }
 
 mod across_multiple_reward_periods {
@@ -509,38 +535,6 @@ mod fails_when {
                     &call
                 ),
                 InvalidTransaction::Custom(ERROR_CODE_REWARD_DISABLED)
-            );
-        });
-    }
-
-    #[test]
-    fn unsigned_calls_are_not_local() {
-        let (mut ext, _pool_state, _offchain_state) = ExtBuilder::build_default()
-            .with_genesis_config()
-            .for_offchain_worker()
-            .as_externality_with_state();
-        ext.execute_with(|| {
-            let mut context = Context::default();
-            let key_id = 987;
-            context.signing_key = UintAuthorityId(key_id);
-            register_node(&context);
-
-            let call = crate::Call::offchain_submit_heartbeat {
-                node: context.node_id,
-                reward_period_index: 1u64,
-                heartbeat_count: 1u64,
-                signature: context
-                    .signing_key
-                    .sign(&("DummyProof").encode())
-                    .expect("Error signing"),
-            };
-
-            assert_noop!(
-                <NodeManager as ValidateUnsigned>::validate_unsigned(
-                    TransactionSource::External,
-                    &call
-                ),
-                InvalidTransaction::Call
             );
         });
     }
