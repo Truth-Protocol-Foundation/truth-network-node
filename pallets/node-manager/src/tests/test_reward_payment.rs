@@ -420,4 +420,36 @@ mod fails_when {
             );
         });
     }
+
+    #[test]
+    fn unsigned_calls_are_not_local() {
+        let (mut ext, _pool_state, _offchain_state) = ExtBuilder::build_default()
+            .with_genesis_config()
+            .with_authors()
+            .for_offchain_worker()
+            .as_externality_with_state();
+        ext.execute_with(|| {
+            let reward_period = <RewardPeriod<TestRuntime>>::get();
+            let reward_period_length = reward_period.length as u64;
+
+            // Complete a reward period
+            roll_forward((reward_period_length - System::block_number()) + 1);
+
+            let call = crate::Call::offchain_pay_nodes {
+                reward_period_index: 1u64,
+                author: mock::AVN::active_validators()[0].clone(),
+                signature: UintAuthorityId(1u64)
+                    .sign(&("DummyProof").encode())
+                    .expect("Error signing"),
+            };
+
+            assert_noop!(
+                <NodeManager as ValidateUnsigned>::validate_unsigned(
+                    TransactionSource::External,
+                    &call
+                ),
+                InvalidTransaction::Call
+            );
+        });
+    }
 }

@@ -695,6 +695,10 @@ pub mod pallet {
     impl<T: Config> ValidateUnsigned for Pallet<T> {
         type Call = Call<T>;
         fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            if <RewardEnabled<T>>::get() == false {
+                return InvalidTransaction::Custom(ERROR_CODE_REWARD_DISABLED).into();
+            }
+
             match call {
                 Call::offchain_pay_nodes { reward_period_index, author, signature } => {
                     // Discard unsinged tx's not coming from the local OCW.
