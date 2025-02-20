@@ -665,13 +665,14 @@ pub mod pallet {
     impl<T: Config> ValidateUnsigned for Pallet<T> {
         type Call = Call<T>;
         fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-            // Discard unsinged tx's not coming from the local OCW.
-            match source {
-                TransactionSource::Local | TransactionSource::InBlock => { /* allowed */ },
-                _ => return InvalidTransaction::Call.into(),
-            }
             match call {
                 Call::offchain_pay_nodes { reward_period_index, author, signature } => {
+                    // Discard unsinged tx's not coming from the local OCW.
+                    match source {
+                        TransactionSource::Local | TransactionSource::InBlock => { /* allowed */ },
+                        _ => return InvalidTransaction::Call.into(),
+                    }
+
                     if AVN::<T>::signature_is_valid(
                         // Technically this signature can be replayed for the duration of the
                         // reward period but in reality, since we only
@@ -751,7 +752,7 @@ pub mod pallet {
             let signature_valid =
                 data.using_encoded(|encoded_data| signer.verify(&encoded_data, &signature));
 
-            log::info!(
+            log::trace!(
                 "🪲 Validating signature: [ data {:?} - account {:?} - signature {:?} ] Result: {}",
                 data.encode(),
                 signer.encode(),

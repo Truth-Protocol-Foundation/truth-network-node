@@ -215,11 +215,15 @@ pub fn new_full(
             // If the node is run with the --registered-node-id flag,
             // set the registered node key in the offchain storage
             if let Some(registered_node_id) = maybe_registered_node_id {
-                local_db.set(
-                    sp_core::offchain::STORAGE_PREFIX,
-                    REGISTERED_NODE_KEY,
-                    &registered_node_id.encode(),
-                );
+                if hex::decode(registered_node_id.clone()).is_ok() {
+                    local_db.set(
+                        sp_core::offchain::STORAGE_PREFIX,
+                        REGISTERED_NODE_KEY,
+                        &registered_node_id.encode(),
+                    );
+                } else {
+                    log::warn!("✋ Invalid nodeId: {:?} found. NodeId must be a hex public key without the 0x.", registered_node_id);
+                }
             }
         }
 

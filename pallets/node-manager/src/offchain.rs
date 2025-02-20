@@ -1,4 +1,9 @@
 // No storage mutation allowed in this file
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+
 use crate::*;
 // We allow up to 5 blocks for ocw transactions
 const BLOCK_INCLUSION_PERIOD: u32 = 5;
@@ -139,22 +144,34 @@ impl<T: Config> Pallet<T> {
         let mut local_keys = T::SignerId::all();
         local_keys.sort();
 
-        if let Some(registered_node_id) = StorageValueRef::persistent(REGISTERED_NODE_KEY)
-            .get::<T::AccountId>()
+        if let Some(node_id_bytes) = StorageValueRef::persistent(REGISTERED_NODE_KEY)
+            .get::<String>()
             .ok()
             .flatten()
+            .and_then(|node_id_string| hex::decode(&node_id_string).ok())
         {
-            if let Some(node_info) = NodeRegistry::<T>::get(&registered_node_id) {
-                // If the registered node’s signing key is present locally, return it.
-                if local_keys.binary_search(&node_info.signing_key).is_ok() {
-                    return Some((registered_node_id, node_info.signing_key));
-                }
+            match T::AccountId::decode(&mut &node_id_bytes[..]) {
+                Ok(node_id) =>
+                    if let Some(node_info) = NodeRegistry::<T>::get(&node_id) {
+                        if local_keys.binary_search(&node_info.signing_key).is_ok() {
+                            return Some((node_id, node_info.signing_key));
+                        } else {
+                            log::warn!(
+                                "🔐 Offchain nodeId does not correspond to local signing keys"
+                            );
+                        }
+                    } else {
+                        log::warn!(
+                            "🔐 Node not found in Node registry. NodeId: {:?}",
+                            hex::encode(node_id.encode())
+                        );
+                    },
+                Err(_) =>
+                    log::warn!("🔐 Invalid nodeId bytes found in Offchain db: {:?}", node_id_bytes),
             }
         }
 
-        log::warn!("🔐 Signing key not found for registered node, searching all nodes.");
-        // we couldn't find a signing key for the registered_node_id, so check all registered nodes
-        // This is potentially very slow so only do it as a last resort
+        log::warn!("🔐 Fallback - Searching all registered nodes using local signing key.");
         return NodeRegistry::<T>::iter()
             .filter_map(move |(node_id, info)| {
                 local_keys
