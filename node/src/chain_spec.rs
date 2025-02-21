@@ -762,3 +762,210 @@ fn tnf_dev_ethereum_public_keys() -> Vec<EthPublicKey> {
         .unwrap(),
     ];
 }
+
+pub fn mainnet_config() -> Result<ChainSpec, String> {
+    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+
+    Ok(ChainSpec::from_genesis(
+        // Name
+        "Tnf Mainnet",
+        // ID
+        "tnf_mainnet_v1",
+        ChainType::Live,
+        move || {
+            testnet_genesis(
+                wasm_binary,
+                // Initial PoA authorities
+                mainnet_candidates_keys(),
+                // Sudo account
+                AccountId::from(hex![
+                    "ca04d57ddbd9c5af2e0d2a4df82673caab59c0daf9376f3201ba87bc3fbedd1f"
+                ]),
+                // Pre-funded accounts
+                vec![
+                    // Sudo account
+                    AccountId::from(hex![
+                        "ca04d57ddbd9c5af2e0d2a4df82673caab59c0daf9376f3201ba87bc3fbedd1f"
+                    ]),
+                ],
+                true,
+                // TNF bridge contract
+                // TODO update me
+                H160(hex!("ad36dB955A0C881A78842eE1C8e848a7238637e8")),
+                // Processed events
+                // TODO update me
+                vec![],
+                // Lift transactions
+                vec![],
+                NORMAL_EVENT_CHALLENGE_PERIOD,
+                EIGHT_HOURS_SCHEDULE_PERIOD,
+                NORMAL_VOTING_PERIOD,
+                // TODO update me
+                // Tnf native token contract
+                H160(hex!("6cAEfA7446E967018330cCeC5BA7A43956a45137")),
+                mainnet_ethereum_public_keys(),
+                None,
+                NodeManagerConfig {
+                    _phantom: Default::default(),
+                    reward_period: BLOCKS_PER_DAY as u32,
+                    max_batch_size: 100u32,
+                    heartbeat_period: 10u32,
+                    reward_amount: 75_000_000 * BASE,
+                },
+            )
+        },
+        // Bootnodes
+        vec![],
+        // Telemetry
+        // TODO update me
+        None,
+        // Protocol ID
+        // TODO review if we want to set. Should be ok
+        Some("tnf_mainnet_v1"),
+        None,
+        // Properties
+        tnf_chain_properties(),
+        // Extensions
+        None,
+    ))
+}
+
+pub(crate) fn mainnet_candidates_keys(
+) -> Vec<(AccountId, AuraId, GrandpaId, AuthorityDiscoveryId, ImOnlineId, AvnId)> {
+    let initial_authorities: Vec<(
+        AccountId,
+        AuraId,
+        GrandpaId,
+        AuthorityDiscoveryId,
+        ImOnlineId,
+        AvnId,
+    )> = vec![
+        (
+            // account: 5Di5HT5J9RWRVkK7wqA1Fy1Npqco5otwQaehBeuUNncCJbQu
+            hex!["48bc71ac1d8ec4f0583f0c0e1eb6bf719e227d49522da8ed4cde9bfe48cbfc03"].into(),
+            // aura: 5Dr4TYiNowrskuoScdqSNbuSyNayz2GywCKpRueJugS2rczD
+            hex!["4ed3a0838937142a6261211ffe08674654c54ad3343053500404134f8aab3b5d"]
+                .unchecked_into(),
+            // gran: 5Cv7hN2ke4wah5q3X6wy8kcwQ3wyUgZVTDnvdSw7e4dNCPoC
+            hex!["25af46a3c625ed2aa5ccec2a8049685a98551a2b3f32df80869806c694bd2674"]
+                .unchecked_into(),
+            // audi: 5FpbHQxXjdX1vszNTpjVTETHHKBBsEfMywrhxo6GyPWWGU8c
+            hex!["a62d5ec8a049d529fdd3df30c55ef641d42acaf70b2e1a8fe6d4aaebff4ec741"]
+                .unchecked_into(),
+            // imon: 5HKirmcXqFiYdqLYgW38syNLFBnWd5FCd1WB4LvPierPccBk
+            hex!["e8a13873222008c171ab1800caa7670fe96c511c956ff89c56f2a192ecf02d51"]
+                .unchecked_into(),
+            // avnk: 5EexQkynFrjavaup1zyTCWFx8E35hKVdXy2NpGrnmSAYNfzy
+            hex!["7297cd265d2a1368060326aebb2eb9d644f1ac2a39f1172047bf78f1ec53184c"]
+                .unchecked_into(),
+        ),
+        (
+            // account: 5CJPghhi1Lcc6b9yptougRzsAGVZ6yzYaSnnnym6Dh7KLv9N
+            hex!["0a70438a1b745e50271acdbe63c881181dc7e9c7562bbf1c88f6336262d2a65f"].into(),
+            // aura: 5FYptPaNe4TGYi3KqDfq8SYz54EioCKgduWgvcvRijMSFgwP
+            hex!["9a273c55da7952b84311a4248feda2e976c1696152b5c0b19e9bd071bd0c9972"]
+                .unchecked_into(),
+            // gran: 5FWdygLoFtPkPE2kV5hp9Q3mKwmZJ8Pxumhg9nXkgTMikuDW
+            hex!["987c05c5e9903b24b6a081c9e983c4b6b27bbe1a4d0d056643483609f646a3e9"]
+                .unchecked_into(),
+            // audi: 5ERr5pBPWnGjm3S8Kxrh858BTz2bWvckSSfpxXJp3wDiMy1T
+            hex!["689850527759c964b998835bb890642adf35290603993644dd9b241093335025"]
+                .unchecked_into(),
+            // imon: 5GjZ3vDAjPAxygT8VQfVSb36z6nnWsVpcMKzLTQb28t5P9nZ
+            hex!["ce91dc5d318698a4ef9541a7a25e55c712695e37de7ae9bba29b773d5b827e32"]
+                .unchecked_into(),
+            // avnk: 5H3RK8WxSTyyubwd11xw2WfUiEjRw4KsP88LC6qBeQaUYUnz
+            hex!["dc323b079c5b268105f3e9d894e439d8d191b2f6437db6c3f953137a9d1f0c6c"]
+                .unchecked_into(),
+        ),
+        (
+            // account: 5FHJEaMX4jVLTCHfAMEHxKYzKNBndu8YbSPr7oHRWMNYxyir
+            hex!["8e4f5ef30c72969ff456f7ff48b9e6c134929f4e63f5e70f6b039593bdf3a256"].into(),
+            // aura: 5EjmfpDYzxeSKUpQpHd3GcFTbw39TTRuzzTnAWWR6xX6LQRn
+            hex!["7643df77d2ea68e3832930694d218972e3df7a3d770481903849720d91219008"]
+                .unchecked_into(),
+            // gran: 5GRkpcaXvXpUut5VfW1wf4dXpTR1QHdcJJz25rfwPLixawR5
+            hex!["c0ff11244d92dae6fae3a417cb73e3edc8a2b071bf8642541fbee5236afc606f"]
+                .unchecked_into(),
+            // audi: 5FF73sXvwVJVf5SjzbnrXZacSB6mcnz31tM8jiqHpwYb3gY5
+            hex!["8ca33ac33d393ced7c13d2ad66c87971d472ab933c939f10c5271ff6f7a7a619"]
+                .unchecked_into(),
+            // imon: 5HDsxk9SFJGEibyWbPBWxq1AFCviAE6CGiNSkXffkk8HmVLF
+            hex!["e42c643cb0b293b28fdbcd3b27975a14c8f2134ad94412f8aa1e0172e5d94d33"]
+                .unchecked_into(),
+            // avnk: 5HEX9E61Zs3D7vUHjZtAwyczn4ds6t2Cb3nfHDSeix8UNmaz
+            hex!["e4a98d9217c52133c878e9bc9340b90dbe28151ae5ef103d7f829ab81353621e"]
+                .unchecked_into(),
+        ),
+        (
+            // account: 5GbmvsdMWRc6S3iz9bhK4Vgceockpgte3kBwbfaPFw2WWVxC
+            hex!["c8a340275eb82c0aa0778574d4adbacd60c79cf89fc3d0f751caa41006c23c61"].into(),
+            // aura: 5CMEiFAg17YVtENZ8oywiQrAR24jCc5BUwUiT61km48c5QVF
+            hex!["0c9bcaf92ca3e9a3aef9c31c558634bcbd38eddf15feb6efe5971fd8b71d5d50"]
+                .unchecked_into(),
+            // gran: 5HQnxZNBZvisB7eMm2efaWkNmaxko4cdMauLkU2QPGDHvrrT
+            hex!["ec7f3fab8745f35edae92cfe7831b5ab6a6ca9370c08bc59ffbc3e8e8f021d3c"]
+                .unchecked_into(),
+            // audi: 5CPtL7syaCrdRpQNnjde85f5TiqGvmLGqNuCRpt1VntJHSza
+            hex!["0ea0eb3dbe3aefd5ff5614f955223c68a59a7175ec62824e34528149aeeb4155"]
+                .unchecked_into(),
+            // imon: 5FnMcHnxfZ7SqrQ8mYg3gC2uH59xFhEgJ4968woPSHUc6Y4N
+            hex!["a478d8c95dc800801138a2d942ad08dc6deccbef1ee63792f35e842b1af3b92e"]
+                .unchecked_into(),
+            // avnk: 5HYetTfWqrvPbuqQHk95aKx4xPASMMBcz2QsuApbqHcvj9Yt
+            hex!["f27e0b2eb8c3e23c7bb4234ce56f679cee5856840df971b0f86aceec868f8242"]
+                .unchecked_into(),
+        ),
+        (
+            // account: 5FCkD3hwTb15jB5ox8Suas56vsvrBf6Q4RmNJLGa8aG5umCf
+            hex!["8ad694373add4bea87fbda36b5155044f8d2e7c6761f43d12367227a097fa152"].into(),
+            // aura: 5Cqq2CbKJHMhnF6P47u9puwuAuVgTxisNhs7rviXRrLxKZ8c
+            hex!["226a29183f103b6af875b837b610c8bcd6aa9a3db66c81fa5dec8c326f8da562"]
+                .unchecked_into(),
+            // gran: 5CRsgp5xFHbyKeCE1NxD4XtsmoGZeC7xtd23bTB8wEMErA5K
+            hex!["10253e940e2a8dd5ff646a2dc2704284f1ae288c600ebfa42399939099b2552b"]
+                .unchecked_into(),
+            // audi: 5EtXzdu3kgHQzpi14GwSyUzvpLozzZENdv6ubb1kXWHy5Ktf
+            hex!["7cf30bb8be1ce67c4bad36c370d6a72db5cd43247cfd47f99e659909fff95e48"]
+                .unchecked_into(),
+            // imon: 5FLcmnzxexQdKPzADkyLYz7tQE1J2DtnPRE3pt93KMd2Np9S
+            hex!["90d7832c42836ccddb122a86518bea56d6291fbf4c688fa81d0f5af388a39e12"]
+                .unchecked_into(),
+            // avnk: 5GGiALAx1XxidwzAghMtmJgEfAawyuM82TP2ccZcG5hKZMrL
+            hex!["ba18e75f2c81318cc55457874525a8f70eb14fbb26a90df8dde3adf98cdc3607"]
+                .unchecked_into(),
+        ),
+    ];
+    return initial_authorities;
+}
+
+// TODO update these values
+pub(crate) fn mainnet_ethereum_public_keys() -> Vec<EthPublicKey> {
+    return vec![
+        // 0x5C1F2bD21B8139271b19F98C3cD1F81719a18E6C
+        ecdsa::Public::from_slice(&hex![
+            "032adfceb0aed4286ecd8314a1f30726c367c41256d7a0b9cfdd8f94649bd7ffc4"
+        ])
+        .unwrap(),
+        // 0xA656CdF6F6B0132b7E3FceA439e4Cc7dc809b860
+        ecdsa::Public::from_slice(&hex![
+            "02c1bf3a43e128b4830607d5ad90dd8636832ddbee72fee99b6584e15824b61faf"
+        ])
+        .unwrap(),
+        // 0xBae4184f1b1EA0E21C72828bBB4DA3274c3f0208
+        ecdsa::Public::from_slice(&hex![
+            "02f59775472a458fc0233ee60dcca7608b5dcba9c3ac4b30dbf50263553c68fc1c"
+        ])
+        .unwrap(),
+        // 0x8D2408fd0F0f2C2b561884b7CfA992a6D8e8C96F
+        ecdsa::Public::from_slice(&hex![
+            "0201ab96126cb0ce048867878563550aed668164a447a8b98cb822494aa1cef488"
+        ])
+        .unwrap(),
+        // 0x1af607ADA536c8701e793afBB3a949727d597fBd
+        ecdsa::Public::from_slice(&hex![
+            "030e8bf35ac931499670f7a0c5bef8ffb8e38af947c1afd1cd014950d201060aac"
+        ])
+        .unwrap(),
+    ]
+}
