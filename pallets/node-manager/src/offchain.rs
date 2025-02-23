@@ -7,6 +7,7 @@ use alloc::string::String;
 use crate::*;
 // We allow up to 5 blocks for ocw transactions
 const BLOCK_INCLUSION_PERIOD: u32 = 5;
+const PALLET_REGISTERED_NODE_KEY: &'static [u8; 26] = b"ocw_pallet_registered_node";
 pub const OCW_ID: &'static [u8; 22] = b"node_manager::last_run";
 const OC_HB_DB_PREFIX: &[u8] = b"tnf/node-manager-heartbeat/";
 
@@ -141,45 +142,39 @@ impl<T: Config> Pallet<T> {
     }
 
     pub fn get_node_from_signing_key() -> Option<(T::AccountId, T::SignerId)> {
-        let mut local_keys = T::SignerId::all();
+        let mut local_keys: Vec<T::SignerId> = T::SignerId::all();
         local_keys.sort();
 
-        if let Some(node_id_bytes) = StorageValueRef::persistent(REGISTERED_NODE_KEY)
-            .get::<String>()
-            .ok()
-            .flatten()
-            .and_then(|node_id_string| hex::decode(&node_id_string).ok())
-        {
-            match T::AccountId::decode(&mut &node_id_bytes[..]) {
-                Ok(node_id) =>
-                    if let Some(node_info) = NodeRegistry::<T>::get(&node_id) {
-                        if local_keys.binary_search(&node_info.signing_key).is_ok() {
-                            return Some((node_id, node_info.signing_key));
-                        } else {
-                            log::warn!(
-                                "🔐 Offchain nodeId does not correspond to local signing keys"
-                            );
-                        }
-                    } else {
-                        log::warn!(
-                            "🔐 Node not found in Node registry. NodeId: {:?}",
-                            hex::encode(node_id.encode())
-                        );
-                    },
-                Err(_) =>
-                    log::warn!("🔐 Invalid nodeId bytes found in Offchain db: {:?}", node_id_bytes),
+        // Attempt to read the CLI-provided node ID (only happens on startup).
+        let maybe_node_id = Self::get_cli_node_id_from_local_storage();
+        if let Some(cli_node_id) = maybe_node_id {
+            log::info!(
+                "🌐 Setting NodeId {:?} in pallet local storage",
+                hex::encode(cli_node_id.encode())
+            );
+            if Self::record_formatted_node_id(cli_node_id).is_ok() {
+                Self::clear_cli_node_id_from_local_storage();
             }
         }
 
-        log::warn!("🔐 Fallback - Searching all registered nodes using local signing key.");
-        return NodeRegistry::<T>::iter()
-            .filter_map(move |(node_id, info)| {
-                local_keys
-                    .binary_search(&info.signing_key)
-                    .ok()
-                    .map(|_| (node_id, info.signing_key))
-            })
-            .nth(0);
+        // There is no garantee that the node_id is stored in the local storage
+        let maybe_node_id = Self::get_formatted_node_id_from_local_storage();
+        if let Some(node_id) = maybe_node_id {
+            if let Some(key_pair) = Self::match_node_id_to_signing_key(node_id, &local_keys) {
+                return Some(key_pair);
+            }
+        }
+
+        // If we get here, we were not successful in finding the nodeId in the local storage
+        // We will search all registered nodes using the local signing key
+        if let Some((node_id, signing_key)) = Self::search_node_id_by_signing_key(&local_keys) {
+            log::info!("🔐 NodeId found, storing in local db for next time.");
+            let _ = Self::record_formatted_node_id(node_id.clone());
+            return Some((node_id, signing_key));
+        }
+
+        log::error!("💔 Unable to find a valid nodeId.");
+        None
     }
 
     pub fn should_send_heartbeat(
@@ -188,12 +183,11 @@ impl<T: Config> Pallet<T> {
         reward_period_index: RewardPeriodIndex,
         heartbeat_count: u64,
     ) -> bool {
-        let submission_in_progress = Self::heartbeat_submission_in_progress(
+        if Self::heartbeat_submission_in_progress(
             reward_period_index,
             heartbeat_count,
             block_number,
-        );
-        if submission_in_progress {
+        ) {
             return false;
         }
 
@@ -227,6 +221,17 @@ impl<T: Config> Pallet<T> {
         }
     }
 
+    // Formatted - because the nodeId has the correct type (unlike the cli nodeId which is a string)
+    fn record_formatted_node_id(node_id: NodeId<T>) -> Result<(), Error<T>> {
+        let storage = StorageValueRef::persistent(PALLET_REGISTERED_NODE_KEY);
+        match storage.mutate(|_: Result<Option<NodeId<T>>, StorageRetrievalError>| Ok(node_id)) {
+            Err(MutateStorageError::ValueFunctionFailed(e)) => Err(e),
+            Err(MutateStorageError::ConcurrentModification(_)) =>
+                Err(Error::<T>::FailedToAcquireOcwDbLock),
+            Ok(_) => return Ok(()),
+        }
+    }
+
     fn heartbeat_submission_in_progress(
         reward_period_index: RewardPeriodIndex,
         heartbeat_count: u64,
@@ -244,5 +249,67 @@ impl<T: Config> Pallet<T> {
             },
             _ => false,
         }
+    }
+
+    fn clear_cli_node_id_from_local_storage() {
+        let mut storage = StorageValueRef::persistent(REGISTERED_NODE_KEY);
+        storage.clear();
+    }
+
+    // Get the nodeId passed in the CLI arguments (Initial nodeId).
+    // This will read the nodeId as a string, which is what the client does.
+    fn get_cli_node_id_from_local_storage() -> Option<NodeId<T>> {
+        StorageValueRef::persistent(REGISTERED_NODE_KEY)
+            .get::<String>()
+            .ok()
+            .flatten()
+            .and_then(|node_id_string| hex::decode(&node_id_string).ok())
+            .and_then(|node_id_bytes| T::AccountId::decode(&mut &node_id_bytes[..]).ok())
+    }
+
+    // Get the correctly formatted nodeId from OCW database
+    // This will expect the nodeId to be set as a NodeId
+    fn get_formatted_node_id_from_local_storage() -> Option<NodeId<T>> {
+        let node_id = StorageValueRef::persistent(PALLET_REGISTERED_NODE_KEY)
+            .get::<NodeId<T>>()
+            .ok()
+            .flatten();
+
+        if node_id.is_none() {
+            log::warn!("🔐 Cannot find nodeId in local database");
+        }
+
+        node_id
+    }
+
+    fn match_node_id_to_signing_key(
+        node_id: NodeId<T>,
+        local_keys: &Vec<T::SignerId>,
+    ) -> Option<(T::AccountId, T::SignerId)> {
+        if let Some(node_info) = NodeRegistry::<T>::get(&node_id) {
+            if local_keys.binary_search(&node_info.signing_key).is_ok() {
+                return Some((node_id, node_info.signing_key));
+            } else {
+                log::warn!("🔐 NodeId and signing key do not match");
+            }
+        } else {
+            log::warn!("🔐 Node {:?} not found in registry.", hex::encode(node_id.encode()));
+        };
+
+        None
+    }
+
+    fn search_node_id_by_signing_key(
+        local_keys: &Vec<T::SignerId>,
+    ) -> Option<(NodeId<T>, T::SignerId)> {
+        log::warn!("🔐 Fallback - Searching all registered nodes using local signing key.");
+        NodeRegistry::<T>::iter()
+            .filter_map(move |(node_id, info)| {
+                local_keys
+                    .binary_search(&info.signing_key)
+                    .ok()
+                    .map(|_| (node_id, info.signing_key))
+            })
+            .nth(0)
     }
 }
