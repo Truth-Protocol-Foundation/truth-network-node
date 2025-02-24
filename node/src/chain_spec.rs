@@ -816,11 +816,10 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
         // Bootnodes
         vec![],
         // Telemetry
-        // TODO update me
         None,
         // Protocol ID
-        // TODO review if we want to set. Should be ok
-        Some("tnf_mainnet_v1"),
+        None,
+        // Fork ID
         None,
         // Properties
         tnf_chain_properties(),
