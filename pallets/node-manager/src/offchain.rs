@@ -157,7 +157,7 @@ impl<T: Config> Pallet<T> {
             }
         }
 
-        // There is no garantee that the node_id is stored in the local storage
+        // There is no guarantee that the node_id is stored in the local storage
         let maybe_node_id = Self::get_formatted_node_id_from_local_storage();
         if let Some(node_id) = maybe_node_id {
             if let Some(key_pair) = Self::match_node_id_to_signing_key(node_id, &local_keys) {
