@@ -942,29 +942,29 @@ pub(crate) fn mainnet_candidates_keys(
 // TODO update these values
 pub(crate) fn mainnet_ethereum_public_keys() -> Vec<EthPublicKey> {
     return vec![
-        // 0x5C1F2bD21B8139271b19F98C3cD1F81719a18E6C
+        // 0xadB107062b47AA6124B6B8C373F706480E968B1A
         ecdsa::Public::from_slice(&hex![
-            "032adfceb0aed4286ecd8314a1f30726c367c41256d7a0b9cfdd8f94649bd7ffc4"
+            "03e6b029409e6a81b21299e7208b1a6a4d869d7ba9735fd978469b8f2f32934dab"
         ])
         .unwrap(),
-        // 0xA656CdF6F6B0132b7E3FceA439e4Cc7dc809b860
+        // 0x88eC651413a5C78e4F8a1f0120a33267464395b9
         ecdsa::Public::from_slice(&hex![
-            "02c1bf3a43e128b4830607d5ad90dd8636832ddbee72fee99b6584e15824b61faf"
+            "03a4b1c40828b8c12f3688793b922613653414be52bf5a1d109e1a7afacc4470b5"
         ])
         .unwrap(),
-        // 0xBae4184f1b1EA0E21C72828bBB4DA3274c3f0208
+        // 0xF7645C0dBb0024882A8c0D9663d7551ca48c2047
         ecdsa::Public::from_slice(&hex![
-            "02f59775472a458fc0233ee60dcca7608b5dcba9c3ac4b30dbf50263553c68fc1c"
+            "0350fc23b93f6f883677b976201cd7f74f9d844e5bc520f3b4bcdff9969843bec1"
         ])
         .unwrap(),
-        // 0x8D2408fd0F0f2C2b561884b7CfA992a6D8e8C96F
+        // 0x282f02E73492F4dffA8DB2Cb096F2Eb72fFc63F3
         ecdsa::Public::from_slice(&hex![
-            "0201ab96126cb0ce048867878563550aed668164a447a8b98cb822494aa1cef488"
+            "03a4038b4a6878e32f20763037760e7b2fd59fc0ef0bb146cb2cf1010881526c8b"
         ])
         .unwrap(),
-        // 0x1af607ADA536c8701e793afBB3a949727d597fBd
+        // 0x9364E5BA6F9ea1e12B6Eba1fb4229801Cd908965
         ecdsa::Public::from_slice(&hex![
-            "030e8bf35ac931499670f7a0c5bef8ffb8e38af947c1afd1cd014950d201060aac"
+            "02bc7fe8abf2884b3ff257b8606bc6fd0670b01bbf7ebe101efd26c44b8d5c5266"
         ])
         .unwrap(),
     ]
