@@ -939,7 +939,6 @@ pub(crate) fn mainnet_candidates_keys(
     return initial_authorities;
 }
 
-// TODO update these values
 pub(crate) fn mainnet_ethereum_public_keys() -> Vec<EthPublicKey> {
     return vec![
         // 0xadB107062b47AA6124B6B8C373F706480E968B1A
