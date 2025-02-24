@@ -800,9 +800,8 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                 NORMAL_EVENT_CHALLENGE_PERIOD,
                 EIGHT_HOURS_SCHEDULE_PERIOD,
                 NORMAL_VOTING_PERIOD,
-                // TODO update me
                 // Tnf native token contract
-                H160(hex!("6cAEfA7446E967018330cCeC5BA7A43956a45137")),
+                H160(hex!("dae0fafd65385e7775cf75b1398735155ef6acd2")),
                 mainnet_ethereum_public_keys(),
                 None,
                 NodeManagerConfig {
