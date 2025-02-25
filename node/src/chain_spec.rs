@@ -798,8 +798,8 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                 // Lift transactions
                 vec![],
                 NORMAL_EVENT_CHALLENGE_PERIOD,
-                EIGHT_HOURS_SCHEDULE_PERIOD,
-                NORMAL_VOTING_PERIOD,
+                72000, // 5 days
+                150,
                 // Tnf native token contract
                 H160(hex!("dae0fafd65385e7775cf75b1398735155ef6acd2")),
                 mainnet_ethereum_public_keys(),
