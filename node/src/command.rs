@@ -46,6 +46,7 @@ impl SubstrateCli for Cli {
             "dev" => Box::new(chain_spec::development_config()?),
             "dev-testnet" => Box::new(chain_spec::dev_testnet_config()?),
             "public-testnet" => Box::new(chain_spec::public_testnet_config()?),
+            "mainnet" => Box::new(chain_spec::mainnet_config()?),
             "" | "local" => Box::new(chain_spec::local_testnet_config()?),
             path =>
                 Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
