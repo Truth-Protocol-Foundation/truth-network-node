@@ -790,8 +790,7 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                 ],
                 true,
                 // TNF bridge contract
-                // TODO update me
-                H160(hex!("ad36dB955A0C881A78842eE1C8e848a7238637e8")),
+                H160(hex!("50c02710b06d6AdDb864D6b038010eF6fA1BCd92")),
                 // Processed events
                 // TODO update me
                 vec![],
