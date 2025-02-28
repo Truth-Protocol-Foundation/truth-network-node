@@ -4,7 +4,7 @@
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
 //! DATE: 2025-02-09, STEPS: `50`, REPEAT: `20`, LOW RANGE: `[]`, HIGH RANGE: `[]`
 //! WORST CASE MAP SIZE: `1000000`
-//! HOSTNAME: `nahu-Precision-7560`, CPU: `11th Gen Intel(R) Core(TM) i7-11850H @ 2.50GHz`
+//! HOSTNAME: `ip-172-31-16-102`, CPU: `Intel(R) Xeon(R) Platinum 8275CL CPU @ 3.00GHz`
 //! EXECUTION: ``, WASM-EXECUTION: `Compiled`, CHAIN: `Some("dev")`, DB CACHE: `1024`
 
 // Executed Command:
@@ -50,12 +50,40 @@ pub trait WeightInfo {
 	fn offchain_pay_nodes(b: u32, ) -> Weight;
 	fn pay_nodes_constant_batch_size(n: u32, ) -> Weight;
 	fn signed_register_node() -> Weight;
-	fn set_admin_config_reward_toggle() -> Weight;
+	fn set_admin_config_reward_enabled() -> Weight;
+	fn transfer_ownership() -> Weight;
+	fn signed_transfer_ownership() -> Weight;
 }
 
 /// Weights for pallet_node_manager using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
+	/// Storage: `NodeManager::NodeRegistry` (r:1 w:0)
+	/// Proof: `NodeManager::NodeRegistry` (`max_values`: None, `max_size`: Some(112), added: 2587, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::OwnedNodes` (r:1 w:2)
+	/// Proof: `NodeManager::OwnedNodes` (`max_values`: None, `max_size`: Some(96), added: 2571, mode: `MaxEncodedLen`)
+	fn transfer_ownership() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `355`
+		//  Estimated: `3577`
+		// Minimum execution time: 22_341_000 picoseconds.
+		Weight::from_parts(25_778_000, 3577)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
+	/// Storage: `NodeManager::NodeRegistry` (r:1 w:0)
+	/// Proof: `NodeManager::NodeRegistry` (`max_values`: None, `max_size`: Some(112), added: 2587, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::OwnedNodes` (r:1 w:2)
+	/// Proof: `NodeManager::OwnedNodes` (`max_values`: None, `max_size`: Some(96), added: 2571, mode: `MaxEncodedLen`)
+	fn signed_transfer_ownership() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `355`
+		//  Estimated: `3577`
+		// Minimum execution time: 110_876_000 picoseconds.
+		Weight::from_parts(117_497_000, 3577)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
 	/// Storage: `NodeManager::NodeRegistrar` (r:1 w:0)
 	/// Proof: `NodeManager::NodeRegistrar` (`max_values`: Some(1), `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
 	/// Storage: `NodeManager::NodeRegistry` (r:1 w:1)
@@ -131,7 +159,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	}
 	/// Storage: `NodeManager::RewardEnabled` (r:0 w:1)
 	/// Proof: `NodeManager::RewardEnabled` (`max_values`: Some(1), `max_size`: Some(16), added: 511, mode: `MaxEncodedLen`)
-	fn set_admin_config_reward_toggle() -> Weight {
+	fn set_admin_config_reward_enabled() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
@@ -250,12 +278,20 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(Weight::from_parts(0, 85).saturating_mul(n.into()))
 	}
 
+	/// Storage: `NodeManager::NodeRegistrar` (r:1 w:0)
+	/// Proof: `NodeManager::NodeRegistrar` (`max_values`: Some(1), `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::NodeRegistry` (r:1 w:1)
+	/// Proof: `NodeManager::NodeRegistry` (`max_values`: None, `max_size`: Some(112), added: 2587, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::TotalRegisteredNodes` (r:1 w:1)
+	/// Proof: `NodeManager::TotalRegisteredNodes` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::OwnedNodes` (r:0 w:1)
+	/// Proof: `NodeManager::OwnedNodes` (`max_values`: None, `max_size`: Some(96), added: 2571, mode: `MaxEncodedLen`)
 	fn signed_register_node() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `191`
 		//  Estimated: `3577`
-		// Minimum execution time: 21_027_000 picoseconds.
-		Weight::from_parts(25_046_000, 3577)
+		// Minimum execution time: 108_495_000 picoseconds.
+		Weight::from_parts(126_854_000, 3577)
 			.saturating_add(T::DbWeight::get().reads(3_u64))
 			.saturating_add(T::DbWeight::get().writes(3_u64))
 	}
@@ -263,6 +299,32 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 
 // For backwards compatibility and tests.
 impl WeightInfo for () {
+	/// Storage: `NodeManager::NodeRegistry` (r:1 w:0)
+	/// Proof: `NodeManager::NodeRegistry` (`max_values`: None, `max_size`: Some(112), added: 2587, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::OwnedNodes` (r:1 w:2)
+	/// Proof: `NodeManager::OwnedNodes` (`max_values`: None, `max_size`: Some(96), added: 2571, mode: `MaxEncodedLen`)
+	fn transfer_ownership() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `355`
+		//  Estimated: `3577`
+		// Minimum execution time: 22_341_000 picoseconds.
+		Weight::from_parts(25_778_000, 3577)
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
+			.saturating_add(RocksDbWeight::get().writes(2_u64))
+	}
+	/// Storage: `NodeManager::NodeRegistry` (r:1 w:0)
+	/// Proof: `NodeManager::NodeRegistry` (`max_values`: None, `max_size`: Some(112), added: 2587, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::OwnedNodes` (r:1 w:2)
+	/// Proof: `NodeManager::OwnedNodes` (`max_values`: None, `max_size`: Some(96), added: 2571, mode: `MaxEncodedLen`)
+	fn signed_transfer_ownership() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `355`
+		//  Estimated: `3577`
+		// Minimum execution time: 110_876_000 picoseconds.
+		Weight::from_parts(117_497_000, 3577)
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
+			.saturating_add(RocksDbWeight::get().writes(2_u64))
+	}
 	/// Storage: `NodeManager::NodeRegistrar` (r:1 w:0)
 	/// Proof: `NodeManager::NodeRegistrar` (`max_values`: Some(1), `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
 	/// Storage: `NodeManager::NodeRegistry` (r:1 w:1)
@@ -336,14 +398,15 @@ impl WeightInfo for () {
 		Weight::from_parts(9_272_000, 0)
 			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
-	/// Storage: `NodeManager::RewardEnabled` (r:0 w:1)
-	/// Proof: `NodeManager::RewardEnabled` (`max_values`: Some(1), `max_size`: Some(16), added: 511, mode: `MaxEncodedLen`)
-	fn set_admin_config_reward_toggle() -> Weight {
+	/// Storage: `NodeManager::RewardEnabled` (r:1 w:1)
+	/// Proof: `NodeManager::RewardEnabled` (`max_values`: Some(1), `max_size`: Some(1), added: 496, mode: `MaxEncodedLen`)
+	fn set_admin_config_reward_enabled() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 9_027_000 picoseconds.
-		Weight::from_parts(9_272_000, 0)
+		//  Measured:  `136`
+		//  Estimated: `1486`
+		// Minimum execution time: 10_968_000 picoseconds.
+		Weight::from_parts(11_538_000, 1486)
+			.saturating_add(RocksDbWeight::get().reads(1_u64))
 			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
 	/// Storage: `NodeManager::RewardPeriod` (r:1 w:1)
@@ -457,12 +520,20 @@ impl WeightInfo for () {
 			.saturating_add(Weight::from_parts(0, 85).saturating_mul(n.into()))
 	}
 
+	/// Storage: `NodeManager::NodeRegistrar` (r:1 w:0)
+	/// Proof: `NodeManager::NodeRegistrar` (`max_values`: Some(1), `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::NodeRegistry` (r:1 w:1)
+	/// Proof: `NodeManager::NodeRegistry` (`max_values`: None, `max_size`: Some(112), added: 2587, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::TotalRegisteredNodes` (r:1 w:1)
+	/// Proof: `NodeManager::TotalRegisteredNodes` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	/// Storage: `NodeManager::OwnedNodes` (r:0 w:1)
+	/// Proof: `NodeManager::OwnedNodes` (`max_values`: None, `max_size`: Some(96), added: 2571, mode: `MaxEncodedLen`)
 	fn signed_register_node() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `191`
 		//  Estimated: `3577`
-		// Minimum execution time: 21_027_000 picoseconds.
-		Weight::from_parts(25_046_000, 3577)
+		// Minimum execution time: 108_495_000 picoseconds.
+		Weight::from_parts(126_854_000, 3577)
 			.saturating_add(RocksDbWeight::get().reads(3_u64))
 			.saturating_add(RocksDbWeight::get().writes(3_u64))
 	}

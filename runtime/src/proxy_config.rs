@@ -146,6 +146,12 @@ impl ProvableProxy<RuntimeCall, Signature, AccountId> for AvnProxyConfig {
                 signing_key: _,
                 block_number: _,
             }) => return Some(proof.clone()),
+            RuntimeCall::NodeManager(pallet_node_manager::Call::signed_transfer_ownership {
+                proof,
+                node_id: _,
+                new_owner: _,
+                block_number: _,
+            }) => return Some(proof.clone()),
             _ => None,
         }
     }

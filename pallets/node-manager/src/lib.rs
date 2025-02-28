@@ -70,7 +70,9 @@ const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
+// Signature contexts for signed transactions
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
+pub const SIGNED_TRANSFER_OWNERSHIP_CONTEXT: &[u8] = b"transfer_ownership_context";
 
 // Error codes returned by validate unsigned methods
 /// Invalid signature for `paying` transaction
@@ -277,6 +279,12 @@ pub mod pallet {
         RewardAmountSet { new_amount: BalanceOf<T> },
         /// Reward payment has been toggled
         RewardToggled { enabled: bool },
+        /// Ownership of a node has been transferred
+        NodeOwnershipTransferred {
+            node_id: NodeId<T>,
+            old_owner: T::AccountId,
+            new_owner: T::AccountId,
+        },
     }
 
     // Pallet Errors
@@ -328,6 +336,8 @@ pub mod pallet {
         UnauthorizedSignedTransaction,
         /// The signed transaction has expired
         SignedTransactionExpired,
+        /// The new node owner is the same as the current owner
+        NewOwnerSameAsCurrentOwner,
     }
 
     #[pallet::config]
@@ -404,7 +414,7 @@ pub mod pallet {
             .max(<T as Config>::WeightInfo::set_admin_config_reward_batch_size())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_amount())
-            .max(<T as Config>::WeightInfo::set_admin_config_reward_toggle())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_enabled())
         )]
         pub fn set_admin_config(
             origin: OriginFor<T>,
@@ -467,7 +477,7 @@ pub mod pallet {
                     <RewardEnabled<T>>::mutate(|e| *e = enabled.clone());
                     Self::deposit_event(Event::RewardToggled { enabled });
                     return Ok(
-                        Some(<T as Config>::WeightInfo::set_admin_config_reward_toggle()).into()
+                        Some(<T as Config>::WeightInfo::set_admin_config_reward_enabled()).into()
                     );
                 },
             }
@@ -637,6 +647,57 @@ pub mod pallet {
 
             Ok(())
         }
+
+        /// Transfer ownership of a node
+        #[pallet::call_index(5)]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer_ownership())]
+        pub fn transfer_ownership(
+            origin: OriginFor<T>,
+            node_id: NodeId<T>,
+            new_owner: T::AccountId,
+        ) -> DispatchResult {
+            let current_owner = ensure_signed(origin)?;
+
+            Self::do_transfer_ownership(node_id, current_owner, new_owner)?;
+
+            Ok(())
+        }
+
+        /// Proxy Transfer ownership of a node
+        #[pallet::call_index(6)]
+        #[pallet::weight(<T as Config>::WeightInfo::signed_transfer_ownership())]
+        pub fn signed_transfer_ownership(
+            origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+            node_id: NodeId<T>,
+            new_owner: T::AccountId,
+            block_number: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            let current_owner = ensure_signed(origin)?;
+            ensure!(current_owner == proof.signer, Error::<T>::SenderIsNotSigner);
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
+
+            // Create and verify the signed payload
+            let signed_payload = encode_signed_transfer_ownership_params::<T>(
+                &proof.relayer,
+                &node_id,
+                &new_owner,
+                &block_number,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            Self::do_transfer_ownership(node_id, current_owner, new_owner)?;
+
+            Ok(())
+        }
     }
 
     #[pallet::hooks]
@@ -762,6 +823,30 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        fn do_transfer_ownership(
+            node_id: NodeId<T>,
+            current_owner: T::AccountId,
+            new_owner: T::AccountId,
+        ) -> DispatchResult {
+            ensure!(new_owner != current_owner, Error::<T>::NewOwnerSameAsCurrentOwner);
+            ensure!(<NodeRegistry<T>>::contains_key(&node_id), Error::<T>::NodeNotRegistered);
+            ensure!(
+                <OwnedNodes<T>>::contains_key(&current_owner, &node_id),
+                Error::<T>::NodeOwnerNotFound
+            );
+
+            <OwnedNodes<T>>::remove(&current_owner, &node_id);
+            <OwnedNodes<T>>::insert(&new_owner, &node_id, ());
+
+            Self::deposit_event(Event::NodeOwnershipTransferred {
+                node_id,
+                old_owner: current_owner,
+                new_owner,
+            });
+
+            Ok(())
+        }
+
         fn do_register_node(
             node: NodeId<T>,
             owner: T::AccountId,
@@ -825,6 +910,21 @@ pub mod pallet {
 
                     Some((proof, encoded_data))
                 },
+                Call::signed_transfer_ownership {
+                    ref proof,
+                    ref node_id,
+                    ref new_owner,
+                    ref block_number,
+                } => {
+                    let encoded_data = encode_signed_transfer_ownership_params::<T>(
+                        &proof.relayer,
+                        node_id,
+                        new_owner,
+                        block_number,
+                    );
+
+                    Some((proof, encoded_data))
+                },
                 _ => None,
             }
         }
@@ -855,4 +955,13 @@ pub fn encode_signed_register_node_params<T: Config>(
     block_number: &BlockNumberFor<T>,
 ) -> Vec<u8> {
     (SIGNED_REGISTER_NODE_CONTEXT, relayer.clone(), node, owner, signing_key, block_number).encode()
+}
+
+pub fn encode_signed_transfer_ownership_params<T: Config>(
+    relayer: &T::AccountId,
+    node: &NodeId<T>,
+    new_owner: &T::AccountId,
+    block_number: &BlockNumberFor<T>,
+) -> Vec<u8> {
+    (SIGNED_TRANSFER_OWNERSHIP_CONTEXT, relayer.clone(), node, new_owner, block_number).encode()
 }

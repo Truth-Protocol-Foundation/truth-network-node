@@ -43,8 +43,8 @@ fn set_registrar<T: Config>(registrar: T::AccountId) {
 
 fn register_new_node<T: Config>(node: NodeId<T>, owner: T::AccountId) -> T::SignerId {
     let key = T::SignerId::generate_pair(None);
-    <NodeRegistry<T>>::insert(node.clone(), NodeInfo::new(owner, key.clone()));
-
+    <NodeRegistry<T>>::insert(node.clone(), NodeInfo::new(owner.clone(), key.clone()));
+    <OwnedNodes<T>>::insert(owner, node, ());
     key
 }
 
@@ -344,6 +344,47 @@ benchmarks! {
         assert!(<OwnedNodes<T>>::contains_key(owner.clone(), node.clone()));
         assert!(<NodeRegistry<T>>::contains_key(node.clone()));
         assert_last_event::<T>(Event::NodeRegistered{owner, node}.into());
+    }
+
+    transfer_ownership {
+        let owner: T::AccountId = account("owner", 1, 1);
+        let node_id: NodeId<T> = account("node", 2, 2);
+        let new_owner: T::AccountId = account("new_owner", 3, 3);
+        let _: T::SignerId = register_new_node::<T>(node_id.clone(), owner.clone());
+    } : transfer_ownership(RawOrigin::Signed(owner.clone()), node_id.clone(), new_owner.clone())
+    verify {
+        assert!(<OwnedNodes<T>>::contains_key(new_owner.clone(), node_id.clone()));
+        assert!(!<OwnedNodes<T>>::contains_key(owner.clone(), node_id.clone()));
+        assert_last_event::<T>(Event::NodeOwnershipTransferred{node_id, old_owner: owner, new_owner}.into());
+    }
+
+    signed_transfer_ownership {
+        let relayer: T::AccountId = account("relayer", 11, 11);
+        let now = frame_system::Pallet::<T>::block_number();
+
+        let owner_key = crate::sr25519::app_sr25519::Public::generate_pair(None);
+        let owner: T::AccountId =
+            T::AccountId::decode(&mut Encode::encode(&owner_key).as_slice()).expect("valid account id");
+
+        let node_id: NodeId<T> = account("node", 2, 2);
+        let new_owner: T::AccountId = account("new_owner", 3, 3);
+        let _: T::SignerId = register_new_node::<T>(node_id.clone(), owner.clone());
+
+        let signed_payload = encode_signed_transfer_ownership_params::<T>(
+            &relayer.clone(),
+            &node_id,
+            &new_owner,
+            &now.clone(),
+        );
+
+        let signature = owner_key.sign(&signed_payload).ok_or("Error signing proof")?;
+        let proof = get_proof::<T>(&relayer.clone(), &owner, signature.into());
+    }: signed_transfer_ownership(RawOrigin::Signed(owner.clone()), proof.clone(), node_id.clone(), new_owner.clone(), now)
+    verify {
+        assert_eq!(false, <OwnedNodes<T>>::contains_key(owner.clone(), node_id.clone()));
+        assert_eq!(true, <OwnedNodes<T>>::contains_key(new_owner.clone(), node_id.clone()));
+        assert!(<NodeRegistry<T>>::contains_key(node_id.clone()));
+        assert_last_event::<T>(Event::NodeOwnershipTransferred{old_owner: owner, new_owner, node_id}.into());
     }
 }
 
