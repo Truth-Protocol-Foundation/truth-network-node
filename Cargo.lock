@@ -5858,6 +5858,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
+ "sp-avn-common",
  "sp-core",
  "sp-io",
  "sp-runtime",

@@ -1134,10 +1134,14 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type MarketCommons = MarketCommons;
     type MultiCurrency = AssetManager;
     type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type WeightInfo = pallet_pm_neo_swaps::weights::WeightInfo<Runtime>;
     type MaxLiquidityTreeDepth = MaxLiquidityTreeDepth;
     type MaxSwapFee = NeoSwapsMaxSwapFee;
     type PalletId = NeoSwapsPalletId;
+    type SignedTxLifetime = ConstU32<16>;
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
 }
 
 impl pallet_pm_order_book::Config for Runtime {

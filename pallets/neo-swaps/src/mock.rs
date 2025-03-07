@@ -197,10 +197,14 @@ impl crate::Config for Runtime {
     type ExternalFees = ExternalFees<Runtime, FeeAccount>;
     type MarketCommons = MarketCommons;
     type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type MaxLiquidityTreeDepth = MaxLiquidityTreeDepth;
     type MaxSwapFee = NeoMaxSwapFee;
     type PalletId = NeoSwapsPalletId;
     type WeightInfo = pallet_pm_neo_swaps::weights::WeightInfo<Runtime>;
+    type SignedTxLifetime = ConstU32<16>;
+    type Public = TestAccountIdPK;
+    type Signature = SignatureTest;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

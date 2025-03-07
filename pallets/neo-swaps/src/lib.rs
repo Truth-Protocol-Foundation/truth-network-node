@@ -35,8 +35,13 @@ pub mod weights;
 
 pub use pallet::*;
 
+pub const WITHDRAW_FEES_CONTEXT: &[u8] = b"neo_swap::withdraw_fees_context";
+pub const EXIT_CONTEXT: &[u8] = b"neo_swap::exit_context";
+pub const JOIN_CONTEXT: &[u8] = b"neo_swap::join_context";
+
 #[frame_support::pallet]
 mod pallet {
+    use super::{EXIT_CONTEXT, JOIN_CONTEXT, WITHDRAW_FEES_CONTEXT};
     use crate::{
         consts::LN_NUMERICAL_LIMIT,
         liquidity_tree::types::{BenchmarkInfo, LiquidityTree, LiquidityTreeError},
@@ -53,8 +58,8 @@ mod pallet {
         ensure,
         pallet_prelude::StorageMap,
         require_transactional,
-        traits::{Get, IsType, StorageVersion},
-        transactional, PalletError, PalletId, Twox64Concat,
+        traits::{Get, IsSubType, IsType, StorageVersion},
+        transactional, PalletError, PalletId, Parameter, Twox64Concat,
     };
     use frame_system::{
         ensure_signed,
@@ -73,8 +78,12 @@ mod pallet {
         types::{Asset, MarketStatus, ScoringRule},
     };
     use scale_info::TypeInfo;
+    use sp_avn_common::{verify_signature, InnerCallValidator, Proof};
     use sp_runtime::{
-        traits::{AccountIdConversion, CheckedSub, Saturating, Zero},
+        traits::{
+            AccountIdConversion, CheckedSub, Dispatchable, IdentifyAccount, Member, Saturating,
+            Verify, Zero,
+        },
         DispatchError, DispatchResult, Perbill, RuntimeDebug, SaturatedConversion,
     };
 
@@ -132,6 +141,12 @@ mod pallet {
 
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
+        /// The overarching call type.
+        type RuntimeCall: Parameter
+            + Dispatchable<RuntimeOrigin = <Self as frame_system::Config>::RuntimeOrigin>
+            + IsSubType<Call<Self>>
+            + From<Call<Self>>;
+
         type WeightInfo: WeightInfoZeitgeist;
 
         /// The maximum allowed liquidity tree depth per pool. Each pool can support
@@ -144,6 +159,22 @@ mod pallet {
 
         #[pallet::constant]
         type PalletId: Get<PalletId>;
+
+        #[pallet::constant]
+        type SignedTxLifetime: Get<u32>;
+
+        type Public: IdentifyAccount<AccountId = Self::AccountId>;
+
+        #[cfg(not(feature = "runtime-benchmarks"))]
+        type Signature: Verify<Signer = Self::Public> + Member + Decode + Encode + TypeInfo;
+
+        #[cfg(feature = "runtime-benchmarks")]
+        type Signature: Verify<Signer = Self::Public>
+            + Member
+            + Decode
+            + Encode
+            + TypeInfo
+            + From<sp_core::sr25519::Signature>;
     }
 
     #[pallet::pallet]
@@ -275,6 +306,12 @@ mod pallet {
         MinRelativeLiquidityThresholdViolated,
         /// Narrowing type conversion occurred.
         NarrowingConversion,
+        /// The sender is not the signer of the transaction
+        SenderIsNotSigner,
+        /// Signed transaction has failed validation
+        UnauthorizedSignedTransaction,
+        /// The signed transaction has expired
+        SignedTransactionExpired,
     }
 
     #[derive(Decode, Encode, Eq, PartialEq, PalletError, RuntimeDebug, TypeInfo)]
@@ -542,6 +579,128 @@ mod pallet {
             ensure!(spot_prices_len == asset_count_u32, Error::<T>::IncorrectVecLen);
             Self::do_deploy_pool(who, market_id, amount, spot_prices, swap_fee)?;
             Ok(Some(T::WeightInfo::deploy_pool(spot_prices_len)).into())
+        }
+
+        // TODO update weight
+        #[pallet::call_index(6)]
+        #[pallet::weight(frame_support::weights::Weight::zero())]
+        #[transactional]
+        pub fn signed_join(
+            origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+            #[pallet::compact] market_id: MarketIdOf<T>,
+            #[pallet::compact] pool_shares_amount: BalanceOf<T>,
+            max_amounts_in: Vec<BalanceOf<T>>,
+            block_number: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            ensure!(who == proof.signer, Error::<T>::SenderIsNotSigner);
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
+
+            let encoded_payload = Self::encode_signed_join_params(
+                &proof.relayer,
+                &market_id,
+                &pool_shares_amount,
+                &max_amounts_in,
+                &block_number,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &encoded_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            let asset_count = T::MarketCommons::market(&market_id)?.outcomes();
+            let asset_count_usize: usize = asset_count.into();
+            // Ensure that the conversion in the weight calculation doesn't saturate.
+            let _: u32 =
+                max_amounts_in.len().try_into().map_err(|_| Error::<T>::NarrowingConversion)?;
+            ensure!(max_amounts_in.len() == asset_count_usize, Error::<T>::IncorrectVecLen);
+
+            Self::do_join(who.clone(), market_id, pool_shares_amount, max_amounts_in)?;
+
+            Ok(().into())
+        }
+
+        // TODO update weight
+        #[pallet::call_index(7)]
+        #[pallet::weight(frame_support::weights::Weight::zero())]
+        #[transactional]
+        pub fn signed_withdraw_fees(
+            origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+            #[pallet::compact] market_id: MarketIdOf<T>,
+            block_number: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            ensure!(who == proof.signer, Error::<T>::SenderIsNotSigner);
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
+
+            let encoded_payload =
+                Self::encode_signed_withdraw_fees_params(&proof.relayer, &market_id, &block_number);
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &encoded_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            Self::do_withdraw_fees(who, market_id)?;
+
+            // TODO return weight
+            Ok(().into())
+        }
+
+        // TODO update weight
+        #[pallet::call_index(8)]
+        #[pallet::weight(frame_support::weights::Weight::zero())]
+        #[transactional]
+        pub fn signed_exit(
+            origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+            #[pallet::compact] market_id: MarketIdOf<T>,
+            #[pallet::compact] pool_shares_amount_out: BalanceOf<T>,
+            min_amounts_out: Vec<BalanceOf<T>>,
+            block_number: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            ensure!(who == proof.signer, Error::<T>::SenderIsNotSigner);
+
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
+
+            let encoded_payload = Self::encode_signed_exit_params(
+                &proof.relayer,
+                &market_id,
+                &pool_shares_amount_out,
+                &min_amounts_out,
+                &block_number,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &encoded_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            let asset_count = T::MarketCommons::market(&market_id)?.outcomes();
+            let asset_count_u32: u32 = asset_count.into();
+            let min_amounts_out_len: u32 =
+                min_amounts_out.len().try_into().map_err(|_| Error::<T>::NarrowingConversion)?;
+            ensure!(min_amounts_out_len == asset_count_u32, Error::<T>::IncorrectVecLen);
+            Self::do_exit(who, market_id, pool_shares_amount_out, min_amounts_out)?;
+
+            // TODO return weight
+            Ok(().into())
         }
     }
 
@@ -1090,6 +1249,110 @@ mod pallet {
         ) -> Result<AmmTradeOf<T>, ApiError<AmmSoftFail>> {
             Self::do_sell(who, market_id, asset_out, amount_in, min_amount_out)
                 .map_err(Self::match_failure)
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        pub fn encode_signed_join_params(
+            relayer: &T::AccountId,
+            market_id: &MarketIdOf<T>,
+            pool_shares: &BalanceOf<T>,
+            max_amounts_in: &Vec<BalanceOf<T>>,
+            block_number: &BlockNumberFor<T>,
+        ) -> Vec<u8> {
+            (JOIN_CONTEXT, relayer, market_id, pool_shares, max_amounts_in, block_number).encode()
+        }
+
+        pub fn encode_signed_withdraw_fees_params(
+            relayer: &T::AccountId,
+            market_id: &MarketIdOf<T>,
+            block_number: &BlockNumberFor<T>,
+        ) -> Vec<u8> {
+            (WITHDRAW_FEES_CONTEXT, relayer, market_id, block_number).encode()
+        }
+
+        pub fn encode_signed_exit_params(
+            relayer: &T::AccountId,
+            market_id: &MarketIdOf<T>,
+            pool_shares: &BalanceOf<T>,
+            min_amounts_out: &Vec<BalanceOf<T>>,
+            block_number: &BlockNumberFor<T>,
+        ) -> Vec<u8> {
+            (EXIT_CONTEXT, relayer, market_id, pool_shares, min_amounts_out, block_number).encode()
+        }
+
+        pub fn get_encoded_call_param(
+            call: &<T as Config>::RuntimeCall,
+        ) -> Option<(&Proof<T::Signature, T::AccountId>, Vec<u8>)> {
+            let call = match call.is_sub_type() {
+                Some(call) => call,
+                None => return None,
+            };
+
+            match call {
+                Call::signed_join {
+                    ref proof,
+                    ref market_id,
+                    ref pool_shares_amount,
+                    ref max_amounts_in,
+                    ref block_number,
+                } => {
+                    let encoded_data = Self::encode_signed_join_params(
+                        &proof.relayer,
+                        market_id,
+                        pool_shares_amount,
+                        max_amounts_in,
+                        block_number,
+                    );
+
+                    Some((proof, encoded_data))
+                },
+                Call::signed_exit {
+                    ref proof,
+                    ref market_id,
+                    ref pool_shares_amount_out,
+                    ref min_amounts_out,
+                    ref block_number,
+                } => {
+                    let encoded_data = Self::encode_signed_exit_params(
+                        &proof.relayer,
+                        market_id,
+                        pool_shares_amount_out,
+                        min_amounts_out,
+                        block_number,
+                    );
+
+                    Some((proof, encoded_data))
+                },
+                Call::signed_withdraw_fees { ref proof, ref market_id, ref block_number } => {
+                    let encoded_data = Self::encode_signed_withdraw_fees_params(
+                        &proof.relayer,
+                        market_id,
+                        block_number,
+                    );
+
+                    Some((proof, encoded_data))
+                },
+
+                _ => None,
+            }
+        }
+    }
+
+    use scale_info::prelude::boxed::Box;
+    impl<T: Config> InnerCallValidator for Pallet<T> {
+        type Call = <T as Config>::RuntimeCall;
+
+        fn signature_is_valid(call: &Box<Self::Call>) -> bool {
+            if let Some((proof, signed_payload)) = Self::get_encoded_call_param(call) {
+                return verify_signature::<T::Signature, T::AccountId>(
+                    &proof,
+                    &signed_payload.as_slice(),
+                )
+                .is_ok();
+            }
+
+            return false;
         }
     }
 }

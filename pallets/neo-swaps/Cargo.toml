@@ -13,6 +13,7 @@ sp-runtime = { workspace = true }
 typenum = { workspace = true }
 prediction-market-primitives = { workspace = true }
 pallet-pm-market-commons = { workspace = true }
+sp-avn-common = { workspace = true }
 
 # Mock
 
@@ -81,6 +82,7 @@ std = [
     "orml-traits/std",
     "parity-scale-codec/std",
     "sp-runtime/std",
+    "sp-avn-common/std",
     "prediction-market-primitives/std",
     "pallet-pm-market-commons/std",
 ]
