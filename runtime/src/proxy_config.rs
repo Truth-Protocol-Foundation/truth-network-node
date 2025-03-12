@@ -187,6 +187,8 @@ impl InnerCallValidator for AvnProxyConfig {
                 return pallet_pm_hybrid_router::Pallet::<Runtime>::signature_is_valid(call),
             RuntimeCall::NodeManager(..) =>
                 return pallet_node_manager::Pallet::<Runtime>::signature_is_valid(call),
+            RuntimeCall::NeoSwaps(..) =>
+                return pallet_pm_neo_swaps::Pallet::<Runtime>::signature_is_valid(call),
             _ => false,
         }
     }

@@ -77,7 +77,7 @@ mod pallet {
         traits::{CompleteSetOperationsApi, DeployPoolApi, DistributeFees, HybridRouterAmmApi},
         types::{Asset, MarketStatus, ScoringRule},
     };
-    use scale_info::TypeInfo;
+    use scale_info::{prelude::boxed::Box, TypeInfo};
     use sp_avn_common::{verify_signature, InnerCallValidator, Proof};
     use sp_runtime::{
         traits::{
@@ -1339,7 +1339,6 @@ mod pallet {
         }
     }
 
-    use scale_info::prelude::boxed::Box;
     impl<T: Config> InnerCallValidator for Pallet<T> {
         type Call = <T as Config>::RuntimeCall;
 
