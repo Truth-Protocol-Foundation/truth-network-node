@@ -80,7 +80,7 @@ use pallet_collective::{EnsureProportionMoreThan, PrimeDefaultVote};
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::{ConstFeeMultiplier, Multiplier};
 use sp_avn_common::{
-    event_discovery::{EthBridgeEventsFilter, EthereumEventsFilterTrait},
+    event_discovery::{AdditionalEvents, EthBridgeEventsFilter, EthereumEventsFilterTrait},
     event_types::ValidEvents,
     InnerCallValidator, Proof,
 };
@@ -1513,6 +1513,13 @@ impl_runtime_apis! {
             EthBridge::submit_latest_ethereum_block_vote(author, latest_seen_block, signature.into()).ok()
         }
 
+        fn additional_transactions() -> Option<AdditionalEvents> {
+            if let Some(active_eth_range) =  EthBridge::active_ethereum_range(){
+                Some(active_eth_range.additional_transactions)
+            } else {
+                None
+            }
+        }
     }
 
     #[cfg(feature = "runtime-benchmarks")]
