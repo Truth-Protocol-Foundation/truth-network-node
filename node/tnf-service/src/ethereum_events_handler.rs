@@ -1,5 +1,5 @@
 use crate::{web3_utils, BlockT, ETH_FINALITY};
-use futures::lock::Mutex;
+use futures::{future::try_join_all, lock::Mutex};
 use node_primitives::AccountId;
 use pallet_eth_bridge_runtime_api::EthEventHandlerApi;
 use sc_client_api::{BlockBackend, UsageProvider};
@@ -12,8 +12,8 @@ use sp_avn_common::{
     },
     event_types::{
         AddedValidatorData, AvtGrowthLiftedData, AvtLowerClaimedData, Error, EthEvent, EthEventId,
-        EventData, LiftedData, NftCancelListingData, NftEndBatchListingData, NftMintData,
-        NftTransferToData, ValidEvents,
+        EthTransactionId, EventData, LiftedData, NftCancelListingData, NftEndBatchListingData,
+        NftMintData, NftTransferToData, ValidEvents,
     },
     AVN_KEY_ID,
 };
@@ -21,13 +21,14 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::HeaderBackend;
 use sp_core::{sr25519::Public, H256 as SpH256};
 use sp_keystore::Keystore;
+use sp_runtime::SaturatedConversion;
 use std::{collections::HashMap, marker::PhantomData, time::Instant};
 pub use std::{path::PathBuf, sync::Arc};
 use tide::Error as TideError;
 use tokio::time::{sleep, Duration};
 use web3::{
     transports::Http,
-    types::{FilterBuilder, Log, H160, H256 as Web3H256, U64},
+    types::{FilterBuilder, Log, TransactionReceipt, H160, H256 as Web3H256, U64},
     Web3,
 };
 
@@ -243,7 +244,7 @@ pub async fn identify_events(
     web3: &Web3<web3::transports::Http>,
     start_block: u32,
     end_block: u32,
-    contract_addresses: Vec<H160>,
+    contract_addresses: &Vec<H160>,
     event_signatures_to_find: Vec<SpH256>,
     events_registry: &EventRegistry,
 ) -> Result<Vec<DiscoveredEvent>, AppError> {
@@ -282,13 +283,21 @@ pub async fn identify_events(
         Default::default()
     };
 
+    log::debug!(
+        "🔭 Events found on [{},{}]: primary: {:#?} secondary: {:#?}",
+        start_block,
+        end_block,
+        logs,
+        secondary_logs
+    );
+
     // Combine the discovered primary and secondary events, ensuring that each tx id has a single
     // entry, with the primary taking precedence over the secondary
     let mut unique_transactions = HashMap::<Web3H256, DiscoveredEvent>::new();
     for log in logs.into_iter().chain(secondary_logs.into_iter()) {
         if let Some(tx_hash) = log.transaction_hash {
             if unique_transactions.contains_key(&tx_hash) {
-                continue;
+                continue
             }
             match parse_log(log, events_registry) {
                 Ok(discovered_event) => {
@@ -305,9 +314,76 @@ pub async fn identify_events(
     Ok(unique_transactions.into_values().collect())
 }
 
+pub async fn identify_additional_event_info(
+    web3: &Web3<web3::transports::Http>,
+    additional_transactions_to_check: &Vec<EthTransactionId>,
+) -> Result<Vec<TransactionReceipt>, AppError> {
+    log::debug!("🔭 Additional events to find: {:#?}", additional_transactions_to_check);
+    // Create a future for each event
+    let futures = additional_transactions_to_check.iter().map(|transaction_hash| async move {
+        Ok(web3
+            .eth()
+            .transaction_receipt(Web3H256::from_slice(&transaction_hash.to_fixed_bytes()))
+            .await)
+    });
+
+    let results = try_join_all(futures).await?;
+
+    // check results, return early if any error occurred
+    let mut additional_transactions_receipts = Vec::new();
+    for result in results {
+        match result {
+            Ok(Some(event)) => additional_transactions_receipts.push(event),
+            Ok(None) => {},
+            Err(_) => return Err(AppError::ErrorGettingEventLogs),
+        }
+    }
+
+    log::debug!(
+        "🔭 Additional events found to report back: {:#?}",
+        &additional_transactions_receipts
+    );
+    Ok(additional_transactions_receipts)
+}
+
+pub async fn identify_additional_events(
+    web3: &Web3<web3::transports::Http>,
+    contract_addresses: &Vec<H160>,
+    event_signatures_to_find: &Vec<SpH256>,
+    events_registry: &EventRegistry,
+    additional_transactions_to_check: Vec<EthTransactionId>,
+) -> Result<Vec<DiscoveredEvent>, AppError> {
+    let additional_events_info =
+        identify_additional_event_info(web3, &additional_transactions_to_check).await?;
+
+    log::debug!("🔭 Additional transactions to find: {:#?}", &additional_transactions_to_check);
+    // Create a future for each event discovery
+    let futures = additional_events_info.iter().map(|event_receipt| {
+        let contract = contract_addresses.clone();
+        async move {
+            let identified_events = identify_events(
+                web3,
+                event_receipt.block_number.unwrap_or_default().saturated_into(),
+                event_receipt.block_number.unwrap_or_default().saturated_into(),
+                &contract,
+                event_signatures_to_find.clone(),
+                events_registry,
+            )
+            .await?;
+            Ok(identified_events)
+        }
+    });
+
+    let additional_events: Vec<DiscoveredEvent> =
+        try_join_all(futures).await?.into_iter().flatten().collect();
+
+    log::debug!("🔭 Additional events found to report back: {:#?}", &additional_events);
+    Ok(additional_events)
+}
+
 fn parse_log(log: Log, events_registry: &EventRegistry) -> Result<DiscoveredEvent, AppError> {
     if log.topics.is_empty() {
-        return Err(AppError::MissingEventSignature);
+        return Err(AppError::MissingEventSignature)
     }
     log::debug!("⛓️ Parsing discovered log: {:?}", &log);
 
@@ -390,7 +466,7 @@ where
                 log::info!(
                     "⛓️  avn-service: web3 connection has already been initialised, skipping"
                 );
-                return Ok(());
+                return Ok(())
             }
 
             let web3_init_time = Instant::now();
@@ -402,7 +478,7 @@ where
                     "💔 Error creating a web3 connection. URL is not valid {:?}",
                     &self.eth_node_url
                 );
-                return Err(server_error("Error creating a web3 connection".to_string()));
+                return Err(server_error("Error creating a web3 connection".to_string()))
             }
 
             log::info!("⏲️  web3 init task completed in: {:?}", web3_init_time.elapsed());
@@ -437,14 +513,14 @@ where
         match config.initialise_web3().await {
             Ok(_) => {
                 log::info!("Successfully initialized web3 connection.");
-                return Ok(());
+                return Ok(())
             },
             Err(e) => {
                 attempts += 1;
                 log::error!("Failed to initialize web3 (attempt {}): {:?}", attempts, e);
                 if attempts >= RETRY_LIMIT {
                     log::error!("Reached maximum retry limit for initializing web3.");
-                    return Err(AppError::Web3RetryLimitReached);
+                    return Err(AppError::Web3RetryLimitReached)
                 }
                 sleep(Duration::from_secs(RETRY_DELAY)).await;
             },
@@ -470,7 +546,7 @@ fn find_current_node_author<T>(
                     CurrentNodeAuthor::new(Public::from_raw(author.0), Public::from_raw(author.1))
                 })
             })
-            .nth(0);
+            .nth(0)
     }
 
     None
@@ -489,7 +565,7 @@ where
 {
     if let Err(e) = initialize_web3_with_retries(&config).await {
         log::error!("Web3 initialization ultimately failed: {:?}", e);
-        return;
+        return
     }
 
     let events_registry = EventRegistry::new();
@@ -511,7 +587,7 @@ where
             find_current_node_author(authors.clone(), node_signing_keys.clone())
         {
             current_node_author = node_author;
-            break;
+            break
         }
         log::error!("Author not found. Will attempt again after a while. Chain signing keys: {:?}, keystore keys: {:?}.",
             authors,
@@ -519,7 +595,7 @@ where
         );
 
         sleep(Duration::from_secs(10 * SLEEP_TIME)).await;
-        continue;
+        continue
     }
 
     log::info!("Current node author address set: {:?}", current_node_author);
@@ -711,6 +787,28 @@ where
         )
         .map_err(|err| format!("Failed to check if author has casted event vote: {:?}", err))?;
 
+    let additional_transactions: Vec<_> = if config
+        .client
+        .runtime_api()
+        .has_api_with::<dyn EthEventHandlerApi<Block, AccountId>, _>(
+            config.client.info().best_hash,
+            |v| v == 2,
+        )
+        .unwrap_or(false)
+    {
+        config
+            .client
+            .runtime_api()
+            .additional_transactions(config.client.info().best_hash)
+            .map_err(|err| format!("Failed to query additional transactions: {:?}", err))?
+            .iter()
+            .flat_map(|events_set| events_set.iter())
+            .cloned()
+            .collect()
+    } else {
+        vec![]
+    };
+
     if !has_casted_vote {
         execute_event_processing(
             web3,
@@ -721,6 +819,7 @@ where
             current_node_author,
             range,
             events_registry,
+            additional_transactions,
         )
         .await
     } else {
@@ -737,6 +836,7 @@ async fn execute_event_processing<Block, ClientT>(
     current_node_author: &CurrentNodeAuthor,
     range: EthBlockRange,
     events_registry: &EventRegistry,
+    additional_transactions_to_check: Vec<EthTransactionId>,
 ) -> Result<(), String>
 where
     Block: BlockT,
@@ -748,19 +848,31 @@ where
         + ApiExt<Block>
         + BlockBuilder<Block>,
 {
-    let events = identify_events(
+    let additional_events = identify_additional_events(
+        web3,
+        &contract_addresses,
+        &event_signatures,
+        events_registry,
+        additional_transactions_to_check,
+    )
+    .await
+    .map_err(|err| format!("Error retrieving additional events: {:?}", err))?;
+
+    let range_events = identify_events(
         web3,
         range.start_block,
         range.end_block(),
-        contract_addresses,
+        &contract_addresses,
         event_signatures,
         events_registry,
     )
     .await
     .map_err(|err| format!("Error retrieving events: {:?}", err))?;
 
+    let all_events = additional_events.into_iter().chain(range_events.into_iter()).collect();
+
     let ethereum_events_partitions =
-        EthereumEventsPartitionFactory::create_partitions(range, events);
+        EthereumEventsPartitionFactory::create_partitions(range, all_events);
     let partition = ethereum_events_partitions
         .iter()
         .find(|p| p.partition() == partition_id)
