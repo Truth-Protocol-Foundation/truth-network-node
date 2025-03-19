@@ -20,6 +20,7 @@
 
 extern crate alloc;
 
+#[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 mod consts;
 mod helpers;
@@ -27,6 +28,7 @@ mod liquidity_tree;
 mod macros;
 mod math;
 pub mod migration;
+#[cfg(test)]
 mod mock;
 mod tests;
 pub mod traits;

@@ -230,6 +230,10 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type MaxSwapFee = NeoMaxSwapFee;
     type PalletId = NeoSwapsPalletId;
     type WeightInfo = pallet_pm_neo_swaps::weights::WeightInfo<Runtime>;
+    type SignedTxLifetime = ConstU32<16>;
+    type Public = TestAccountIdPK;
+    type Signature = SignatureTest;
+    type RuntimeCall = RuntimeCall;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
