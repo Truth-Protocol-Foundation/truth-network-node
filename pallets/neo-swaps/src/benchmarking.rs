@@ -44,11 +44,11 @@ use sp_runtime::{
     traits::{Get, Zero},
     Perbill, SaturatedConversion,
 };
-
 use parity_scale_codec::{Decode, Encode};
 use sp_avn_common::Proof;
 use sp_core::{crypto::DEV_PHRASE, H256};
 use sp_runtime::RuntimeAppPublic;
+
 // Same behavior as `assert_ok!`, except that it wraps the call inside a transaction layer. Required
 // when calling into functions marked `require_transactional` to avoid a `Transactional(NoLayer)`
 // error.
