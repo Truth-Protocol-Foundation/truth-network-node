@@ -28,18 +28,20 @@ pallet-treasury = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 sp-api = { workspace = true, optional = true }
 sp-io = { workspace = true, optional = true }
-sp-core = { workspace = true, optional = true }
+sp-core = { workspace = true }
 pallet-pm-authorized = { workspace = true, optional = true }
 pallet-pm-court = { workspace = true, optional = true }
 pallet-pm-global-disputes = { workspace = true, optional = true }
 pallet-prediction-markets = { workspace = true, optional = true }
 pallet-prediction-markets-runtime-api = { workspace = true, optional = true }
 common-primitives = { workspace = true }
+pallet-avn = { workspace = true }
 
 [dev-dependencies]
 more-asserts = { workspace = true }
 test-case = { workspace = true }
 pallet-pm-neo-swaps = { workspace = true, features = ["mock"] }
+sp-keystore = { workspace = true, features = ["default"]}
 
 [features]
 default = ["std"]
@@ -52,7 +54,6 @@ mock = [
     "pallet-treasury/default",
     "sp-api/default",
     "sp-io/default",
-    "sp-core/default",
     "prediction-market-primitives/mock",
     "pallet-prediction-markets-runtime-api/default",
     "pallet-pm-eth-asset-registry/default",
@@ -81,10 +82,12 @@ std = [
     "frame-system/std",
     "orml-traits/std",
     "parity-scale-codec/std",
+    "sp-core/std",
     "sp-runtime/std",
     "sp-avn-common/std",
     "prediction-market-primitives/std",
     "pallet-pm-market-commons/std",
+    "pallet-avn/std"
 ]
 try-runtime = [
     "frame-support/try-runtime",
