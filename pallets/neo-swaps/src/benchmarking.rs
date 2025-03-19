@@ -149,10 +149,10 @@ impl<T: Config> BenchmarkHelper<T> {
         ));
         // Verify that we've got the right number of nodes.
         let pool = Pools::<T>::get(market_id).unwrap();
-        assert!(
-            !pool.liquidity_shares_manager.abandoned_nodes.is_empty(),
-            "Expected at least one abandoned node"
-        );
+        let max_node_count = LiquidityTreeOf::<T>::max_node_count();
+        assert_eq!(pool.liquidity_shares_manager.nodes.len(), max_node_count as usize);
+        let last = max_node_count - 1;
+        assert_eq!(pool.liquidity_shares_manager.abandoned_nodes, vec![last]);
     }
 
     /// Run the common setup of `join` benchmarks and return the target market's ID and Bob's
