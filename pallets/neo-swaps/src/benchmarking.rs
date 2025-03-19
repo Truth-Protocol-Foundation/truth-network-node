@@ -34,20 +34,19 @@ use frame_support::{
 use frame_system::RawOrigin;
 use orml_traits::MultiCurrency;
 use pallet_pm_market_commons::MarketCommonsPalletApi;
+use parity_scale_codec::{Decode, Encode};
 use prediction_market_primitives::{
     constants::base_multiples::*,
     math::fixed::{BaseProvider, FixedDiv, FixedMul, PredictionMarketBase},
     traits::CompleteSetOperationsApi,
     types::{Asset, Market, MarketCreation, MarketPeriod, MarketStatus, MarketType, ScoringRule},
 };
-use sp_runtime::{
-    traits::{Get, Zero},
-    Perbill, SaturatedConversion,
-};
-use parity_scale_codec::{Decode, Encode};
 use sp_avn_common::Proof;
 use sp_core::{crypto::DEV_PHRASE, H256};
-use sp_runtime::RuntimeAppPublic;
+use sp_runtime::{
+    traits::{Get, Zero},
+    Perbill, RuntimeAppPublic, SaturatedConversion,
+};
 
 // Same behavior as `assert_ok!`, except that it wraps the call inside a transaction layer. Required
 // when calling into functions marked `require_transactional` to avoid a `Transactional(NoLayer)`
@@ -124,8 +123,8 @@ impl<T: Config> BenchmarkHelper<T> {
         let max_node_count = LiquidityTreeOf::<T>::max_node_count();
 
         assert!(
-            pool.liquidity_shares_manager.nodes.len() >= (max_node_count as usize - 1)
-                && pool.liquidity_shares_manager.nodes.len() <= max_node_count as usize,
+            pool.liquidity_shares_manager.nodes.len() >= (max_node_count as usize - 1) &&
+                pool.liquidity_shares_manager.nodes.len() <= max_node_count as usize,
             "Expected node count to be between {} and {}, but was {}",
             max_node_count - 1,
             max_node_count,
@@ -303,8 +302,7 @@ where
 
 fn get_relayer<T: Config>() -> T::AccountId {
     let relayer_account: H256 = H256::repeat_byte(1);
-    return T::AccountId::decode(&mut relayer_account.as_bytes())
-        .expect("valid relayer account id");
+    return T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid relayer account id");
 }
 
 fn get_proof<T: Config>(

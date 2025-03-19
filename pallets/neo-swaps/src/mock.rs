@@ -35,7 +35,6 @@ use frame_system::{mocking::MockBlockU32, EnsureRoot, EnsureSignedBy};
 use orml_traits::{asset_registry::AssetProcessor, MultiCurrency};
 use pallet_pm_neo_swaps::BalanceOf;
 use parity_scale_codec::{alloc::sync::Arc, Encode};
-use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 pub use prediction_market_primitives::test_helper::get_account;
 use prediction_market_primitives::{
     constants::{
@@ -65,6 +64,7 @@ use prediction_market_primitives::{
     },
 };
 use sp_core::H160;
+use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU32, Get, IdentityLookup, Zero},
     BuildStorage, DispatchError, DispatchResult, Perbill, Percent, SaturatedConversion,
