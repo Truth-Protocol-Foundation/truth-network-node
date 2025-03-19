@@ -80,7 +80,7 @@ use pallet_collective::{EnsureProportionMoreThan, PrimeDefaultVote};
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::{ConstFeeMultiplier, Multiplier};
 use sp_avn_common::{
-    event_discovery::{EthBridgeEventsFilter, EthereumEventsFilterTrait},
+    event_discovery::{AdditionalEvents, EthBridgeEventsFilter, EthereumEventsFilterTrait},
     event_types::ValidEvents,
     InnerCallValidator, Proof,
 };
@@ -252,7 +252,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 12,
+    spec_version: 15,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1253,7 +1253,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
-    pallet_eth_bridge::migration::SetBlockRangeSize<Runtime>,
+    pallet_eth_bridge::migration::EthBridgeMigrations<Runtime>,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1517,6 +1517,13 @@ impl_runtime_apis! {
             EthBridge::submit_latest_ethereum_block_vote(author, latest_seen_block, signature.into()).ok()
         }
 
+        fn additional_transactions() -> Option<AdditionalEvents> {
+            if let Some(active_eth_range) =  EthBridge::active_ethereum_range(){
+                Some(active_eth_range.additional_transactions)
+            } else {
+                None
+            }
+        }
     }
 
     #[cfg(feature = "runtime-benchmarks")]

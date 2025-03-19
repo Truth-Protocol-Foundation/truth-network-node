@@ -631,7 +631,7 @@ checksum = "f1fdabc7756949593fe60f30ec81974b613357de856987752631dea1e3394c80"
 
 [[package]]
 name = "avn-key-subcommand"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "clap 4.5.4",
  "hex",
@@ -1241,7 +1241,7 @@ checksum = "2382f75942f4b3be3690fe4f86365e9c853c1587d6ee58212cebf6e2a9ccd101"
 
 [[package]]
 name = "common-primitives"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "arbitrary",
  "fixed",
@@ -5027,7 +5027,7 @@ dependencies = [
 
 [[package]]
 name = "node-macros"
-version = "1.4.1"
+version = "1.5.1"
 
 [[package]]
 name = "node-primitives"
@@ -5337,8 +5337,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-authors-manager"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5377,8 +5377,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-avn"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5400,8 +5400,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-avn-proxy"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5417,8 +5417,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-avn-transaction-payment"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5469,8 +5469,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-eth-bridge"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "ethabi 13.0.0",
  "frame-benchmarking",
@@ -5497,8 +5497,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-eth-bridge-runtime-api"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "frame-support",
  "pallet-avn",
@@ -5512,8 +5512,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-ethereum-events"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5613,8 +5613,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft-manager"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5633,7 +5633,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-node-manager"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "common-primitives",
  "frame-benchmarking",
@@ -5678,7 +5678,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-pm-authorized"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "common-primitives",
  "env_logger",
@@ -5697,7 +5697,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-pm-court"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "arrayvec 0.7.4",
  "common-primitives",
@@ -5725,7 +5725,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-pm-eth-asset-registry"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5744,7 +5744,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-pm-global-disputes"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "common-primitives",
  "env_logger",
@@ -5767,7 +5767,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-pm-hybrid-router"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "cfg-if 1.0.0",
  "common-primitives",
@@ -5806,7 +5806,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-pm-market-commons"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "common-primitives",
  "env_logger",
@@ -5826,7 +5826,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-pm-neo-swaps"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "cfg-if 1.0.0",
  "common-primitives",
@@ -5870,7 +5870,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-pm-order-book"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "common-primitives",
  "env_logger",
@@ -5895,7 +5895,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-prediction-markets"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "cfg-if 1.0.0",
  "common-primitives",
@@ -5936,7 +5936,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-prediction-markets-runtime-api"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "parity-scale-codec 3.6.9",
  "prediction-market-primitives",
@@ -6017,8 +6017,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-summary"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6061,8 +6061,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-token-manager"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -6612,7 +6612,7 @@ dependencies = [
 
 [[package]]
 name = "prediction-market-primitives"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "arbitrary",
  "common-primitives",
@@ -9063,8 +9063,8 @@ dependencies = [
 
 [[package]]
 name = "sp-avn-common"
-version = "6.8.0"
-source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.7.4#969df983fb64eba20e47add2e03d92265895ff94"
+version = "6.8.1"
+source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.1#dfec4c4190bd43956a0032cd6f2d9e2f4c075be0"
 dependencies = [
  "derive_more",
  "hex",
@@ -10428,7 +10428,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tnf-node"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "avn-key-subcommand",
  "cfg-if 0.1.10",
@@ -10491,7 +10491,7 @@ dependencies = [
 
 [[package]]
 name = "tnf-node-runtime"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "common-primitives",
  "frame-benchmarking",
@@ -10565,7 +10565,7 @@ dependencies = [
 
 [[package]]
 name = "tnf-service"
-version = "1.4.1"
+version = "1.5.1"
 dependencies = [
  "anyhow",
  "ethereum-types 0.11.0",
