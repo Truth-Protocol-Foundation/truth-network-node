@@ -119,6 +119,13 @@ impl ProvableProxy<RuntimeCall, Signature, AccountId> for AvnProxyConfig {
                     amount: _,
                 },
             ) => return Some(proof.clone()),
+            RuntimeCall::PredictionMarkets(
+                pallet_prediction_markets::Call::signed_buy_complete_set {
+                    proof,
+                    market_id: _,
+                    amount: _,
+                },
+            ) => return Some(proof.clone()),
             RuntimeCall::HybridRouter(pallet_pm_hybrid_router::Call::signed_buy {
                 proof,
                 market_id: _,

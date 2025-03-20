@@ -1,8 +1,10 @@
 use self::constants::{
     HALF_HOUR_SCHEDULE_PERIOD, QUORUM_FACTOR, SMALL_EVENT_CHALLENGE_PERIOD, SMALL_VOTING_PERIOD,
 };
+use codec::Encode;
 use constants::{EIGHT_HOURS_SCHEDULE_PERIOD, NORMAL_EVENT_CHALLENGE_PERIOD, NORMAL_VOTING_PERIOD};
 use hex_literal::hex;
+use orml_traits::asset_registry::AssetMetadata;
 use pallet_avn::sr25519::AuthorityId as AvnId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::Properties;
@@ -11,13 +13,16 @@ use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, ecdsa, sr25519, ByteArray, Pair, Public, H160, H256};
-use sp_runtime::traits::{IdentifyAccount, Verify};
+use sp_runtime::{
+    traits::{IdentifyAccount, Verify},
+    BoundedVec,
+};
 use tnf_node_runtime::{
-    opaque::SessionKeys, AccountId, AnchorSummaryConfig, AssetRegistryConfig, AuraConfig,
-    AuthorsManagerConfig, BalancesConfig, EthBridgeConfig, EthereumEventsConfig, GrandpaConfig,
-    ImOnlineConfig, NodeManagerConfig, PredictionMarketsConfig, RuntimeGenesisConfig,
-    SessionConfig, Signature, SudoConfig, SummaryConfig, SystemConfig, TokenManagerConfig,
-    WASM_BINARY,
+    opaque::SessionKeys, AccountId, AnchorSummaryConfig, Asset, AssetRegistryConfig,
+    AssetRegistryStringLimit, AuraConfig, AuthorsManagerConfig, BalancesConfig, CustomMetadata,
+    EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, NodeManagerConfig,
+    PredictionMarketsConfig, RuntimeGenesisConfig, SessionConfig, Signature, SudoConfig,
+    SummaryConfig, SystemConfig, TokenManagerConfig, WASM_BINARY,
 };
 
 use common_primitives::{
@@ -138,6 +143,28 @@ pub fn development_config() -> Result<ChainSpec, String> {
                 tnf_dev_ethereum_public_keys(),
                 None,
                 get_default_node_manager_config(),
+                AssetRegistryConfig {
+                    last_asset_id: Default::default(),
+                    assets: vec![(
+                        H160::from([1; 20]),
+                        Asset::ForeignAsset(4),
+                        AssetMetadata::<Balance, CustomMetadata, AssetRegistryStringLimit>::encode(
+                            &AssetMetadata {
+                                decimals: 6,
+                                name: BoundedVec::truncate_from(
+                                    "Eth USDC - foreign token".as_bytes().to_vec(),
+                                ),
+                                symbol: BoundedVec::truncate_from("USDC".as_bytes().to_vec()),
+                                existential_deposit: 0,
+                                location: None,
+                                additional: CustomMetadata {
+                                    eth_address: H160::from([1; 20]),
+                                    allow_as_base_asset: true,
+                                },
+                            },
+                        ),
+                    )],
+                },
             )
         },
         // Bootnodes
@@ -200,6 +227,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                 tnf_dev_ethereum_public_keys(),
                 None,
                 get_default_node_manager_config(),
+                AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
             )
         },
         // Bootnodes
@@ -257,6 +285,7 @@ pub fn dev_testnet_config() -> Result<ChainSpec, String> {
                 dev_testnet_ethereum_public_keys(),
                 None,
                 get_default_node_manager_config(),
+                AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
             )
         },
         // Bootnodes
@@ -320,6 +349,7 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
                     heartbeat_period: 10u32,
                     reward_amount: 75_000_000 * BASE,
                 },
+                AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
             )
         },
         // Bootnodes
@@ -638,6 +668,7 @@ fn testnet_genesis(
     eth_public_keys: Vec<EthPublicKey>,
     default_non_l2_token: Option<H160>,
     node_manager: NodeManagerConfig,
+    asset_registry: AssetRegistryConfig,
 ) -> RuntimeGenesisConfig {
     RuntimeGenesisConfig {
         avn: pallet_avn::GenesisConfig {
@@ -733,7 +764,7 @@ fn testnet_genesis(
         node_manager,
         advisory_committee: Default::default(),
         tokens: Default::default(),
-        asset_registry: AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
+        asset_registry,
         prediction_markets: PredictionMarketsConfig { vault_account: Some(root_key.clone()) },
     }
 }
@@ -809,6 +840,7 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                     heartbeat_period: 10u32,
                     reward_amount: 75_000_000 * BASE,
                 },
+                AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
             )
         },
         // Bootnodes

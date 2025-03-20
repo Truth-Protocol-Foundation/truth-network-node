@@ -25,8 +25,8 @@
 
 use super::*;
 use crate::signed_calls::{
-    CREATE_MARKET_AND_DEPLOY_POOL_CONTEXT, REDEEM_SHARES, REPORT_OUTCOME_CONTEXT,
-    TRANSFER_TOKENS_CONTEXT, WITHDRAW_TOKENS_CONTEXT,
+    BUY_COMPLETE_SET_CONTEXT, CREATE_MARKET_AND_DEPLOY_POOL_CONTEXT, REDEEM_SHARES,
+    REPORT_OUTCOME_CONTEXT, TRANSFER_TOKENS_CONTEXT, WITHDRAW_TOKENS_CONTEXT,
 };
 
 #[cfg(test)]
@@ -200,6 +200,27 @@ fn setup_redeem_shares_common<T: Config + pallet_timestamp::Config>(
         .dispatch_bypass_filter(RawOrigin::Signed(caller.clone()).into())?;
     Call::<T>::admin_move_market_to_resolved { market_id }
         .dispatch_bypass_filter(resolve_origin)?;
+    Ok((caller, market_id))
+}
+
+fn create_market_and_pool<T: Config + pallet_timestamp::Config>(
+    caller_account_id: &Option<T::AccountId>,
+    categories: u32,
+) -> Result<(T::AccountId, MarketIdOf<T>), &'static str> {
+    let range_start: MomentOf<T> = pallet_pm_market_commons::Pallet::<T>::now();
+    let range_end: MomentOf<T> = 1_000_000u64.saturated_into();
+    let (caller, market_id) = create_market_common::<T>(
+        MarketCreation::Permissionless,
+        MarketType::Categorical(categories.saturated_into()),
+        ScoringRule::AmmCdaHybrid,
+        Some(MarketPeriod::Timestamp(range_start..range_end)),
+        Some(MarketDisputeMechanism::Court),
+        caller_account_id.clone(),
+    )?;
+
+    Call::<T>::buy_complete_set { market_id, amount: LIQUIDITY.saturated_into() }
+        .dispatch_bypass_filter(RawOrigin::Signed(caller.clone()).into())?;
+
     Ok((caller, market_id))
 }
 
@@ -1707,6 +1728,29 @@ benchmarks! {
         let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(caller_account_id.clone(), relayer_account_id, &signature);
 
     }: signed_redeem_shares(RawOrigin::Signed(caller.clone()), proof, market_id)
+    verify {
+        let new_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
+        assert_eq!(new_nonce, market_nonce + 1);
+    }
+
+    signed_buy_complete_set {
+        let a in (T::MinCategories::get().into())..T::MaxCategories::get().into();
+        let relayer_account_id = get_relayer::<T>();
+        let (caller_key_pair, caller_account_id) = get_user_account::<T>();
+
+        let (caller, market_id) = create_market_and_pool::<T>(
+            &Some(caller_account_id.clone()), a
+        )?;
+
+        let market_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
+        let amount = (10u128 * BASE).saturated_into();
+        let signed_payload =
+            (BUY_COMPLETE_SET_CONTEXT, relayer_account_id.clone(), 0u64, market_id, amount);
+
+        let signature = caller_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
+        let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(caller_account_id.clone(), relayer_account_id, &signature);
+
+    }: signed_buy_complete_set(RawOrigin::Signed(caller.clone()), proof, market_id, amount)
     verify {
         let new_nonce = MarketNonces::<T>::get(caller_account_id.clone(), market_id);
         assert_eq!(new_nonce, market_nonce + 1);

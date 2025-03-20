@@ -95,6 +95,7 @@ pub trait WeightInfoZeitgeist {
     fn signed_transfer_asset() -> Weight;
     fn signed_report_market_with_dispute_mechanism(m: u32) -> Weight;
     fn signed_report_trusted_market() -> Weight;
+    fn signed_buy_complete_set(a: u32) -> Weight;
 }
 
 /// Weight functions for pallet_prediction_markets (automatically generated)
@@ -989,5 +990,30 @@ impl<T: frame_system::Config> WeightInfoZeitgeist for WeightInfo<T> {
         Weight::from_parts(126_747_000, 6196)
             .saturating_add(T::DbWeight::get().reads(7_u64))
             .saturating_add(T::DbWeight::get().writes(6_u64))
+    }
+    /// Storage: `PredictionMarkets::MarketNonces` (r:1 w:1)
+    /// Proof: `PredictionMarkets::MarketNonces` (`max_values`: None, `max_size`: Some(88), added:
+    /// 2563, mode: `MaxEncodedLen`) Storage: `MarketCommons::Markets` (r:1 w:0)
+    /// Proof: `MarketCommons::Markets` (`max_values`: None, `max_size`: Some(678), added: 3153,
+    /// mode: `MaxEncodedLen`) Storage: `System::Account` (r:2 w:2)
+    /// Proof: `System::Account` (`max_values`: None, `max_size`: Some(128), added: 2603, mode:
+    /// `MaxEncodedLen`) Storage: `Tokens::Accounts` (r:64 w:64)
+    /// Proof: `Tokens::Accounts` (`max_values`: None, `max_size`: Some(123), added: 2598, mode:
+    /// `MaxEncodedLen`) Storage: `Tokens::TotalIssuance` (r:64 w:64)
+    /// Proof: `Tokens::TotalIssuance` (`max_values`: None, `max_size`: Some(43), added: 2518, mode:
+    /// `MaxEncodedLen`) The range of component `a` is `[2, 64]`.
+    fn signed_buy_complete_set(a: u32) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1013 + a * (129 ±0)`
+        //  Estimated: `6196 + a * (2598 ±0)`
+        // Minimum execution time: 202_963_000 picoseconds.
+        Weight::from_parts(187_955_271, 6196)
+            // Standard Error: 59_949
+            .saturating_add(Weight::from_parts(14_113_418, 0).saturating_mul(a.into()))
+            .saturating_add(T::DbWeight::get().reads(4_u64))
+            .saturating_add(T::DbWeight::get().reads((2_u64).saturating_mul(a.into())))
+            .saturating_add(T::DbWeight::get().writes(3_u64))
+            .saturating_add(T::DbWeight::get().writes((2_u64).saturating_mul(a.into())))
+            .saturating_add(Weight::from_parts(0, 2598).saturating_mul(a.into()))
     }
 }
