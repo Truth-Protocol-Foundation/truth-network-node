@@ -6,6 +6,7 @@ pub const REPORT_OUTCOME_CONTEXT: &[u8] = b"report_market_outcome_context";
 pub const WITHDRAW_TOKENS_CONTEXT: &[u8] = b"withdraw_tokens_context";
 pub const TRANSFER_TOKENS_CONTEXT: &[u8] = b"transfer_tokens_context";
 pub const REDEEM_SHARES: &[u8] = b"redeem_shares_context";
+pub const BUY_COMPLETE_SET_CONTEXT: &[u8] = b"buy_complete_set_context";
 
 pub fn encode_signed_redeem_shares_params<T: Config>(
     relayer: &T::AccountId,
@@ -13,6 +14,15 @@ pub fn encode_signed_redeem_shares_params<T: Config>(
     market_id: &MarketIdOf<T>,
 ) -> Vec<u8> {
     (REDEEM_SHARES, relayer.clone(), nonce, market_id).encode()
+}
+
+pub fn encode_signed_buy_complete_set_params<T: Config>(
+    relayer: &T::AccountId,
+    nonce: &u64,
+    market_id: &MarketIdOf<T>,
+    amount: &BalanceOf<T>,
+) -> Vec<u8> {
+    (BUY_COMPLETE_SET_CONTEXT, relayer.clone(), nonce, market_id, amount).encode()
 }
 
 pub fn encode_signed_create_market_and_deploy_pool_params<T: Config>(
@@ -154,6 +164,16 @@ pub fn get_encoded_call_param<T: Config>(
             let nonce = MarketNonces::<T>::get(&proof.signer, &market_id);
             let encoded_data =
                 encode_signed_redeem_shares_params::<T>(&proof.relayer, &nonce, &market_id);
+            Some((proof, encoded_data))
+        },
+        Call::signed_buy_complete_set { ref proof, ref market_id, ref amount } => {
+            let nonce = MarketNonces::<T>::get(&proof.signer, &market_id);
+            let encoded_data = encode_signed_buy_complete_set_params::<T>(
+                &proof.relayer,
+                &nonce,
+                &market_id,
+                &amount,
+            );
             Some((proof, encoded_data))
         },
         _ => None,

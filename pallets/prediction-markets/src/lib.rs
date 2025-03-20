@@ -1603,6 +1603,40 @@ mod pallet {
 
             Ok(Some(weight).into())
         }
+
+        #[pallet::call_index(32)]
+        #[pallet::weight(T::WeightInfo::signed_buy_complete_set(T::MaxCategories::get().into()))]
+        #[transactional]
+        pub fn signed_buy_complete_set(
+            origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+            #[pallet::compact] market_id: MarketIdOf<T>,
+            #[pallet::compact] amount: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let sender = ensure_signed(origin)?;
+            ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
+            let market_nonce = MarketNonces::<T>::get(&proof.signer, &market_id);
+
+            let signed_payload = encode_signed_buy_complete_set_params::<T>(
+                &proof.relayer,
+                &market_nonce,
+                &market_id,
+                &amount,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedRedeemTransaction
+            );
+
+            Self::do_buy_complete_set(sender.clone(), market_id, amount)?;
+            MarketNonces::<T>::mutate(sender, market_id, |nonce| *nonce += 1);
+
+            let market = <pallet_pm_market_commons::Pallet<T>>::market(&market_id)?;
+            let assets = market.outcome_assets();
+            let assets_len: u32 = assets.len().saturated_into();
+            Ok(Some(T::WeightInfo::signed_buy_complete_set(assets_len)).into())
+        }
     }
 
     #[pallet::config]
