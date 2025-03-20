@@ -34,7 +34,7 @@ use frame_support::{
 use frame_system::{mocking::MockBlockU32, EnsureRoot, EnsureSignedBy};
 use orml_traits::{asset_registry::AssetProcessor, MultiCurrency};
 use pallet_pm_neo_swaps::BalanceOf;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{alloc::sync::Arc, Encode};
 pub use prediction_market_primitives::test_helper::get_account;
 use prediction_market_primitives::{
     constants::{
@@ -64,6 +64,7 @@ use prediction_market_primitives::{
     },
 };
 use sp_core::H160;
+use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU32, Get, IdentityLookup, Zero},
     BuildStorage, DispatchError, DispatchResult, Perbill, Percent, SaturatedConversion,
@@ -188,6 +189,7 @@ construct_runtime!(
         Timestamp: pallet_timestamp,
         Tokens: orml_tokens,
         Treasury: pallet_treasury,
+        AVN: pallet_avn,
     }
 );
 
@@ -197,10 +199,14 @@ impl crate::Config for Runtime {
     type ExternalFees = ExternalFees<Runtime, FeeAccount>;
     type MarketCommons = MarketCommons;
     type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type MaxLiquidityTreeDepth = MaxLiquidityTreeDepth;
     type MaxSwapFee = NeoMaxSwapFee;
     type PalletId = NeoSwapsPalletId;
     type WeightInfo = pallet_pm_neo_swaps::weights::WeightInfo<Runtime>;
+    type SignedTxLifetime = ConstU32<16>;
+    type Public = TestAccountIdPK;
+    type Signature = SignatureTest;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
@@ -263,6 +269,15 @@ impl pallet_pm_authorized::Config for Runtime {
     type MarketCommons = MarketCommons;
     type PalletId = AuthorizedPalletId;
     type WeightInfo = pallet_pm_authorized::weights::WeightInfo<Runtime>;
+}
+
+impl pallet_avn::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type AuthorityId = pallet_avn::sr25519::AuthorityId;
+    type EthereumPublicKeyChecker = ();
+    type NewSessionHandler = ();
+    type DisabledValidatorChecker = ();
+    type WeightInfo = ();
 }
 
 impl pallet_pm_court::Config for Runtime {
@@ -451,6 +466,7 @@ impl Default for ExtBuilder {
 #[allow(unused)]
 impl ExtBuilder {
     pub fn build(self) -> sp_io::TestExternalities {
+        let keystore = MemoryKeystore::new();
         let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
         // see the logs in tests when using `RUST_LOG=debug cargo test -- --nocapture`
         let _ = env_logger::builder().is_test(true).try_init();
@@ -488,6 +504,7 @@ impl ExtBuilder {
         .unwrap();
 
         let mut test_ext: sp_io::TestExternalities = t.into();
+        test_ext.register_extension(KeystoreExt(Arc::new(keystore)));
         test_ext.execute_with(|| System::set_block_number(1));
         test_ext
     }
