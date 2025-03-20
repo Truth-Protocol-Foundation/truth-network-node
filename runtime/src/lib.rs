@@ -252,7 +252,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 15,
+    spec_version: 16,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1134,10 +1134,14 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type MarketCommons = MarketCommons;
     type MultiCurrency = AssetManager;
     type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type WeightInfo = pallet_pm_neo_swaps::weights::WeightInfo<Runtime>;
     type MaxLiquidityTreeDepth = MaxLiquidityTreeDepth;
     type MaxSwapFee = NeoSwapsMaxSwapFee;
     type PalletId = NeoSwapsPalletId;
+    type SignedTxLifetime = ConstU32<16>;
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
 }
 
 impl pallet_pm_order_book::Config for Runtime {
@@ -1280,6 +1284,7 @@ mod benches {
         // Tnf pallets
         [pallet_authors_manager, AuthorsManager]
         [pallet_prediction_markets, PredictionMarkets]
+        [pallet_pm_neo_swaps, NeoSwaps]
         [pallet_pm_hybrid_router, HybridRouter]
     );
 }
