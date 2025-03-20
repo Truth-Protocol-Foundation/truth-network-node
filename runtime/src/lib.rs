@@ -1284,6 +1284,7 @@ mod benches {
         // Tnf pallets
         [pallet_authors_manager, AuthorsManager]
         [pallet_prediction_markets, PredictionMarkets]
+        [pallet_pm_neo_swaps, NeoSwaps]
         [pallet_pm_hybrid_router, HybridRouter]
     );
 }

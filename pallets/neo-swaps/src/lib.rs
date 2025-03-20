@@ -585,7 +585,7 @@ mod pallet {
 
         // TODO update weight
         #[pallet::call_index(6)]
-        #[pallet::weight(frame_support::weights::Weight::zero())]
+        #[pallet::weight(T::WeightInfo::signed_join(max_amounts_in.len().saturated_into()))]
         #[transactional]
         pub fn signed_join(
             origin: OriginFor<T>,
@@ -630,7 +630,7 @@ mod pallet {
 
         // TODO update weight
         #[pallet::call_index(7)]
-        #[pallet::weight(frame_support::weights::Weight::zero())]
+        #[pallet::weight(T::WeightInfo::signed_withdraw_fees())]
         #[transactional]
         pub fn signed_withdraw_fees(
             origin: OriginFor<T>,
@@ -662,7 +662,7 @@ mod pallet {
 
         // TODO update weight
         #[pallet::call_index(8)]
-        #[pallet::weight(frame_support::weights::Weight::zero())]
+        #[pallet::weight(T::WeightInfo::signed_exit(min_amounts_out.len().saturated_into()))]
         #[transactional]
         pub fn signed_exit(
             origin: OriginFor<T>,
