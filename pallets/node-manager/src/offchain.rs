@@ -45,14 +45,15 @@ impl<T: Config> Pallet<T> {
     pub fn send_heartbeat_if_required(block_number: BlockNumberFor<T>) {
         let maybe_node_key = Self::get_node_from_signing_key();
         if let Some((node, signing_key)) = maybe_node_key {
-            let current_reward_period = RewardPeriod::<T>::get().current;
+            let reward_period = RewardPeriod::<T>::get();
+            let current_reward_period = reward_period.current;
             let uptime_info = <NodeUptime<T>>::get(current_reward_period, &node);
             let heartbeat_count = uptime_info.map(|info| info.count).unwrap_or(0);
 
             if Self::should_send_heartbeat(
                 block_number,
                 uptime_info,
-                current_reward_period,
+                &reward_period,
                 heartbeat_count,
             ) {
                 log::info!(
@@ -180,11 +181,11 @@ impl<T: Config> Pallet<T> {
     pub fn should_send_heartbeat(
         block_number: BlockNumberFor<T>,
         uptime_info: Option<UptimeInfo<BlockNumberFor<T>>>,
-        reward_period_index: RewardPeriodIndex,
+        reward_period: &RewardPeriodInfo<BlockNumberFor<T>>,
         heartbeat_count: u64,
     ) -> bool {
         if Self::heartbeat_submission_in_progress(
-            reward_period_index,
+            reward_period.current,
             heartbeat_count,
             block_number,
         ) {
@@ -194,8 +195,11 @@ impl<T: Config> Pallet<T> {
         let heartbeat_period = HeartbeatPeriod::<T>::get();
         if let Some(uptime_info) = uptime_info {
             let last_submission = uptime_info.last_reported;
-            // Send heartbeat if the current block is at or past the next allowed block.
-            return block_number >= last_submission + BlockNumberFor::<T>::from(heartbeat_period);
+            let below_threshold = uptime_info.count < reward_period.uptime_threshold as u64;
+            // Send heartbeat if threshold is not reached and the current block is at or past the
+            // next allowed block.
+            return below_threshold &&
+                block_number >= last_submission + BlockNumberFor::<T>::from(heartbeat_period);
         } else {
             // First heartbeat
             return true;

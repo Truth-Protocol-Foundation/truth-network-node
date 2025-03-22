@@ -67,6 +67,19 @@ fn pop_tx_from_mempool(pool_state: Arc<RwLock<PoolState>>) -> Extrinsic {
     Extrinsic::decode(&mut &*tx).unwrap()
 }
 
+fn submit_multiple_heartbeats(n: u64, pool_state: Arc<RwLock<PoolState>>) {
+    for _ in 0..n {
+        NodeManager::offchain_worker(System::block_number());
+        let tx = pop_tx_from_mempool(pool_state.clone());
+        assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
+
+        // Move forward
+        System::set_block_number(
+            System::block_number() + <HeartbeatPeriod<TestRuntime>>::get() as u64 + 1u64,
+        );
+    }
+}
+
 mod given_a_reward_period {
     use super::*;
 
@@ -300,19 +313,6 @@ mod given_a_reward_period {
 mod across_multiple_reward_periods {
     use super::*;
 
-    fn submit_multiple_heartbeats(n: u64, pool_state: Arc<RwLock<PoolState>>) {
-        for _ in 0..n {
-            NodeManager::offchain_worker(System::block_number());
-            let tx = pop_tx_from_mempool(pool_state.clone());
-            assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
-
-            // Move forward
-            System::set_block_number(
-                System::block_number() + <HeartbeatPeriod<TestRuntime>>::get() as u64 + 1u64,
-            );
-        }
-    }
-
     #[test]
     fn mutiple_heartbeat_submissions_succeed() {
         let (mut ext, pool_state, _offchain_state) = ExtBuilder::build_default()
@@ -535,6 +535,34 @@ mod fails_when {
                     &call
                 ),
                 InvalidTransaction::Custom(ERROR_CODE_REWARD_DISABLED)
+            );
+        });
+    }
+
+    #[test]
+    fn heartbeat_threshold_reached() {
+        let (mut ext, pool_state, _offchain_state) = ExtBuilder::build_default()
+            .with_genesis_config()
+            .for_offchain_worker()
+            .as_externality_with_state();
+        ext.execute_with(|| {
+            let context = Context::default();
+            register_node(&context);
+
+            let reward_period = <RewardPeriod<TestRuntime>>::get();
+            let min_heartbeats = reward_period.uptime_threshold;
+
+            submit_multiple_heartbeats(min_heartbeats.into(), pool_state.clone());
+
+            assert_noop!(
+                NodeManager::offchain_submit_heartbeat(
+                    RawOrigin::None.into(),
+                    context.node_id,
+                    reward_period.current,
+                    min_heartbeats.into(),
+                    context.signing_key.sign(&("DummyProof").encode()).expect("Error signing")
+                ),
+                Error::<TestRuntime>::HeartbeatThresholdReached
             );
         });
     }

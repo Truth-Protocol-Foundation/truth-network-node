@@ -17,6 +17,19 @@ impl<T: Config> Pallet<T> {
         Ok(total_reward)
     }
 
+    // Nodes should not be able to submit over the min uptime required.
+    // but we still check it here to be sure.
+    pub fn calculate_node_uptime(node_id: &NodeId<T>, actual_uptime: u64, uptime_threshold: u64) -> u64 {
+        if actual_uptime >= uptime_threshold {
+            if actual_uptime > uptime_threshold {
+                log::warn!("✋ Node ({:?}) has been up for more than the minimum uptime. Actual: {:?}, Min: {:?}", node_id, actual_uptime, uptime_threshold);
+            }
+            uptime_threshold
+        } else {
+            actual_uptime
+        }
+    }
+
     pub fn calculate_reward(
         uptime: u64,
         total_uptime: &u64,

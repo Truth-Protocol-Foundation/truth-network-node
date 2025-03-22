@@ -10,6 +10,8 @@ pub struct RewardPeriodInfo<BlockNumber> {
     pub first: BlockNumber,
     /// The length of the current era in number of blocks
     pub length: u32,
+    /// The minimum number of uptime reports required to earn full reward
+    pub uptime_threshold: u32,
 }
 
 impl<
@@ -21,8 +23,13 @@ impl<
             + Saturating,
     > RewardPeriodInfo<B>
 {
-    pub fn new(current: RewardPeriodIndex, first: B, length: u32) -> RewardPeriodInfo<B> {
-        RewardPeriodInfo { current, first, length }
+    pub fn new(
+        current: RewardPeriodIndex,
+        first: B,
+        length: u32,
+        uptime_threshold: u32,
+    ) -> RewardPeriodInfo<B> {
+        RewardPeriodInfo { current, first, length, uptime_threshold }
     }
 
     /// Check if the reward period should be updated
@@ -31,10 +38,12 @@ impl<
     }
 
     /// New reward period
-    pub fn update(&self, now: B) -> Self {
+    pub fn update(&self, now: B, heartbeat_period: u32, threshold: Perbill) -> Self {
+        let max_heartbeats = self.length.saturating_div(heartbeat_period);
+        let uptime_threshold = threshold * max_heartbeats;
         let current = self.current.saturating_add(1u64);
         let first = now;
-        Self { current, first, length: self.length }
+        Self { current, first, length: self.length, uptime_threshold }
     }
 }
 
@@ -48,7 +57,7 @@ impl<
     > Default for RewardPeriodInfo<B>
 {
     fn default() -> RewardPeriodInfo<B> {
-        RewardPeriodInfo::new(0u64, 0u32.into(), 20u32)
+        RewardPeriodInfo::new(0u64, 0u32.into(), 20u32, u32::MAX)
     }
 }
 
@@ -125,4 +134,5 @@ pub enum AdminConfig<AccountId, Balance> {
     Heartbeat(u32),
     RewardAmount(Balance),
     RewardToggle(bool),
+    MinUptimeThreshold(Perbill),
 }

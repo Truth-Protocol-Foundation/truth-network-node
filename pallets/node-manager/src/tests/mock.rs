@@ -209,7 +209,7 @@ impl ExtBuilder {
     pub fn with_genesis_config(mut self) -> Self {
         let _ = pallet_node_manager::GenesisConfig::<TestRuntime> {
             _phantom: Default::default(),
-            reward_period: 20u32,
+            reward_period: 200u32,
             max_batch_size: 10u32,
             heartbeat_period: 5u32,
             reward_amount: 20 * BASE,

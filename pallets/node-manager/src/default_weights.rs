@@ -44,13 +44,14 @@ pub trait WeightInfo {
 	fn set_admin_config_reward_batch_size() -> Weight;
 	fn set_admin_config_reward_heartbeat() -> Weight;
 	fn set_admin_config_reward_amount() -> Weight;
+	fn set_admin_config_min_threshold() -> Weight;
 	fn on_initialise_with_new_reward_period() -> Weight;
 	fn on_initialise_no_reward_period() -> Weight;
 	fn offchain_submit_heartbeat() -> Weight;
 	fn offchain_pay_nodes(b: u32, ) -> Weight;
 	fn pay_nodes_constant_batch_size(n: u32, ) -> Weight;
 	fn signed_register_node() -> Weight;
-	fn set_admin_config_reward_toggle() -> Weight;
+	fn set_admin_config_reward_enabled() -> Weight;
 }
 
 /// Weights for pallet_node_manager using the Substrate node and recommended hardware.
@@ -131,12 +132,23 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	}
 	/// Storage: `NodeManager::RewardEnabled` (r:0 w:1)
 	/// Proof: `NodeManager::RewardEnabled` (`max_values`: Some(1), `max_size`: Some(16), added: 511, mode: `MaxEncodedLen`)
-	fn set_admin_config_reward_toggle() -> Weight {
+	fn set_admin_config_reward_enabled() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 9_027_000 picoseconds.
 		Weight::from_parts(9_272_000, 0)
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	/// Storage: `NodeManager::MinUptimeThreshold` (r:1 w:1)
+	/// Proof: `NodeManager::MinUptimeThreshold` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	fn set_admin_config_min_threshold() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `159`
+		//  Estimated: `1489`
+		// Minimum execution time: 12_200_000 picoseconds.
+		Weight::from_parts(12_896_000, 1489)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
 			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
 	/// Storage: `NodeManager::RewardPeriod` (r:1 w:1)
@@ -338,12 +350,23 @@ impl WeightInfo for () {
 	}
 	/// Storage: `NodeManager::RewardEnabled` (r:0 w:1)
 	/// Proof: `NodeManager::RewardEnabled` (`max_values`: Some(1), `max_size`: Some(16), added: 511, mode: `MaxEncodedLen`)
-	fn set_admin_config_reward_toggle() -> Weight {
+	fn set_admin_config_reward_enabled() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 9_027_000 picoseconds.
 		Weight::from_parts(9_272_000, 0)
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
+	}
+	/// Storage: `NodeManager::MinUptimeThreshold` (r:1 w:1)
+	/// Proof: `NodeManager::MinUptimeThreshold` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	fn set_admin_config_min_threshold() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `159`
+		//  Estimated: `1489`
+		// Minimum execution time: 12_200_000 picoseconds.
+		Weight::from_parts(12_896_000, 1489)
+			.saturating_add(RocksDbWeight::get().reads(1_u64))
 			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
 	/// Storage: `NodeManager::RewardPeriod` (r:1 w:1)

@@ -43,7 +43,8 @@ fn set_registrar<T: Config>(registrar: T::AccountId) {
 
 fn register_new_node<T: Config>(node: NodeId<T>, owner: T::AccountId) -> T::SignerId {
     let key = T::SignerId::generate_pair(None);
-    <NodeRegistry<T>>::insert(node.clone(), NodeInfo::new(owner, key.clone()));
+    <NodeRegistry<T>>::insert(node.clone(), NodeInfo::new(owner.clone(), key.clone()));
+    <OwnedNodes<T>>::insert(owner, node, ());
 
     key
 }
@@ -107,6 +108,14 @@ fn get_proof<T: Config>(
 
 fn enable_rewards<T: Config>() {
     <RewardEnabled<T>>::set(true);
+}
+
+fn update_min_threshold<T: Config>(threshold: Perbill) {
+    <MinUptimeThreshold<T>>::set(Some(threshold));
+    let mut reward_period = RewardPeriod::<T>::get();
+    reward_period.length = 1000u32;
+    reward_period.uptime_threshold = 100u32.into();
+    <RewardPeriod<T>>::put(reward_period);
 }
 
 benchmarks! {
@@ -185,17 +194,29 @@ benchmarks! {
         assert!(<RewardEnabled<T>>::get() == new_flag);
     }
 
+    set_admin_config_min_threshold {
+        let current_threshold = <MinUptimeThreshold<T>>::get();
+        let new_threshold = Perbill::from_percent(80);
+        let config = AdminConfig::MinUptimeThreshold(new_threshold);
+
+    }: set_admin_config(RawOrigin::Root, config.clone())
+    verify {
+        assert!(<MinUptimeThreshold<T>>::get() == Some(new_threshold));
+    }
+
     on_initialise_with_new_reward_period {
         let reward_period = <RewardPeriod<T>>::get();
         let block_number: BlockNumberFor<T> = (reward_period.first + BlockNumberFor::<T>::from(reward_period.length) + 1u32.into()).into();
         enable_rewards::<T>();
     }: { Pallet::<T>::on_initialize(block_number) }
     verify {
-        let new_reward_period = reward_period.current + 1u64;
-        assert!(new_reward_period== <RewardPeriod<T>>::get().current);
+        let new_reward_period_index = reward_period.current + 1u64;
+        let new_reward_period = <RewardPeriod<T>>::get();
+        assert!(new_reward_period_index== new_reward_period.current);
         assert_last_event::<T>(Event::NewRewardPeriodStarted {
-            reward_period_index: new_reward_period,
+            reward_period_index: new_reward_period_index,
             reward_period_length: reward_period.length,
+            uptime_threshold: new_reward_period.uptime_threshold,
             previous_period_reward: RewardAmount::<T>::get()}.into());
     }
 
@@ -210,6 +231,9 @@ benchmarks! {
 
     offchain_submit_heartbeat {
         enable_rewards::<T>();
+
+        // update the min threshold first
+        update_min_threshold::<T>(Perbill::from_percent(99));
 
         let reward_period = <RewardPeriod<T>>::get();
         let reward_period_index = reward_period.current;
@@ -262,9 +286,10 @@ benchmarks! {
     }: offchain_pay_nodes(RawOrigin::None, reward_period_index, author ,signature)
     verify {
         let max_batch_size = MaxBatchSize::<T>::get();
-        let expected_balance = max_batch_size.min(registered_nodes).saturated_into::<BalanceOf<T>>().
-            bmul_bdiv(RewardAmount::<T>::get(), registered_nodes.saturated_into::<BalanceOf<T>>())
-            .unwrap();
+        let nodes_to_pay = max_batch_size.min(registered_nodes).saturated_into::<BalanceOf<T>>();
+        let expected_balance = nodes_to_pay.
+                bmul_bdiv(RewardAmount::<T>::get(), registered_nodes.saturated_into::<BalanceOf<T>>())
+                .unwrap();
         assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1_000u32.saturated_into::<BalanceOf<T>>());
     }
 
