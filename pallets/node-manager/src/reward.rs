@@ -9,11 +9,6 @@ impl<T: Config> Pallet<T> {
             .map(|reward_pot| reward_pot.total_reward)
             .unwrap_or_else(|| RewardAmount::<T>::get());
 
-        ensure!(
-            Self::reward_pot_balance().ge(&BalanceOf::<T>::from(total_reward)),
-            Error::<T>::InsufficientBalanceForReward
-        );
-
         Ok(total_reward)
     }
 
