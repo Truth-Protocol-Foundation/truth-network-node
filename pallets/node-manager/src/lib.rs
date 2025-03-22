@@ -493,7 +493,9 @@ pub mod pallet {
                     ensure!(threshold > Perbill::zero(), Error::<T>::UptimeThresholdZero);
                     <MinUptimeThreshold<T>>::mutate(|t| *t = Some(threshold.clone()));
                     Self::deposit_event(Event::MinUptimeThresholdSet { threshold });
-                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_min_threshold()).into());
+                    return Ok(
+                        Some(<T as Config>::WeightInfo::set_admin_config_min_threshold()).into()
+                    );
                 },
             }
         }
