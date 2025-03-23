@@ -24,9 +24,10 @@ use sp_runtime::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
         ValidTransaction,
     },
-    DispatchError, RuntimeDebug, Saturating,
+    DispatchError, Perbill, RuntimeDebug, Saturating,
 };
 
+pub mod migration;
 pub mod offchain;
 pub mod reward;
 pub mod types;
@@ -68,7 +69,7 @@ use sp_std::prelude::*;
 
 const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
 
@@ -197,6 +198,10 @@ pub mod pallet {
     #[pallet::storage]
     pub(super) type RewardEnabled<T: Config> = StorageValue<_, bool, ValueQuery>;
 
+    /// The heartbeat period in blocks
+    #[pallet::storage]
+    pub type MinUptimeThreshold<T: Config> = StorageValue<_, Perbill, OptionQuery>;
+
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub _phantom: sp_std::marker::PhantomData<T>,
@@ -221,12 +226,18 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
+            assert!(self.reward_period > self.heartbeat_period);
+            let default_threshold = Pallet::<T>::get_default_threshold();
+
             RewardAmount::<T>::set(self.reward_amount);
             MaxBatchSize::<T>::set(self.max_batch_size);
             HeartbeatPeriod::<T>::set(self.heartbeat_period);
+            <MinUptimeThreshold<T>>::set(Some(default_threshold));
 
+            let max_heartbeats = self.reward_period.saturating_div(self.heartbeat_period);
+            let uptime_threshold = default_threshold * max_heartbeats;
             let reward_period: RewardPeriodInfo<BlockNumberFor<T>> =
-                RewardPeriodInfo::new(0u64, 0u32.into(), self.reward_period);
+                RewardPeriodInfo::new(0u64, 0u32.into(), self.reward_period, uptime_threshold);
             <RewardPeriod<T>>::put(reward_period);
         }
     }
@@ -247,6 +258,7 @@ pub mod pallet {
         NewRewardPeriodStarted {
             reward_period_index: RewardPeriodIndex,
             reward_period_length: u32,
+            uptime_threshold: u32,
             previous_period_reward: BalanceOf<T>,
         },
         /// We finished paying all nodes for a particular period.
@@ -277,6 +289,8 @@ pub mod pallet {
         RewardAmountSet { new_amount: BalanceOf<T> },
         /// Reward payment has been toggled
         RewardToggled { enabled: bool },
+        /// A new minimum uptime threshold has been set
+        MinUptimeThresholdSet { threshold: Perbill },
     }
 
     // Pallet Errors
@@ -328,6 +342,10 @@ pub mod pallet {
         UnauthorizedSignedTransaction,
         /// The signed transaction has expired
         SignedTransactionExpired,
+        /// The minimum uptime threshold is reached
+        HeartbeatThresholdReached,
+        /// The minimum uptime threshold is 0
+        UptimeThresholdZero,
     }
 
     #[pallet::config]
@@ -404,7 +422,8 @@ pub mod pallet {
             .max(<T as Config>::WeightInfo::set_admin_config_reward_batch_size())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_amount())
-            .max(<T as Config>::WeightInfo::set_admin_config_reward_toggle())
+            .max(<T as Config>::WeightInfo::set_admin_config_reward_enabled())
+            .max(<T as Config>::WeightInfo::set_admin_config_min_threshold())
         )]
         pub fn set_admin_config(
             origin: OriginFor<T>,
@@ -467,7 +486,15 @@ pub mod pallet {
                     <RewardEnabled<T>>::mutate(|e| *e = enabled.clone());
                     Self::deposit_event(Event::RewardToggled { enabled });
                     return Ok(
-                        Some(<T as Config>::WeightInfo::set_admin_config_reward_toggle()).into()
+                        Some(<T as Config>::WeightInfo::set_admin_config_reward_enabled()).into()
+                    );
+                },
+                AdminConfig::MinUptimeThreshold(threshold) => {
+                    ensure!(threshold > Perbill::zero(), Error::<T>::UptimeThresholdZero);
+                    <MinUptimeThreshold<T>>::mutate(|t| *t = Some(threshold.clone()));
+                    Self::deposit_event(Event::MinUptimeThresholdSet { threshold });
+                    return Ok(
+                        Some(<T as Config>::WeightInfo::set_admin_config_min_threshold()).into()
                     );
                 },
             }
@@ -485,7 +512,8 @@ pub mod pallet {
             ensure_none(origin)?;
 
             let oldest_period = OldestUnpaidRewardPeriodIndex::<T>::get();
-            let current_period = RewardPeriod::<T>::get().current;
+            let reward_period = RewardPeriod::<T>::get();
+            let current_period = reward_period.current;
 
             // Only pay for completed periods
             ensure!(
@@ -517,12 +545,22 @@ pub mod pallet {
                 },
                 None => {
                     iter = NodeUptime::<T>::iter_prefix(oldest_period);
+                    // This is a new payout so validate that the reward pot has enough to pay
+                    ensure!(
+                        Self::reward_pot_balance().ge(&BalanceOf::<T>::from(total_reward)),
+                        Error::<T>::InsufficientBalanceForReward
+                    );
                 },
             }
 
             for (node, uptime) in iter.by_ref().take(MaxBatchSize::<T>::get() as usize) {
+                let node_uptime = Self::calculate_node_uptime(
+                    &node,
+                    uptime.count,
+                    reward_period.uptime_threshold as u64,
+                );
                 let reward_amount =
-                    Self::calculate_reward(uptime.count, &total_heartbeats, &total_reward)?;
+                    Self::calculate_reward(node_uptime, &total_heartbeats, &total_reward)?;
                 Self::pay_reward(&oldest_period, node.clone(), reward_amount)?;
 
                 last_node_paid = Some(node.clone());
@@ -556,12 +594,18 @@ pub mod pallet {
             ensure_none(origin)?;
 
             ensure!(<NodeRegistry<T>>::contains_key(&node), Error::<T>::NodeNotRegistered);
-            let current_reward_period = RewardPeriod::<T>::get().current;
+            let reward_period = RewardPeriod::<T>::get();
+            let current_reward_period = reward_period.current;
             let maybe_uptime_info = <NodeUptime<T>>::get(reward_period_index, &node);
 
             ensure!(current_reward_period == reward_period_index, Error::<T>::InvalidHeartbeat);
 
             if let Some(uptime_info) = maybe_uptime_info {
+                ensure!(
+                    uptime_info.count < reward_period.uptime_threshold as u64,
+                    Error::<T>::HeartbeatThresholdReached
+                );
+
                 let expected_submission = uptime_info.last_reported +
                     BlockNumberFor::<T>::from(HeartbeatPeriod::<T>::get());
                 ensure!(
@@ -643,25 +687,33 @@ pub mod pallet {
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         // Keep this logic light and bounded
         fn on_initialize(n: BlockNumberFor<T>) -> Weight {
-            let reward_period = RewardPeriod::<T>::get();
-            let reward_period_index = reward_period.current;
             let rewards_enabled = <RewardEnabled<T>>::get();
+            if !rewards_enabled {
+                return <T as Config>::WeightInfo::on_initialise_no_reward_period();
+            }
 
-            if rewards_enabled && reward_period.should_update(n) {
-                let reward_period = reward_period.update(n);
+            let reward_period = RewardPeriod::<T>::get();
+            let previous_index = reward_period.current;
+
+            if reward_period.should_update(n) {
+                let heartbeat_period = HeartbeatPeriod::<T>::get();
+                let threshold =
+                    MinUptimeThreshold::<T>::get().unwrap_or(Self::get_default_threshold());
+                let reward_period = reward_period.update(n, heartbeat_period, threshold);
                 RewardPeriod::<T>::mutate(|p| *p = reward_period);
 
                 // take a snapshot of the reward pot amount to pay for the previous reward period
                 let reward_amount = RewardAmount::<T>::get();
-                let total_heartbeats = <TotalUptime<T>>::get(reward_period_index);
+                let total_heartbeats = <TotalUptime<T>>::get(previous_index);
                 <RewardPot<T>>::insert(
-                    reward_period_index,
+                    previous_index,
                     RewardPotInfo::<BalanceOf<T>>::new(reward_amount, total_heartbeats),
                 );
 
                 Self::deposit_event(Event::NewRewardPeriodStarted {
                     reward_period_index: reward_period.current,
                     reward_period_length: reward_period.length,
+                    uptime_threshold: reward_period.uptime_threshold,
                     previous_period_reward: reward_amount,
                 });
 
@@ -827,6 +879,10 @@ pub mod pallet {
                 },
                 _ => None,
             }
+        }
+
+        pub fn get_default_threshold() -> Perbill {
+            Perbill::from_percent(33)
         }
     }
 

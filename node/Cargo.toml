@@ -103,4 +103,8 @@ runtime-benchmarks = [
 ]
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.
-try-runtime = ["tnf-node-runtime/try-runtime", "try-runtime-cli/try-runtime", "pallet-authors-manager/try-runtime",]
+try-runtime = [
+	"tnf-node-runtime/try-runtime",
+	"try-runtime-cli/try-runtime",
+	"pallet-authors-manager/try-runtime",
+]

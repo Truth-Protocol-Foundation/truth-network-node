@@ -237,6 +237,9 @@ try-runtime = [
 	"pallet-preimage/try-runtime",
 	"pallet-multisig/try-runtime",
 	"pallet-utility/try-runtime",
+	"pallet-authority-discovery/try-runtime",
+	"pallet-insecure-randomness-collective-flip/try-runtime",
+
 	# AvN pallets
 	"pallet-avn/try-runtime",
 	"pallet-authorship/try-runtime",
@@ -258,4 +261,11 @@ try-runtime = [
 	"pallet-pm-eth-asset-registry/try-runtime",
 	"pallet-pm-hybrid-router/try-runtime",
 	"pallet-pm-order-book/try-runtime",
+	"orml-currencies/try-runtime",
+	"orml-tokens/try-runtime",
+	"pallet-pm-market-commons/try-runtime",
+	"pallet-pm-authorized/try-runtime",
+	"pallet-prediction-markets/try-runtime",
+	"pallet-pm-court/try-runtime",
+	"pallet-pm-global-disputes/try-runtime",
 ]
