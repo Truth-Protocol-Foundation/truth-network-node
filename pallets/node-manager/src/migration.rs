@@ -65,6 +65,8 @@ impl<T: Config> OnRuntimeUpgrade for RewardPeriodInfoUpgrade<T> {
         assert_eq!(current_reward_period.length, v2_reward_info.length);
         assert_eq!(current_reward_period.uptime_threshold, u32::MAX);
 
+        assert_eq!(<MinUptimeThreshold<T>>::get(), Some(Pallet::<T>::get_default_threshold()));
+
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
         assert!(onchain == 2 && current == 2);
@@ -82,6 +84,8 @@ fn update_reward_period<T: Config>() -> Weight {
         length: old_reward_period.length,
         uptime_threshold: u32::MAX,
     });
+
+    <MinUptimeThreshold<T>>::put(Pallet::<T>::get_default_threshold());
 
     STORAGE_VERSION.put::<Pallet<T>>();
 
