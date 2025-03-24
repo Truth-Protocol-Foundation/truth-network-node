@@ -169,7 +169,6 @@ mod fails_when {
     use super::*;
     #[test]
     fn proof_has_wrong_relayer() {
-        // Verify that fees are correctly distributed among LPs.
         ExtBuilder::default().build().execute_with(|| {
             let context = SignedWithdrawContext::default();
 
@@ -197,7 +196,6 @@ mod fails_when {
 
     #[test]
     fn proof_data_mismatch_relayer() {
-        // Verify that fees are correctly distributed among LPs.
         ExtBuilder::default().build().execute_with(|| {
             let context = SignedWithdrawContext::default();
 
@@ -225,7 +223,6 @@ mod fails_when {
 
     #[test]
     fn proof_data_mismatch_signature() {
-        // Verify that fees are correctly distributed among LPs.
         ExtBuilder::default().build().execute_with(|| {
             let context = SignedWithdrawContext::default();
 
@@ -255,7 +252,6 @@ mod fails_when {
 
     #[test]
     fn proof_data_mismatch_signer() {
-        // Verify that fees are correctly distributed among LPs.
         ExtBuilder::default().build().execute_with(|| {
             let context = SignedWithdrawContext::default();
 
@@ -283,7 +279,6 @@ mod fails_when {
 
     #[test]
     fn proof_has_expired() {
-        // Verify that fees are correctly distributed among LPs.
         ExtBuilder::default().build().execute_with(|| {
             let context = SignedWithdrawContext::default();
 
