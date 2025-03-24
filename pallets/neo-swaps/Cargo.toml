@@ -42,6 +42,7 @@ more-asserts = { workspace = true }
 test-case = { workspace = true }
 pallet-pm-neo-swaps = { workspace = true, features = ["mock"] }
 sp-keystore = { workspace = true, features = ["default"]}
+sp-avn-common = { workspace = true, features=["test-utils"] }
 
 [features]
 default = ["std"]
