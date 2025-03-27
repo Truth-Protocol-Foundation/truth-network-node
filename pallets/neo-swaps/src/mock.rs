@@ -23,9 +23,14 @@
     clippy::too_many_arguments,
 )]
 
-use crate as pallet_pm_neo_swaps;
+use crate::{self as pallet_pm_neo_swaps};
 use crate::{consts::*, AssetOf, MarketIdOf};
 use common_primitives::types::{Balance, Hash, Moment};
+use pallet_avn_proxy::ProvableProxy;
+use parity_scale_codec::Decode;
+use scale_info::TypeInfo;
+use sp_avn_common::{InnerCallValidator, Proof};
+use sp_core::sr25519::Public;
 use core::marker::PhantomData;
 use frame_support::{
     construct_runtime, ord_parameter_types, parameter_types,
@@ -441,6 +446,46 @@ impl pallet_pm_eth_asset_registry::Config for Runtime {
     type StringLimit = ConstU32<1024>;
     type AssetProcessor = NoopAssetProcessor;
     type WeightInfo = ();
+}
+
+// Test Avn proxy configuration logic
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+pub struct TestAvnProxyConfig {}
+impl Default for TestAvnProxyConfig {
+    fn default() -> Self {
+        TestAvnProxyConfig {}
+    }
+}
+
+impl ProvableProxy<RuntimeCall, SignatureTest, Public> for TestAvnProxyConfig {
+    fn get_proof(call: &RuntimeCall) -> Option<Proof<SignatureTest, Public>> {
+        match call {
+            RuntimeCall::NeoSwaps(pallet_pm_neo_swaps::Call::signed_join {
+                proof,
+                ..
+            }) |
+            RuntimeCall::NeoSwaps(pallet_pm_neo_swaps::Call::signed_exit {
+                proof, ..
+            }) |
+            RuntimeCall::NeoSwaps(pallet_pm_neo_swaps::Call::signed_withdraw_fees {
+                proof,
+                ..
+            }) => Some(proof.clone()),
+            _ => None,
+        }
+    }
+}
+
+impl InnerCallValidator for TestAvnProxyConfig {
+    type Call = RuntimeCall;
+
+    fn signature_is_valid(call: &Box<Self::Call>) -> bool {
+        match **call {
+            RuntimeCall::System(..) => return true,
+            RuntimeCall::NeoSwaps(..) => return NeoSwaps::signature_is_valid(call),
+            _ => false,
+        }
+    }
 }
 
 #[allow(unused)]
