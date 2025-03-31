@@ -24,6 +24,7 @@ mod exit;
 mod join;
 mod liquidity_tree_interactions;
 mod sell;
+mod signed_exit;
 mod signed_withdraw_fees;
 mod withdraw_fees;
 
