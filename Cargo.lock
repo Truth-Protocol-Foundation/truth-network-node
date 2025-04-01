@@ -5842,6 +5842,7 @@ dependencies = [
  "orml-tokens",
  "orml-traits",
  "pallet-avn",
+ "pallet-avn-proxy",
  "pallet-balances",
  "pallet-insecure-randomness-collective-flip",
  "pallet-pm-authorized",

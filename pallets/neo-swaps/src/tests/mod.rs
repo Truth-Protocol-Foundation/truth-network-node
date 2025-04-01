@@ -27,6 +27,7 @@ mod sell;
 mod signed_exit;
 mod signed_withdraw_fees;
 mod withdraw_fees;
+mod signed_join;
 
 use crate::{consts::*, mock::*, traits::*, *};
 use common_primitives::constants::currency::CENT_BASE;
@@ -85,7 +86,7 @@ fn create_market_and_deploy_pool(
     amount: BalanceOf<Runtime>,
     spot_prices: Vec<BalanceOf<Runtime>>,
     swap_fee: BalanceOf<Runtime>,
-) -> MarketId {
+) -> MarketIdOf<Runtime> {
     let market_id = create_market(creator, base_asset, market_type, ScoringRule::AmmCdaHybrid);
     assert_ok!(PredictionMarkets::buy_complete_set(
         RuntimeOrigin::signed(alice()),
