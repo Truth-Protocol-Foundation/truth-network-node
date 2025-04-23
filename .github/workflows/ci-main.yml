@@ -93,6 +93,13 @@ jobs:
       docker_tag: ${{ needs.set-up-job.outputs.NEW_PACKAGE_TAG }}
     secrets: inherit
 
+  tnf-node-bootstrap:
+    needs: [ set-up-job, build-docker ]
+    if: ${{ needs.set-up-job.outputs.RELEASE == 'true' }}
+    uses: ./.github/workflows/tnf-node-bootstrap.yml
+    with:
+      version: ${{ needs.set-up-job.outputs.NEW_PACKAGE_TAG }}
+
   repo-release:
     needs: [ set-up-job, build-docker ]
     if: ${{ needs.set-up-job.outputs.RELEASE == 'true' }}
