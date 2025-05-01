@@ -951,7 +951,11 @@ parameter_types! {
     pub const HybridRouterPalletId: PalletId = HYBRID_ROUTER_PALLET_ID;
     /// Maximum number of orders that can be placed in a single trade transaction.
     pub const MaxOrders: u32 = 100;
+    /// The percentage of winning we deduct from the winner.
+    pub const WinnerFeePercentage: Perbill = Perbill::from_percent(5);
 }
+
+impl_winner_fees!();
 
 impl pallet_prediction_markets::Config for Runtime {
     type AdvisoryBond = AdvisoryBond;
@@ -999,6 +1003,8 @@ impl pallet_prediction_markets::Config for Runtime {
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type TokenInterface = TokenManager;
+    type WinnerFeePercentage = WinnerFeePercentage;
+    type WinnerFeeHandler = WinnerFee;
 }
 
 parameter_types! {

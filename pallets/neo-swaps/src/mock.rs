@@ -23,13 +23,8 @@
     clippy::too_many_arguments,
 )]
 
-use crate::{self as pallet_pm_neo_swaps};
-use crate::{consts::*, AssetOf, MarketIdOf};
+use crate::{self as pallet_pm_neo_swaps, consts::*, AssetOf, MarketIdOf};
 use common_primitives::types::{Balance, Hash, Moment};
-use parity_scale_codec::Decode;
-use scale_info::TypeInfo;
-use sp_avn_common::{InnerCallValidator, Proof};
-use sp_core::sr25519::Public;
 use core::marker::PhantomData;
 use frame_support::{
     construct_runtime, ord_parameter_types, parameter_types,
@@ -38,7 +33,7 @@ use frame_support::{
 use frame_system::{mocking::MockBlockU32, EnsureRoot, EnsureSignedBy};
 use orml_traits::{asset_registry::AssetProcessor, MultiCurrency};
 use pallet_pm_neo_swaps::BalanceOf;
-use parity_scale_codec::{alloc::sync::Arc, Encode};
+use parity_scale_codec::{alloc::sync::Arc, Decode, Encode};
 pub use prediction_market_primitives::test_helper::get_account;
 use prediction_market_primitives::{
     constants::{
@@ -67,7 +62,9 @@ use prediction_market_primitives::{
         SignatureTest, TestAccountIdPK,
     },
 };
-use sp_core::H160;
+use scale_info::TypeInfo;
+use sp_avn_common::{InnerCallValidator, Proof};
+use sp_core::{sr25519::Public, H160};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU32, Get, IdentityLookup, Zero},
@@ -96,6 +93,9 @@ pub fn fee_account() -> TestAccountIdPK {
 pub fn sudo() -> TestAccountIdPK {
     get_account(123u8)
 }
+pub fn winning_fee_account() -> TestAccountIdPK {
+    get_account(95u8)
+}
 
 pub const EXTERNAL_FEES: Balance = CENT_BASE;
 
@@ -120,6 +120,9 @@ parameter_types! {
     pub const ValidityBond: Balance = 0;
     pub const DisputeBond: Balance = 0;
     pub const MaxCategories: u16 = MAX_ASSETS + 1;
+    pub const WinnerFeePercentage: Perbill = Perbill::from_percent(5);
+    pub WinningFeeAccount: TestAccountIdPK = winning_fee_account();
+
 }
 
 pub struct DeployPoolNoop;
@@ -174,6 +177,43 @@ pub struct DustRemovalWhitelist;
 impl Contains<TestAccountIdPK> for DustRemovalWhitelist {
     fn contains(account_id: &TestAccountIdPK) -> bool {
         *account_id == fee_account()
+    }
+}
+
+pub fn fee_percentage<T: crate::Config>() -> Perbill {
+    WinnerFeePercentage::get()
+}
+
+pub fn calculate_fee<T: crate::Config>(amount: BalanceOf<T>) -> BalanceOf<T> {
+    fee_percentage::<T>().mul_floor(amount.saturated_into::<BalanceOf<T>>())
+}
+
+pub struct WinningFees<T, F>(PhantomData<T>, PhantomData<F>);
+
+impl<T: crate::Config, F> DistributeFees for WinningFees<T, F>
+where
+    F: Get<T::AccountId>,
+{
+    type Asset = AssetOf<T>;
+    type AccountId = T::AccountId;
+    type Balance = BalanceOf<T>;
+    type MarketId = MarketIdOf<T>;
+
+    fn distribute(
+        _market_id: Self::MarketId,
+        asset: Self::Asset,
+        account: &Self::AccountId,
+        amount: Self::Balance,
+    ) -> Self::Balance {
+        let fees = calculate_fee::<T>(amount);
+        match T::MultiCurrency::transfer(asset, account, &F::get(), fees) {
+            Ok(_) => fees,
+            Err(_) => Zero::zero(),
+        }
+    }
+
+    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
+        fee_percentage::<T>()
     }
 }
 
@@ -261,6 +301,8 @@ impl pallet_prediction_markets::Config for Runtime {
     type Signature = SignatureTest;
     type WeightInfo = pallet_prediction_markets::weights::WeightInfo<Runtime>;
     type TokenInterface = ();
+    type WinnerFeePercentage = WinnerFeePercentage;
+    type WinnerFeeHandler = WinningFees<Runtime, WinningFeeAccount>;
 }
 
 impl pallet_pm_authorized::Config for Runtime {

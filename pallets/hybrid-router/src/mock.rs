@@ -93,6 +93,9 @@ pub fn fee_account() -> TestAccountIdPK {
 pub fn market_creator() -> TestAccountIdPK {
     alice()
 }
+pub fn winning_fee_account() -> TestAccountIdPK {
+    get_account(95u8)
+}
 
 pub const FOREIGN_ASSET: Asset<MarketId> = Asset::ForeignAsset(1);
 
@@ -115,6 +118,8 @@ parameter_types! {
     pub const ValidityBond: Balance = 0;
     pub const DisputeBond: Balance = 0;
     pub const MaxCategories: u16 = MAX_ASSETS + 1;
+    pub const WinnerFeePercentage: Perbill = Perbill::from_percent(5);
+    pub WinningFeeAccount: TestAccountIdPK = winning_fee_account();
 }
 
 pub fn fee_percentage() -> Perbill {
@@ -151,6 +156,39 @@ where
 
     fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
         fee_percentage()
+    }
+}
+
+pub fn calculate_winning_fee<T: crate::Config>(amount: BalanceOf<T>) -> BalanceOf<T> {
+    WinnerFeePercentage::get().mul_floor(amount.saturated_into::<BalanceOf<T>>())
+}
+
+pub struct WinningFees<T, F>(PhantomData<T>, PhantomData<F>);
+
+impl<T: crate::Config, F> DistributeFees for WinningFees<T, F>
+where
+    F: Get<T::AccountId>,
+{
+    type Asset = AssetOf<T>;
+    type AccountId = T::AccountId;
+    type Balance = BalanceOf<T>;
+    type MarketId = MarketIdOf<T>;
+
+    fn distribute(
+        _market_id: Self::MarketId,
+        asset: Self::Asset,
+        account: &Self::AccountId,
+        amount: Self::Balance,
+    ) -> Self::Balance {
+        let fees = calculate_winning_fee::<T>(amount);
+        match T::AssetManager::transfer(asset, account, &F::get(), fees) {
+            Ok(_) => fees,
+            Err(_) => Zero::zero(),
+        }
+    }
+
+    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
+        WinnerFeePercentage::get()
     }
 }
 
@@ -284,6 +322,8 @@ impl pallet_prediction_markets::Config for Runtime {
     type Signature = SignatureTest;
     type WeightInfo = pallet_prediction_markets::weights::WeightInfo<Runtime>;
     type TokenInterface = ();
+    type WinnerFeePercentage = WinnerFeePercentage;
+    type WinnerFeeHandler = WinningFees<Runtime, WinningFeeAccount>;
 }
 
 impl pallet_pm_authorized::Config for Runtime {

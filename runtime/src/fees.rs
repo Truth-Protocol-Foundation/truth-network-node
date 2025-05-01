@@ -103,3 +103,55 @@ macro_rules! impl_market_creator_fees {
         }
     };
 }
+
+#[macro_export]
+macro_rules! impl_winner_fees {
+    () => {
+        pub struct WinnerFee;
+
+        /// Uses the Vault account to deduct a fee from the winner's payout.
+        /// Calling `distribute` is noop if the market doesn't exist or the
+        /// transfer fails for any reason.
+        impl DistributeFees for WinnerFee {
+            type Asset = Asset<MarketId>;
+            type AccountId = AccountId;
+            type Balance = Balance;
+            type MarketId = MarketId;
+
+            fn distribute(
+                market_id: Self::MarketId,
+                asset: Self::Asset,
+                account: &Self::AccountId,
+                amount: Self::Balance,
+            ) -> Self::Balance {
+                Self::do_distribute(market_id, asset, account, amount)
+                    .unwrap_or_else(|_| 0u8.saturated_into())
+            }
+
+            fn fee_percentage(market_id: Self::MarketId) -> Perbill {
+                Self::fee_percentage(market_id).unwrap_or(Perbill::zero())
+            }
+        }
+
+        impl WinnerFee {
+            fn do_distribute(
+                market_id: MarketId,
+                asset: Asset<MarketId>,
+                account: &AccountId,
+                amount: Balance,
+            ) -> Result<Balance, DispatchError> {
+                let recipient = PredictionMarkets::vault_account()?;
+                let fee_amount = Self::fee_percentage(market_id)?.mul_floor(amount);
+                // Might fail if the transaction is too small
+                <AssetManager as MultiCurrency<_>>::transfer(
+                    asset, account, &recipient, fee_amount,
+                )?;
+                Ok(fee_amount)
+            }
+
+            fn fee_percentage(_market_id: MarketId) -> Result<Perbill, DispatchError> {
+                Ok(WinnerFeePercentage::get())
+            }
+        }
+    };
+}
