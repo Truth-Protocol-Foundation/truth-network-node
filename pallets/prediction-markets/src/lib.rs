@@ -2025,6 +2025,10 @@ mod pallet {
         UnauthorizedSignedTransferTransaction,
         /// Vault account must be set before using it
         VaultAccountNotSet,
+        /// Winnings fee account must be set before using it
+        WinningsFeeAccountNotSet,
+        /// Additional swap fee account must be set before using it
+        AdditionalSwapFeeAccountNotSet,
     }
 
     #[pallet::event]
@@ -2090,6 +2094,8 @@ mod pallet {
         MarketCreatorRemoved { removed_account: T::AccountId },
         /// A new Vault account has been set
         VaultAccountSet { new_vault_account: T::AccountId },
+        /// A new account address has been set for the collection of additional swap fees
+        AdditionalSwapFeeAccountSet { new_account: T::AccountId },
     }
 
     #[pallet::hooks]
@@ -2266,6 +2272,14 @@ mod pallet {
     #[pallet::storage]
     type VaultAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
+    /// The account that receives the winnings fee
+    #[pallet::storage]
+    type WinningsFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
+
+    /// The account that receives the additional swap fee
+    #[pallet::storage]
+    type AdditionalSwapFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
+
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub vault_account: Option<T::AccountId>,
@@ -2310,8 +2324,12 @@ mod pallet {
             T::PalletId::get().into_sub_account_truncating(market_id.saturated_into::<u128>())
         }
 
-        pub fn vault_account() -> Result<T::AccountId, Error<T>> {
-            Ok(<VaultAccount<T>>::get().ok_or(Error::<T>::VaultAccountNotSet)?)
+        pub fn additional_swap_fee_account() -> Result<T::AccountId, Error<T>> {
+            Ok(<AdditionalSwapFeeAccount<T>>::get().ok_or(Error::<T>::AdditionalSwapFeeAccountNotSet)?)
+        }
+
+        pub fn winnings_fee_account() -> Result<T::AccountId, Error<T>> {
+            Ok(<WinningsFeeAccount<T>>::get().ok_or(Error::<T>::WinningsFeeAccountNotSet)?)
         }
 
         #[require_transactional]
