@@ -48,7 +48,7 @@ macro_rules! impl_fee_types {
 macro_rules! impl_market_creator_fees {
     () => {
         use orml_traits::MultiCurrency;
-        use prediction_market_primitives::traits::{DistributeFees, MarketCommonsPalletApi};
+        use prediction_market_primitives::traits::DistributeFees;
         use sp_runtime::{DispatchError, SaturatedConversion};
 
         pub struct AdditionalSwapFee;
@@ -74,10 +74,10 @@ macro_rules! impl_market_creator_fees {
 
         impl AdditionalSwapFee {
             fn do_distribute(
-                market_id: MarketId,
+                _market_id: MarketId,
                 asset: Asset<MarketId>,
                 account: &AccountId,
-                amount: Balance,
+                _amount: Balance,
             ) -> Result<Balance, DispatchError> {
                 let recipient = PredictionMarkets::additional_swap_fee_account()?;
                 let fee_amount = NeoSwaps::additional_swap_fee()?;
@@ -106,7 +106,7 @@ macro_rules! impl_winner_fees {
             type MarketId = MarketId;
 
             fn distribute(
-                market_id: Self::MarketId,
+                _market_id: Self::MarketId,
                 asset: Self::Asset,
                 account: &Self::AccountId,
                 amount: Self::Balance,

@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Zeitgeist. If not, see <https://www.gnu.org/licenses/>.
 
-use sp_runtime::Perbill;
-
 /// Trait for distributing fees collected from trading to external recipients like the treasury.
 pub trait DistributeFees {
     type Asset;

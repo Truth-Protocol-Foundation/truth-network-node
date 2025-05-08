@@ -33,7 +33,7 @@ use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-
+use hex::FromHex;
 use pallet_avn::sr25519::AuthorityId as AvnId;
 pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
 use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
@@ -152,6 +152,17 @@ pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
     <T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
+pub fn gas_fee_recipient() -> AccountId {
+    to_account("<Public key without 0x>").expect("Gas fee recipient address is valid")
+}
+
+fn to_account(pubkey_hex: &str) -> Result<AccountId, ()> {
+    let bytes = Vec::from_hex(pubkey_hex).map_err(|_| ())?;
+    let mut arr = [0u8; 32];
+    arr.copy_from_slice(&bytes);
+    Ok(AccountId::decode(&mut &arr[..]).map_err(|_| ())?)
+}
+
 pub struct Treasury<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for Treasury<R>
 where
@@ -161,8 +172,8 @@ where
     <R as frame_system::Config>::RuntimeEvent: From<pallet_balances::Event<R>>,
 {
     fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
-        let treasury_address = <pallet_token_manager::Pallet<R>>::compute_treasury_account_id();
-        <pallet_balances::Pallet<R>>::resolve_creating(&treasury_address, amount);
+        let recipient: <R as frame_system::Config>::AccountId = gas_fee_recipient().into();
+        <pallet_balances::Pallet<R>>::resolve_creating(&recipient, amount);
     }
 }
 
