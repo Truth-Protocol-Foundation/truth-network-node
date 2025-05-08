@@ -65,7 +65,6 @@ use sp_runtime::{
 
 pub use prediction_market_primitives::test_helper::get_account;
 
-pub const EXTERNAL_FEES: Balance = CENT_BASE;
 pub const INITIAL_BALANCE: Balance = 100 * BASE;
 
 pub fn alice() -> TestAccountIdPK {
@@ -122,12 +121,10 @@ parameter_types! {
     pub WinningFeeAccount: TestAccountIdPK = winning_fee_account();
 }
 
-pub fn fee_percentage() -> Perbill {
-    Perbill::from_rational(EXTERNAL_FEES, BASE)
-}
-
-pub fn calculate_fee<T: crate::Config>(amount: BalanceOf<T>) -> BalanceOf<T> {
-    fee_percentage().mul_floor(amount.saturated_into::<BalanceOf<T>>())
+pub fn calculate_fee<T: crate::Config>(_amount: BalanceOf<T>) -> BalanceOf<T> {
+    pallet_pm_neo_swaps::AdditionalSwapFee::<Runtime>::get()
+        .unwrap()
+        .saturated_into()
 }
 
 pub struct ExternalFees<T, F>(PhantomData<T>, PhantomData<F>);
@@ -152,10 +149,6 @@ where
             Ok(_) => fees,
             Err(_) => Zero::zero(),
         }
-    }
-
-    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
-        fee_percentage()
     }
 }
 
@@ -185,10 +178,6 @@ where
             Ok(_) => fees,
             Err(_) => Zero::zero(),
         }
-    }
-
-    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
-        WinnerFeePercentage::get()
     }
 }
 
@@ -529,6 +518,9 @@ impl ExtBuilder {
         let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
         // see the logs in tests when using `RUST_LOG=debug cargo test -- --nocapture`
         let _ = env_logger::builder().is_test(true).try_init();
+        pallet_pm_neo_swaps::GenesisConfig::<Runtime> { additional_swap_fee: CENT_BASE / 100 }
+            .assimilate_storage(&mut t)
+            .unwrap();
         pallet_balances::GenesisConfig::<Runtime> { balances: self.balances }
             .assimilate_storage(&mut t)
             .unwrap();
@@ -562,6 +554,11 @@ impl ExtBuilder {
         }
         .assimilate_storage(&mut t)
         .unwrap();
+        pallet_prediction_markets::GenesisConfig::<Runtime> {
+            market_admin: market_creator(),
+        }
+        .assimilate_storage(&mut t)
+        .unwrap()
         let mut test_ext: sp_io::TestExternalities = t.into();
         test_ext.register_extension(KeystoreExt(Arc::new(keystore)));
         test_ext.execute_with(|| System::set_block_number(1));

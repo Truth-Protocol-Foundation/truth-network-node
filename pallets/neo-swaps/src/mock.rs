@@ -23,7 +23,10 @@
     clippy::too_many_arguments,
 )]
 
-use crate::{self as pallet_pm_neo_swaps, consts::*, AssetOf, MarketIdOf};
+use crate::{
+    self as pallet_pm_neo_swaps, consts::*, AdditionalSwapFee, AssetOf, EarlyExitFeeAccount,
+    MarketIdOf,
+};
 use common_primitives::types::{Balance, Hash, Moment};
 use core::marker::PhantomData;
 use frame_support::{
@@ -34,7 +37,7 @@ use frame_system::{mocking::MockBlockU32, EnsureRoot, EnsureSignedBy};
 use orml_traits::{asset_registry::AssetProcessor, MultiCurrency};
 use pallet_pm_neo_swaps::BalanceOf;
 use parity_scale_codec::{alloc::sync::Arc, Decode, Encode};
-pub use prediction_market_primitives::test_helper::get_account;
+pub use prediction_market_primitives::test_helper::{get_account, get_account_from_mnemonic};
 use prediction_market_primitives::{
     constants::{
         base_multiples::*,
@@ -64,7 +67,7 @@ use prediction_market_primitives::{
 };
 use scale_info::TypeInfo;
 use sp_avn_common::{InnerCallValidator, Proof};
-use sp_core::{sr25519::Public, H160};
+use sp_core::{{crypto::{DEV_PHRASE}}, sr25519::Public, H160};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU32, Get, IdentityLookup, Zero},
@@ -96,19 +99,24 @@ pub fn sudo() -> TestAccountIdPK {
 pub fn winning_fee_account() -> TestAccountIdPK {
     get_account(95u8)
 }
-
-pub const EXTERNAL_FEES: Balance = CENT_BASE;
+pub fn early_exist_fee_account() -> TestAccountIdPK {
+    get_account(98u8)
+}
+pub fn market_admin() -> TestAccountIdPK {
+    get_account_from_mnemonic(DEV_PHRASE)
+}
 
 pub const FOREIGN_ASSET: Asset<MarketId> = Asset::ForeignAsset(1);
 
 parameter_types! {
-    pub FeeAccount: TestAccountIdPK = fee_account();
+    pub AdditionalFeeAccount: TestAccountIdPK = fee_account();
 }
 ord_parameter_types! {
     pub const AuthorizedDisputeResolutionUser: TestAccountIdPK = alice();
 }
 ord_parameter_types! {
     pub const Sudo: TestAccountIdPK = sudo();
+    pub const MarketAdmin: TestAccountIdPK = market_admin();
 }
 parameter_types! {
     pub storage NeoMinSwapFee: Balance = 0;
@@ -160,15 +168,11 @@ where
         account: &Self::AccountId,
         amount: Self::Balance,
     ) -> Self::Balance {
-        let fees = amount.bmul(EXTERNAL_FEES.saturated_into()).unwrap();
+        let fees = NeoSwaps::additional_swap_fee().unwrap().saturated_into();
         match T::MultiCurrency::transfer(asset, account, &F::get(), fees) {
             Ok(_) => fees,
             Err(_) => Zero::zero(),
         }
-    }
-
-    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
-        Perbill::from_rational(EXTERNAL_FEES, BASE)
     }
 }
 
@@ -211,10 +215,6 @@ where
             Err(_) => Zero::zero(),
         }
     }
-
-    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
-        fee_percentage::<T>()
-    }
 }
 
 construct_runtime!(
@@ -240,7 +240,7 @@ construct_runtime!(
 impl crate::Config for Runtime {
     type MultiCurrency = AssetManager;
     type CompleteSetOperations = PredictionMarkets;
-    type ExternalFees = ExternalFees<Runtime, FeeAccount>;
+    type ExternalFees = ExternalFees<Runtime, AdditionalFeeAccount>;
     type MarketCommons = MarketCommons;
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -251,6 +251,8 @@ impl crate::Config for Runtime {
     type SignedTxLifetime = ConstU32<16>;
     type Public = TestAccountIdPK;
     type Signature = SignatureTest;
+    type PalletAdminGetter = PredictionMarkets;
+    type PalletAdminOrigin = EnsureSignedBy<MarketAdmin, TestAccountIdPK>;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
@@ -516,6 +518,10 @@ impl ExtBuilder {
         let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
         // see the logs in tests when using `RUST_LOG=debug cargo test -- --nocapture`
         let _ = env_logger::builder().is_test(true).try_init();
+        pallet_pm_neo_swaps::GenesisConfig::<Runtime> { additional_swap_fee: CENT_BASE / 100 }
+            .assimilate_storage(&mut t)
+            .unwrap();
+
         pallet_balances::GenesisConfig::<Runtime> { balances: self.balances }
             .assimilate_storage(&mut t)
             .unwrap();
@@ -548,10 +554,19 @@ impl ExtBuilder {
         }
         .assimilate_storage(&mut t)
         .unwrap();
+        pallet_prediction_markets::GenesisConfig::<Runtime> {
+            vault_account: Some(sudo()),
+            market_admin: Some(market_admin()),
+        }
+        .assimilate_storage(&mut t)
+        .unwrap();
 
         let mut test_ext: sp_io::TestExternalities = t.into();
         test_ext.register_extension(KeystoreExt(Arc::new(keystore)));
-        test_ext.execute_with(|| System::set_block_number(1));
+        test_ext.execute_with(|| {
+            System::set_block_number(1);
+            EarlyExitFeeAccount::<Runtime>::put(early_exist_fee_account());
+        });
         test_ext
     }
 }

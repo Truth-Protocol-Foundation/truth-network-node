@@ -12,7 +12,7 @@ use sc_service::ChainType;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::{crypto::UncheckedInto, ecdsa, sr25519, ByteArray, Pair, Public, H160, H256};
+use sp_core::{crypto::{DEV_PHRASE, UncheckedInto}, ecdsa, sr25519, ByteArray, Pair, Public, H160, H256};
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
     BoundedVec,
@@ -20,11 +20,10 @@ use sp_runtime::{
 use tnf_node_runtime::{
     opaque::SessionKeys, AccountId, AnchorSummaryConfig, Asset, AssetRegistryConfig,
     AssetRegistryStringLimit, AuraConfig, AuthorsManagerConfig, BalancesConfig, CustomMetadata,
-    EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, NodeManagerConfig,
-    PredictionMarketsConfig, RuntimeGenesisConfig, SessionConfig, Signature, SudoConfig,
-    SummaryConfig, SystemConfig, TokenManagerConfig, WASM_BINARY,
+    EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, NeoSwapsConfig,
+    NodeManagerConfig, PredictionMarketsConfig, RuntimeGenesisConfig, SessionConfig, Signature,
+    SudoConfig, SummaryConfig, SystemConfig, TokenManagerConfig, WASM_BINARY,
 };
-
 use common_primitives::{
     constants::{currency::*, *},
     types::BlockNumber,
@@ -71,6 +70,14 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
         .public()
 }
 
+pub fn get_public_from_seed_no_derivation<TPublic: Public>(
+    seed: &str,
+) -> <TPublic::Pair as Pair>::Public {
+    TPublic::Pair::from_string(&format!("{}", seed), None)
+        .expect("static values are valid; qed")
+        .public()
+}
+
 type AccountPublic = <Signature as Verify>::Signer;
 
 /// Generate an account ID from seed.
@@ -79,6 +86,13 @@ where
     AccountPublic: From<<TPublic::Pair as Pair>::Public>,
 {
     AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
+}
+
+pub fn get_account_id_from_dev_seed<TPublic: Public>() -> AccountId
+where
+    AccountPublic: From<<TPublic::Pair as Pair>::Public>,
+{
+    AccountPublic::from(get_public_from_seed_no_derivation::<TPublic>(DEV_PHRASE)).into_account()
 }
 
 /// Generate an Aura authority key.
@@ -165,6 +179,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
                         ),
                     )],
                 },
+                Some(get_account_id_from_dev_seed::<sr25519::Public>()),
             )
         },
         // Bootnodes
@@ -228,6 +243,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                 None,
                 get_default_node_manager_config(),
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
+                Some(get_account_id_from_dev_seed::<sr25519::Public>()),
             )
         },
         // Bootnodes
@@ -286,6 +302,7 @@ pub fn dev_testnet_config() -> Result<ChainSpec, String> {
                 None,
                 get_default_node_manager_config(),
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
+                None,
             )
         },
         // Bootnodes
@@ -350,6 +367,7 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
                     reward_amount: 75_000_000 * BASE,
                 },
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
+                None,
             )
         },
         // Bootnodes
@@ -669,6 +687,7 @@ fn testnet_genesis(
     default_non_l2_token: Option<H160>,
     node_manager: NodeManagerConfig,
     asset_registry: AssetRegistryConfig,
+    prediction_market_admin: Option<AccountId>,
 ) -> RuntimeGenesisConfig {
     RuntimeGenesisConfig {
         avn: pallet_avn::GenesisConfig {
@@ -765,7 +784,13 @@ fn testnet_genesis(
         advisory_committee: Default::default(),
         tokens: Default::default(),
         asset_registry,
-        prediction_markets: PredictionMarketsConfig { vault_account: Some(root_key.clone()) },
+        prediction_markets: PredictionMarketsConfig {
+            vault_account: Some(root_key.clone()),
+            market_admin: prediction_market_admin
+        },
+        neo_swaps: NeoSwapsConfig {
+            additional_swap_fee: 500_000_000, //0.05
+        },
     }
 }
 
@@ -841,6 +866,7 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                     reward_amount: 75_000_000 * BASE,
                 },
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
+                None,
             )
         },
         // Bootnodes

@@ -279,10 +279,6 @@ where
             Err(_) => Zero::zero(),
         }
     }
-
-    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
-        fee_percentage::<T>()
-    }
 }
 
 impl crate::Config for Runtime {

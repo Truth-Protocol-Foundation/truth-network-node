@@ -57,9 +57,9 @@ pub use frame_support::{
     dispatch::DispatchClass,
     parameter_types,
     traits::{
-        ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains, Currency, EitherOfDiverse,
-        Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced, PrivilegeCmp, Randomness,
-        StorageInfo,
+        AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains,
+        Currency, EitherOfDiverse, Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
+        PrivilegeCmp, Randomness, StorageInfo,
     },
     weights::{
         constants::{
@@ -72,7 +72,7 @@ pub use frame_support::{
 };
 pub use frame_system::{
     limits::{BlockLength, BlockWeights},
-    Call as SystemCall, EnsureRoot,
+    Call as SystemCall, EnsureRoot, EnsureSigned,
 };
 use pallet_avn_transaction_payment::AvnCurrencyAdapter;
 pub use pallet_balances::Call as BalancesCall;
@@ -1136,7 +1136,7 @@ impl_market_creator_fees!();
 
 impl pallet_pm_neo_swaps::Config for Runtime {
     type CompleteSetOperations = PredictionMarkets;
-    type ExternalFees = MarketCreatorFee;
+    type ExternalFees = AdditionalSwapFee;
     type MarketCommons = MarketCommons;
     type MultiCurrency = AssetManager;
     type RuntimeEvent = RuntimeEvent;
@@ -1148,11 +1148,13 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type SignedTxLifetime = ConstU32<16>;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
+    type PalletAdminGetter = PredictionMarkets;
+    type PalletAdminOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
 }
 
 impl pallet_pm_order_book::Config for Runtime {
     type AssetManager = AssetManager;
-    type ExternalFees = MarketCreatorFee;
+    type ExternalFees = AdditionalSwapFee;
     type RuntimeEvent = RuntimeEvent;
     type MarketCommons = MarketCommons;
     type PalletId = OrderbookPalletId;
@@ -1223,7 +1225,7 @@ construct_runtime!(
         Court: pallet_pm_court::{Call, Event<T>, Pallet, Storage} = 42,
         PredictionMarkets: pallet_prediction_markets::{Call, Config<T>, Event<T>, Pallet, Storage} = 43,
         GlobalDisputes: pallet_pm_global_disputes::{Call, Event<T>, Pallet, Storage} = 44,
-        NeoSwaps: pallet_pm_neo_swaps::{Call, Event<T>, Pallet, Storage} = 45,
+        NeoSwaps: pallet_pm_neo_swaps::{Call, Config<T>, Event<T>, Pallet, Storage} = 45,
         Orderbook: pallet_pm_order_book::{Call, Event<T>, Pallet, Storage} = 46,
         HybridRouter: pallet_pm_hybrid_router::{Call, Event<T>, Pallet, Storage} = 47,
     }

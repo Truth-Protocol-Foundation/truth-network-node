@@ -51,12 +51,11 @@ macro_rules! impl_market_creator_fees {
         use prediction_market_primitives::traits::{DistributeFees, MarketCommonsPalletApi};
         use sp_runtime::{DispatchError, SaturatedConversion};
 
-        pub struct MarketCreatorFee;
+        pub struct AdditionalSwapFee;
 
-        /// Uses the `creator_fee` field defined by the specified market to deduct a fee for the
-        /// market's creator. Calling `distribute` is noop if the market doesn't exist or the
-        /// transfer fails for any reason.
-        impl DistributeFees for MarketCreatorFee {
+        /// Uses the `additional_swap_fee` value defined in the NeoSwap pallet to deduct a fee for
+        /// the chain operator. Calling `distribute` is noop if the transfer fails for any reason.
+        impl DistributeFees for AdditionalSwapFee {
             type Asset = Asset<MarketId>;
             type AccountId = AccountId;
             type Balance = Balance;
@@ -71,34 +70,22 @@ macro_rules! impl_market_creator_fees {
                 Self::do_distribute(market_id, asset, account, amount)
                     .unwrap_or_else(|_| 0u8.saturated_into())
             }
-
-            fn fee_percentage(market_id: Self::MarketId) -> Perbill {
-                Self::fee_percentage(market_id).unwrap_or(Perbill::zero())
-            }
         }
 
-        impl MarketCreatorFee {
+        impl AdditionalSwapFee {
             fn do_distribute(
                 market_id: MarketId,
                 asset: Asset<MarketId>,
                 account: &AccountId,
                 amount: Balance,
             ) -> Result<Balance, DispatchError> {
-                let market = MarketCommons::market(&market_id)?;
-                let fee_amount = Self::fee_percentage(market_id)?.mul_floor(amount);
+                let recipient = PredictionMarkets::additional_swap_fee_account()?;
+                let fee_amount = NeoSwaps::additional_swap_fee()?;
                 // Might fail if the transaction is too small
                 <AssetManager as MultiCurrency<_>>::transfer(
-                    asset,
-                    account,
-                    &market.creator,
-                    fee_amount,
+                    asset, account, &recipient, fee_amount,
                 )?;
                 Ok(fee_amount)
-            }
-
-            fn fee_percentage(market_id: MarketId) -> Result<Perbill, DispatchError> {
-                let market = MarketCommons::market(&market_id)?;
-                Ok(market.creator_fee)
             }
         }
     };
@@ -124,33 +111,23 @@ macro_rules! impl_winner_fees {
                 account: &Self::AccountId,
                 amount: Self::Balance,
             ) -> Self::Balance {
-                Self::do_distribute(market_id, asset, account, amount)
-                    .unwrap_or_else(|_| 0u8.saturated_into())
-            }
-
-            fn fee_percentage(market_id: Self::MarketId) -> Perbill {
-                Self::fee_percentage(market_id).unwrap_or(Perbill::zero())
+                Self::do_distribute(asset, account, amount).unwrap_or_else(|_| 0u8.saturated_into())
             }
         }
 
         impl WinnerFee {
             fn do_distribute(
-                market_id: MarketId,
                 asset: Asset<MarketId>,
                 account: &AccountId,
                 amount: Balance,
             ) -> Result<Balance, DispatchError> {
-                let recipient = PredictionMarkets::vault_account()?;
-                let fee_amount = Self::fee_percentage(market_id)?.mul_floor(amount);
+                let recipient = PredictionMarkets::winnings_fee_account()?;
+                let fee_amount = WinnerFeePercentage::get().mul_floor(amount);
                 // Might fail if the transaction is too small
                 <AssetManager as MultiCurrency<_>>::transfer(
                     asset, account, &recipient, fee_amount,
                 )?;
                 Ok(fee_amount)
-            }
-
-            fn fee_percentage(_market_id: MarketId) -> Result<Perbill, DispatchError> {
-                Ok(WinnerFeePercentage::get())
             }
         }
     };

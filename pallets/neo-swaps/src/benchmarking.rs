@@ -60,6 +60,11 @@ macro_rules! assert_ok_with_transaction {
     }};
 }
 
+fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
+    frame_system::Pallet::<T>::assert_last_event(generic_event.into());
+}
+
+
 trait LiquidityTreeBenchmarkHelper<T: Config> {
     fn calculate_min_pool_shares_amount(&self) -> BalanceOf<T>;
 }
@@ -773,6 +778,36 @@ mod benchmarks {
             pool.liquidity_shares_manager.shares_of(&other_account).is_ok(),
             "Other account should still have shares in the pool"
         );
+    }
+
+    #[benchmark]
+    fn set_early_exit_fee_account() {
+        // This works because the account is registered in the genesis config.
+        let market_admin = get_user_account::<T>().1;
+        let whitelisted_account: T::AccountId = account("WhitelistedAcc", 0, 0);
+
+        #[extrinsic_call]
+        set_early_exit_fee_account(RawOrigin::Signed(market_admin), whitelisted_account.clone());
+
+        assert_eq!(EarlyExitFeeAccount::<T>::get(), Some(whitelisted_account.clone()));
+        assert_last_event::<T>(
+            Event::EarlyExitFeeAccountSet { new_account: whitelisted_account }
+        .into());
+    }
+
+    #[benchmark]
+    fn set_additional_swap_fee() {
+        // This works because the account is registered in the genesis config.
+        let market_admin = get_user_account::<T>().1;
+        let new_fee: BalanceOf<T> = 12_345_678u128.saturated_into();
+
+        #[extrinsic_call]
+        set_additional_swap_fee(RawOrigin::Signed(market_admin), new_fee.clone());
+
+        assert_eq!(AdditionalSwapFee::<T>::get(), Some(new_fee.clone()));
+        assert_last_event::<T>(
+            Event::AdditionalSwapFeeSet { new_fee }
+        .into());
     }
 
     impl_benchmark_test_suite!(

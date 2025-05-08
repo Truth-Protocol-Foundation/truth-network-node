@@ -42,11 +42,4 @@ pub trait DistributeFees {
         account: &Self::AccountId,
         amount: Self::Balance,
     ) -> Self::Balance;
-
-    /// Returns the percentage of the fee that is distributed.
-    ///
-    /// # Arguments
-    ///
-    /// - `market_id`: The market on which the fees belong to.
-    fn fee_percentage(market_id: Self::MarketId) -> Perbill;
 }

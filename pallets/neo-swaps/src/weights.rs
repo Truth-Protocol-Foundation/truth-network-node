@@ -60,11 +60,39 @@ pub trait WeightInfoZeitgeist {
     fn signed_join(n: u32) -> Weight;
     fn signed_withdraw_fees() -> Weight;
     fn signed_exit(n: u32) -> Weight;
+    fn set_early_exit_fee_account() -> Weight;
+    fn set_additional_swap_fee() -> Weight;
 }
 
 /// Weight functions for pallet_pm_neo_swaps (automatically generated)
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfoZeitgeist for WeightInfo<T> {
+    /// Storage: `PredictionMarkets::MarketAdmin` (r:1 w:0)
+	/// Proof: `PredictionMarkets::MarketAdmin` (`max_values`: Some(1), `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
+	/// Storage: `NeoSwaps::EarlyExitFeeAccount` (r:1 w:1)
+	/// Proof: `NeoSwaps::EarlyExitFeeAccount` (`max_values`: Some(1), `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
+	fn set_early_exit_fee_account() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `174`
+		//  Estimated: `1517`
+		// Minimum execution time: 16_601_000 picoseconds.
+		Weight::from_parts(18_980_000, 1517)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+    /// Storage: `PredictionMarkets::MarketAdmin` (r:1 w:0)
+	/// Proof: `PredictionMarkets::MarketAdmin` (`max_values`: Some(1), `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
+	/// Storage: `NeoSwaps::AdditionalSwapFee` (r:1 w:1)
+	/// Proof: `NeoSwaps::AdditionalSwapFee` (`max_values`: Some(1), `max_size`: Some(16), added: 511, mode: `MaxEncodedLen`)
+	fn set_additional_swap_fee() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `176`
+		//  Estimated: `1517`
+		// Minimum execution time: 18_479_000 picoseconds.
+		Weight::from_parts(20_673_000, 1517)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
     /// Storage: `MarketCommons::Markets` (r:1 w:0)
     /// Proof: `MarketCommons::Markets` (`max_values`: None, `max_size`: Some(694), added: 3169,
     /// mode: `MaxEncodedLen`) Storage: `NeoSwaps::Pools` (r:1 w:1)

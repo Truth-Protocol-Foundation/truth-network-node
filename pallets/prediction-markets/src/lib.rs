@@ -66,6 +66,7 @@ mod pallet {
         traits::{
             CompleteSetOperationsApi, DeployPoolApi, DisputeApi, DisputeMaxWeightApi,
             DisputeResolutionApi, DistributeFees, InspectEthAsset, MarketBuilderTrait,
+            PalletAdminGetter,
         },
         types::{
             AdminConfig, Asset, Bond, CustomMetadata, Deadlines, EarlyClose, EarlyCloseState,
@@ -1637,6 +1638,40 @@ mod pallet {
             let assets_len: u32 = assets.len().saturated_into();
             Ok(Some(T::WeightInfo::signed_buy_complete_set(assets_len)).into())
         }
+
+        #[pallet::call_index(33)]
+        #[pallet::weight(T::WeightInfo::set_winnings_fee_account())]
+        #[transactional]
+        pub fn set_winnings_fee_account(
+            origin: OriginFor<T>,
+            account: T::AccountId,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let market_admin = <MarketAdmin<T>>::get().ok_or(Error::<T>::MarketAdminNotSet)?;
+            ensure!(who == market_admin, Error::<T>::SenderNotMarketAdmin);
+
+            <WinningsFeeAccount<T>>::mutate(|a| *a = Some(account.clone()));
+            Self::deposit_event(Event::WinningsFeeAccountSet { new_account: account });
+
+            Ok(())
+        }
+
+        #[pallet::call_index(34)]
+        #[pallet::weight(T::WeightInfo::set_additional_swap_fee_account())]
+        #[transactional]
+        pub fn set_additional_swap_fee_account(
+            origin: OriginFor<T>,
+            account: T::AccountId,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let market_admin = <MarketAdmin<T>>::get().ok_or(Error::<T>::MarketAdminNotSet)?;
+            ensure!(who == market_admin, Error::<T>::SenderNotMarketAdmin);
+
+            <AdditionalSwapFeeAccount<T>>::mutate(|a| *a = Some(account.clone()));
+            Self::deposit_event(Event::AdditionalSwapFeeAccountSet { new_account: account });
+
+            Ok(())
+        }
     }
 
     #[pallet::config]
@@ -2096,6 +2131,8 @@ mod pallet {
         VaultAccountSet { new_vault_account: T::AccountId },
         /// A new account address has been set for the collection of additional swap fees
         AdditionalSwapFeeAccountSet { new_account: T::AccountId },
+        /// A new account address has been set for the collection of winnings fees
+        WinningsFeeAccountSet { new_account: T::AccountId },
     }
 
     #[pallet::hooks]
@@ -2274,20 +2311,21 @@ mod pallet {
 
     /// The account that receives the winnings fee
     #[pallet::storage]
-    type WinningsFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
+    pub type WinningsFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
     /// The account that receives the additional swap fee
     #[pallet::storage]
-    type AdditionalSwapFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
+    pub type AdditionalSwapFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub vault_account: Option<T::AccountId>,
+        pub market_admin: Option<T::AccountId>,
     }
 
     impl<T: Config> Default for GenesisConfig<T> {
         fn default() -> Self {
-            Self { vault_account: None }
+            Self { vault_account: None, market_admin: None }
         }
     }
 
@@ -2295,6 +2333,7 @@ mod pallet {
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
             VaultAccount::<T>::set(self.vault_account.clone());
+            MarketAdmin::<T>::set(self.market_admin.clone());
         }
     }
 
@@ -2325,7 +2364,8 @@ mod pallet {
         }
 
         pub fn additional_swap_fee_account() -> Result<T::AccountId, Error<T>> {
-            Ok(<AdditionalSwapFeeAccount<T>>::get().ok_or(Error::<T>::AdditionalSwapFeeAccountNotSet)?)
+            Ok(<AdditionalSwapFeeAccount<T>>::get()
+                .ok_or(Error::<T>::AdditionalSwapFeeAccountNotSet)?)
         }
 
         pub fn winnings_fee_account() -> Result<T::AccountId, Error<T>> {
@@ -3712,6 +3752,14 @@ mod pallet {
     impl<T: Config> ProcessedEventHandler for Pallet<T> {
         fn on_event_processed(event: &EthEvent) -> DispatchResult {
             process_lift::<T>(event)
+        }
+    }
+
+    impl<T: Config> PalletAdminGetter for Pallet<T> {
+        type AccountId = T::AccountId;
+
+        fn get_admin() -> Result<Self::AccountId, DispatchError> {
+            Ok(<MarketAdmin<T>>::get().ok_or(Error::<T>::MarketAdminNotSet)?)
         }
     }
 
