@@ -2610,11 +2610,11 @@ mod pallet {
                     balance,
                 );
 
-                // Pay out the winner.
                 let remaining_bal =
                     T::AssetManager::free_balance(market.base_asset, &market_account);
                 let max_payout = payout.min(remaining_bal);
 
+                // Deduct winning fee
                 let paid_winner_fee = T::WinnerFeeHandler::distribute(
                     market_id,
                     market.base_asset,
@@ -2624,6 +2624,7 @@ mod pallet {
 
                 let actual_payout = max_payout.saturating_sub(paid_winner_fee);
 
+                // Pay out the winner.
                 T::AssetManager::transfer(market.base_asset, &market_account, &who, actual_payout)?;
 
                 if balance != BalanceOf::<T>::zero() {

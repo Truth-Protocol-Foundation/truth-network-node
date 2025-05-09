@@ -60,7 +60,7 @@ mod pallet {
         ensure,
         pallet_prelude::{BuildGenesisConfig, OptionQuery, StorageMap, StorageValue},
         require_transactional,
-        traits::{EnsureOriginWithArg, Get, IsSubType, IsType, StorageVersion},
+        traits::{Get, IsSubType, IsType, StorageVersion},
         transactional, PalletError, PalletId, Parameter, Twox64Concat,
     };
     use frame_system::{
@@ -182,12 +182,6 @@ mod pallet {
             + From<sp_core::sr25519::Signature>;
 
         type PalletAdminGetter: PalletAdminGetter<AccountId = Self::AccountId>;
-
-        type PalletAdminOrigin: EnsureOriginWithArg<
-            Self::RuntimeOrigin,
-            Self::AccountId,
-            Success = Self::AccountId,
-        >;
     }
 
     #[pallet::pallet]
@@ -359,6 +353,8 @@ mod pallet {
         EarlyExitFeeAccountNotSet,
         /// Additional swap fee must be set before using it
         AdditionalSwapFeeNotSet,
+        /// The user is not the pallet admin
+        SenderNotMarketAdmin,
     }
 
     #[derive(Decode, Encode, Eq, PartialEq, PalletError, RuntimeDebug, TypeInfo)]
@@ -757,7 +753,8 @@ mod pallet {
             origin: OriginFor<T>,
             account: T::AccountId,
         ) -> DispatchResult {
-            T::PalletAdminOrigin::ensure_origin(origin, &T::PalletAdminGetter::get_admin()?)?;
+            let who = ensure_signed(origin)?;
+            ensure!(who == T::PalletAdminGetter::get_admin()?, Error::<T>::SenderNotMarketAdmin);
 
             <EarlyExitFeeAccount<T>>::mutate(|a| *a = Some(account.clone()));
             Self::deposit_event(Event::EarlyExitFeeAccountSet { new_account: account });
@@ -769,7 +766,8 @@ mod pallet {
         #[pallet::weight(T::WeightInfo::set_additional_swap_fee())]
         #[transactional]
         pub fn set_additional_swap_fee(origin: OriginFor<T>, fee: BalanceOf<T>) -> DispatchResult {
-            T::PalletAdminOrigin::ensure_origin(origin, &T::PalletAdminGetter::get_admin()?)?;
+            let who = ensure_signed(origin)?;
+            ensure!(who == T::PalletAdminGetter::get_admin()?, Error::<T>::SenderNotMarketAdmin);
 
             <AdditionalSwapFee<T>>::mutate(|f| *f = Some(fee));
             Self::deposit_event(Event::AdditionalSwapFeeSet { new_fee: fee });

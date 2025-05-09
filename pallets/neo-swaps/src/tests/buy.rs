@@ -39,7 +39,6 @@ fn buy_works() {
         let pct_fee = _1 - swap_fee;
         let total_in = amount_in_minus_fees + NeoSwaps::additional_swap_fee().unwrap();
         let amount_in = total_in.bdiv(pct_fee).unwrap(); // This is exactly _10 after deducting fees.
-        let expected_fees = amount_in - amount_in_minus_fees;
         let expected_swap_fee_amount =
             amount_in - amount_in_minus_fees - NeoSwaps::additional_swap_fee().unwrap();
         let expected_external_fee_amount = NeoSwaps::additional_swap_fee().unwrap();

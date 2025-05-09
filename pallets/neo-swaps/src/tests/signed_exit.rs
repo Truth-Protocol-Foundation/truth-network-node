@@ -1,5 +1,4 @@
 use super::*;
-use crate::liquidity_tree::types::LiquidityTreeError;
 use prediction_market_primitives::{test_helper::TestAccount, types::SignatureTest};
 use sp_avn_common::Proof;
 use sp_core::Pair;

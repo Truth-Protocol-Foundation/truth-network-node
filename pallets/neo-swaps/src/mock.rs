@@ -23,10 +23,7 @@
     clippy::too_many_arguments,
 )]
 
-use crate::{
-    self as pallet_pm_neo_swaps, consts::*, AdditionalSwapFee, AssetOf, EarlyExitFeeAccount,
-    MarketIdOf,
-};
+use crate::{self as pallet_pm_neo_swaps, consts::*, AssetOf, EarlyExitFeeAccount, MarketIdOf};
 use common_primitives::types::{Balance, Hash, Moment};
 use core::marker::PhantomData;
 use frame_support::{
@@ -36,7 +33,7 @@ use frame_support::{
 use frame_system::{mocking::MockBlockU32, EnsureRoot, EnsureSignedBy};
 use orml_traits::{asset_registry::AssetProcessor, MultiCurrency};
 use pallet_pm_neo_swaps::BalanceOf;
-use parity_scale_codec::{alloc::sync::Arc, Decode, Encode};
+use parity_scale_codec::{alloc::sync::Arc, Encode};
 pub use prediction_market_primitives::test_helper::{get_account, get_account_from_mnemonic};
 use prediction_market_primitives::{
     constants::{
@@ -54,20 +51,17 @@ use prediction_market_primitives::{
             MaxRejectReasonLen, MaxReserves, MaxSelectedDraws, MaxYearlyInflation, MinCategories,
             MinDisputeDuration, MinJurorStake, MinOracleDuration, MinOutcomeVoteAmount,
             MinimumPeriod, NeoMaxSwapFee, NeoSwapsPalletId, OutsiderBond, PmPalletId,
-            RemoveKeysLimit, RequestInterval, TreasuryPalletId, VotePeriod, VotingOutcomeFee, BASE,
+            RemoveKeysLimit, RequestInterval, TreasuryPalletId, VotePeriod, VotingOutcomeFee,
             CENT_BASE,
         },
     },
-    math::fixed::FixedMul,
     traits::{DeployPoolApi, DistributeFees},
     types::{
         Asset, BasicCurrencyAdapter, CurrencyId, CustomMetadata, MarketId, OrmlAmount,
         SignatureTest, TestAccountIdPK,
     },
 };
-use scale_info::TypeInfo;
-use sp_avn_common::{InnerCallValidator, Proof};
-use sp_core::{crypto::DEV_PHRASE, sr25519::Public, H160};
+use sp_core::{crypto::DEV_PHRASE, H160};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU32, Get, IdentityLookup, Zero},
@@ -166,7 +160,7 @@ where
         _market_id: Self::MarketId,
         asset: Self::Asset,
         account: &Self::AccountId,
-        amount: Self::Balance,
+        _amount: Self::Balance,
     ) -> Self::Balance {
         let fees = NeoSwaps::additional_swap_fee().unwrap().saturated_into();
         match T::MultiCurrency::transfer(asset, account, &F::get(), fees) {
@@ -252,7 +246,6 @@ impl crate::Config for Runtime {
     type Public = TestAccountIdPK;
     type Signature = SignatureTest;
     type PalletAdminGetter = PredictionMarkets;
-    type PalletAdminOrigin = EnsureSignedBy<MarketAdmin, TestAccountIdPK>;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

@@ -112,6 +112,9 @@ pub fn resolve_origin() -> TestAccountIdPK {
 pub fn winning_fee_account() -> TestAccountIdPK {
     get_account(95u8)
 }
+pub fn market_admin() -> TestAccountIdPK {
+    get_account(17u8)
+}
 pub const INITIAL_BALANCE: u128 = 1_000 * BASE;
 
 #[allow(unused)]
@@ -588,6 +591,13 @@ impl ExtBuilder {
                 ),
             ],
             last_asset_id: Asset::ForeignAsset(420),
+        }
+        .assimilate_storage(&mut t)
+        .unwrap();
+
+        prediction_markets::GenesisConfig::<Runtime> {
+            vault_account: Some(sudo()),
+            market_admin: Some(market_admin()),
         }
         .assimilate_storage(&mut t)
         .unwrap();

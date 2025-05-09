@@ -212,9 +212,9 @@ pub struct WeightToFee;
 impl WeightToFeePolynomial for WeightToFee {
     type Balance = Balance;
     fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
-        // We adjust the fee conversion so that the Extrinsic Base Weight corresponds to 150 micro
-        // TRUU fee.
-        let p = 150 * MICRO_BASE;
+        // We adjust the fee conversion so that a simple token transfer
+        // direct to chain costs ~ 50 milli TRUU fee.
+        let p = 208 * (MILLI_BASE / 10);
         let q = Balance::from(ExtrinsicBaseWeight::get().ref_time());
         smallvec![WeightToFeeCoefficient {
             degree: 1,
@@ -1161,7 +1161,6 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type PalletAdminGetter = PredictionMarkets;
-    type PalletAdminOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
 }
 
 impl pallet_pm_order_book::Config for Runtime {
