@@ -554,11 +554,10 @@ impl ExtBuilder {
         }
         .assimilate_storage(&mut t)
         .unwrap();
-        pallet_prediction_markets::GenesisConfig::<Runtime> {
-            market_admin: market_creator(),
-        }
-        .assimilate_storage(&mut t)
-        .unwrap()
+        pallet_prediction_markets::GenesisConfig::<Runtime> { market_admin: market_creator() }
+            .assimilate_storage(&mut t)
+            .unwrap();
+
         let mut test_ext: sp_io::TestExternalities = t.into();
         test_ext.register_extension(KeystoreExt(Arc::new(keystore)));
         test_ext.execute_with(|| System::set_block_number(1));

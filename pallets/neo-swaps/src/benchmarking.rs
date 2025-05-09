@@ -64,7 +64,6 @@ fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
     frame_system::Pallet::<T>::assert_last_event(generic_event.into());
 }
 
-
 trait LiquidityTreeBenchmarkHelper<T: Config> {
     fn calculate_min_pool_shares_amount(&self) -> BalanceOf<T>;
 }
@@ -791,8 +790,8 @@ mod benchmarks {
 
         assert_eq!(EarlyExitFeeAccount::<T>::get(), Some(whitelisted_account.clone()));
         assert_last_event::<T>(
-            Event::EarlyExitFeeAccountSet { new_account: whitelisted_account }
-        .into());
+            Event::EarlyExitFeeAccountSet { new_account: whitelisted_account }.into(),
+        );
     }
 
     #[benchmark]
@@ -805,9 +804,7 @@ mod benchmarks {
         set_additional_swap_fee(RawOrigin::Signed(market_admin), new_fee.clone());
 
         assert_eq!(AdditionalSwapFee::<T>::get(), Some(new_fee.clone()));
-        assert_last_event::<T>(
-            Event::AdditionalSwapFeeSet { new_fee }
-        .into());
+        assert_last_event::<T>(Event::AdditionalSwapFeeSet { new_fee }.into());
     }
 
     impl_benchmark_test_suite!(

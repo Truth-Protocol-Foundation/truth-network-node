@@ -67,7 +67,7 @@ use prediction_market_primitives::{
 };
 use scale_info::TypeInfo;
 use sp_avn_common::{InnerCallValidator, Proof};
-use sp_core::{{crypto::{DEV_PHRASE}}, sr25519::Public, H160};
+use sp_core::{crypto::DEV_PHRASE, sr25519::Public, H160};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU32, Get, IdentityLookup, Zero},

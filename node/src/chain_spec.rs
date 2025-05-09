@@ -2,6 +2,10 @@ use self::constants::{
     HALF_HOUR_SCHEDULE_PERIOD, QUORUM_FACTOR, SMALL_EVENT_CHALLENGE_PERIOD, SMALL_VOTING_PERIOD,
 };
 use codec::Encode;
+use common_primitives::{
+    constants::{currency::*, *},
+    types::BlockNumber,
+};
 use constants::{EIGHT_HOURS_SCHEDULE_PERIOD, NORMAL_EVENT_CHALLENGE_PERIOD, NORMAL_VOTING_PERIOD};
 use hex_literal::hex;
 use orml_traits::asset_registry::AssetMetadata;
@@ -12,7 +16,10 @@ use sc_service::ChainType;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::{crypto::{DEV_PHRASE, UncheckedInto}, ecdsa, sr25519, ByteArray, Pair, Public, H160, H256};
+use sp_core::{
+    crypto::{UncheckedInto, DEV_PHRASE},
+    ecdsa, sr25519, ByteArray, Pair, Public, H160, H256,
+};
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
     BoundedVec,
@@ -23,10 +30,6 @@ use tnf_node_runtime::{
     EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, NeoSwapsConfig,
     NodeManagerConfig, PredictionMarketsConfig, RuntimeGenesisConfig, SessionConfig, Signature,
     SudoConfig, SummaryConfig, SystemConfig, TokenManagerConfig, WASM_BINARY,
-};
-use common_primitives::{
-    constants::{currency::*, *},
-    types::BlockNumber,
 };
 
 pub(crate) type EthPublicKey = ecdsa::Public;
@@ -786,7 +789,7 @@ fn testnet_genesis(
         asset_registry,
         prediction_markets: PredictionMarketsConfig {
             vault_account: Some(root_key.clone()),
-            market_admin: prediction_market_admin
+            market_admin: prediction_market_admin,
         },
         neo_swaps: NeoSwapsConfig {
             additional_swap_fee: 500_000_000, //0.05

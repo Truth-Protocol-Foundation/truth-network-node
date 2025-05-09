@@ -13,9 +13,13 @@ use asset_registry::CustomAssetProcessor;
 
 use codec::{Decode, Encode};
 use core::cmp::Ordering;
+use hex::FromHex;
 use orml_traits::parameter_type_with_key;
+use pallet_avn::sr25519::AuthorityId as AvnId;
+pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
 use pallet_grandpa::AuthorityId as GrandpaId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 use pallet_session::historical as pallet_session_historical;
 use scale_info::TypeInfo;
 use smallvec::smallvec;
@@ -33,10 +37,6 @@ use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-use hex::FromHex;
-use pallet_avn::sr25519::AuthorityId as AvnId;
-pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
-use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 
 pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
@@ -153,7 +153,8 @@ pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
 >>::NegativeImbalance;
 
 pub fn gas_fee_recipient() -> AccountId {
-    to_account("<Public key without 0x>").expect("Gas fee recipient address is valid")
+    to_account("<Public key without 0x>")
+        .expect("Gas fee recipient address is valid")
 }
 
 fn to_account(pubkey_hex: &str) -> Result<AccountId, ()> {
