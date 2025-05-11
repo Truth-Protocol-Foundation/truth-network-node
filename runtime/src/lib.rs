@@ -153,7 +153,8 @@ pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
 >>::NegativeImbalance;
 
 pub fn gas_fee_recipient() -> AccountId {
-    to_account("<Public key without 0x>").expect("Gas fee recipient address is valid")
+    to_account("7ef309ab58c407b3626ecb16864547356400383480bbf32d947239d89173212d")
+        .expect("Gas fee recipient address is valid")
 }
 
 fn to_account(pubkey_hex: &str) -> Result<AccountId, ()> {
