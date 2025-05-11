@@ -261,6 +261,7 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type Public = TestAccountIdPK;
     type Signature = SignatureTest;
     type RuntimeCall = RuntimeCall;
+    type PalletAdminGetter = PredictionMarkets;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
@@ -554,7 +555,10 @@ impl ExtBuilder {
         }
         .assimilate_storage(&mut t)
         .unwrap();
-        pallet_prediction_markets::GenesisConfig::<Runtime> { market_admin: market_creator() }
+        pallet_prediction_markets::GenesisConfig::<Runtime> {
+            vault_account: Some(sudo()),
+            market_admin: Some(market_creator()),
+        }
             .assimilate_storage(&mut t)
             .unwrap();
 
