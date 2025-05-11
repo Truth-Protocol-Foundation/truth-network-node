@@ -559,8 +559,8 @@ impl ExtBuilder {
             vault_account: Some(sudo()),
             market_admin: Some(market_creator()),
         }
-            .assimilate_storage(&mut t)
-            .unwrap();
+        .assimilate_storage(&mut t)
+        .unwrap();
 
         let mut test_ext: sp_io::TestExternalities = t.into();
         test_ext.register_extension(KeystoreExt(Arc::new(keystore)));
