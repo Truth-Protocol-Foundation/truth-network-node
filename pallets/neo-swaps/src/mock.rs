@@ -23,13 +23,8 @@
     clippy::too_many_arguments,
 )]
 
-use crate::{self as pallet_pm_neo_swaps};
-use crate::{consts::*, AssetOf, MarketIdOf};
+use crate::{self as pallet_pm_neo_swaps, consts::*, AssetOf, MarketIdOf};
 use common_primitives::types::{Balance, Hash, Moment};
-use parity_scale_codec::Decode;
-use scale_info::TypeInfo;
-use sp_avn_common::{InnerCallValidator, Proof};
-use sp_core::sr25519::Public;
 use core::marker::PhantomData;
 use frame_support::{
     construct_runtime, ord_parameter_types, parameter_types,
@@ -38,7 +33,7 @@ use frame_support::{
 use frame_system::{mocking::MockBlockU32, EnsureRoot, EnsureSignedBy};
 use orml_traits::{asset_registry::AssetProcessor, MultiCurrency};
 use pallet_pm_neo_swaps::BalanceOf;
-use parity_scale_codec::{alloc::sync::Arc, Encode};
+use parity_scale_codec::{alloc::sync::Arc, Decode, Encode};
 pub use prediction_market_primitives::test_helper::get_account;
 use prediction_market_primitives::{
     constants::{
@@ -67,7 +62,9 @@ use prediction_market_primitives::{
         SignatureTest, TestAccountIdPK,
     },
 };
-use sp_core::H160;
+use scale_info::TypeInfo;
+use sp_avn_common::{InnerCallValidator, Proof};
+use sp_core::{sr25519::Public, H160};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU32, Get, IdentityLookup, Zero},
