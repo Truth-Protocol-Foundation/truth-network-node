@@ -35,12 +35,13 @@ fn buy_works() {
             swap_fee,
         );
         let pool = Pools::<Runtime>::get(market_id).unwrap();
-        let total_fee_percentage = swap_fee + EXTERNAL_FEES;
         let amount_in_minus_fees = _10;
-        let amount_in = amount_in_minus_fees.bdiv(_1 - total_fee_percentage).unwrap(); // This is exactly _10 after deducting fees.
-        let expected_fees = amount_in - amount_in_minus_fees;
-        let expected_swap_fee_amount = expected_fees / 2;
-        let expected_external_fee_amount = expected_fees / 2;
+        let pct_fee = _1 - swap_fee;
+        let total_in = amount_in_minus_fees + NeoSwaps::additional_swap_fee().unwrap();
+        let amount_in = total_in.bdiv(pct_fee).unwrap(); // This is exactly _10 after deducting fees.
+        let expected_swap_fee_amount =
+            amount_in - amount_in_minus_fees - NeoSwaps::additional_swap_fee().unwrap();
+        let expected_external_fee_amount = NeoSwaps::additional_swap_fee().unwrap();
         let pool_outcomes_before: Vec<_> =
             pool.assets().iter().map(|a| pool.reserve_of(a).unwrap()).collect();
         let liquidity_parameter_before = pool.liquidity_parameter;
@@ -59,7 +60,7 @@ fn buy_works() {
         ));
         let pool = Pools::<Runtime>::get(market_id).unwrap();
         let expected_swap_amount_out = 58496250072;
-        let expected_amount_in_minus_fees = _10 + 1; // Note: This is 1 Pennock off of the correct result.
+        let expected_amount_in_minus_fees = _10; // Note: This is 1 Pennock off of the correct result.
         let expected_reserves = vec![
             pool_outcomes_before[0] - expected_swap_amount_out,
             pool_outcomes_before[0] + expected_amount_in_minus_fees,

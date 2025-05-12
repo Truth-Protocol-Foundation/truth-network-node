@@ -28,10 +28,8 @@ fn create_signed_join_proof(
 struct SignedJoinContext {
     pub pool_balances: Vec<u128>,
     pub spot_prices: Vec<BalanceOf<Runtime>>,
-    pub liquidity: u128,
     pub market_id: MarketId,
     pub pool_shares_amount: u128,
-    pub category_count: u16,
     pub outcomes: Vec<AssetOf<Runtime>>,
 }
 
@@ -52,10 +50,8 @@ impl Default for SignedJoinContext {
             // These need to match the actual pool balances after deployment
             pool_balances: vec![50_000_000_000, 5_087_779_911],
             spot_prices,
-            liquidity,
             market_id,
             pool_shares_amount: _4, // Add 40% to the pool
-            category_count: 2,
             outcomes: vec![],
         }
     }

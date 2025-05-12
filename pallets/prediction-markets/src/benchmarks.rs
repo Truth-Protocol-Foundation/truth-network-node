@@ -1568,6 +1568,30 @@ benchmarks! {
         .into());
     }
 
+    set_winnings_fee_account {
+        let market_admin: T::AccountId = whitelisted_caller();
+        MarketAdmin::<T>::set(Some(market_admin.clone()));
+        let whitelisted_account: T::AccountId = account("WhitelistedAcc", 0, 0);
+    }: _(RawOrigin::Signed(market_admin), whitelisted_account.clone())
+    verify {
+        assert_eq!(WinningsFeeAccount::<T>::get(), Some(whitelisted_account.clone()));
+        assert_last_event::<T>(
+            Event::WinningsFeeAccountSet { new_account: whitelisted_account }
+        .into());
+    }
+
+    set_additional_swap_fee_account {
+        let market_admin: T::AccountId = whitelisted_caller();
+        MarketAdmin::<T>::set(Some(market_admin.clone()));
+        let whitelisted_account: T::AccountId = account("WhitelistedAcc", 0, 0);
+    }: _(RawOrigin::Signed(market_admin), whitelisted_account.clone())
+    verify {
+        assert_eq!(AdditionalSwapFeeAccount::<T>::get(), Some(whitelisted_account.clone()));
+        assert_last_event::<T>(
+            Event::AdditionalSwapFeeAccountSet { new_account: whitelisted_account }
+        .into());
+    }
+
     remove_market_creator {
         let market_admin: T::AccountId = whitelisted_caller();
         MarketAdmin::<T>::set(Some(market_admin.clone()));

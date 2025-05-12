@@ -23,6 +23,7 @@ mod deploy_pool;
 mod exit;
 mod join;
 mod liquidity_tree_interactions;
+mod pallet_admin_tests;
 mod sell;
 mod signed_exit;
 mod signed_join;

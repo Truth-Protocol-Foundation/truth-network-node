@@ -273,14 +273,15 @@ fn full_scalar_market_lifecycle() {
         // check payouts is right for each charlie() and eve()
         let base_asset_bal_charlie = AssetManager::free_balance(base_asset, &charlie());
         let base_asset_bal_eve = AssetManager::free_balance(base_asset, &eve());
-        assert_eq!(base_asset_bal_charlie, 98750 * CENT_BASE); // 75 (LONG) + 12.5 (SHORT) + 900 (balance)
+
+        assert_eq!(base_asset_bal_charlie, 9831250000000); // (75 (LONG) + 12.5 (SHORT))-5% winning fee + 900 (balance)
         assert_eq!(base_asset_bal_eve, 1000 * BASE);
         System::assert_has_event(
             Event::TokensRedeemed(
                 0,
                 Asset::ScalarOutcome(0, ScalarPosition::Long),
                 100 * BASE,
-                75 * BASE,
+                712500000000, //75 - 5%
                 charlie(),
             )
             .into(),
@@ -290,7 +291,7 @@ fn full_scalar_market_lifecycle() {
                 0,
                 Asset::ScalarOutcome(0, ScalarPosition::Short),
                 50 * BASE,
-                1250 * CENT_BASE, // 12.5
+                118750000000, // 12.5 - 5%
                 charlie(),
             )
             .into(),
@@ -298,13 +299,13 @@ fn full_scalar_market_lifecycle() {
 
         assert_ok!(PredictionMarkets::redeem_shares(RuntimeOrigin::signed(eve()), 0));
         let base_asset_bal_eve_after = AssetManager::free_balance(base_asset, &eve());
-        assert_eq!(base_asset_bal_eve_after, 101250 * CENT_BASE); // 12.5 (SHORT) + 1000 (balance)
+        assert_eq!(base_asset_bal_eve_after, 10118750000000); // (12.5 (SHORT) -5% )+ 1000 (balance)
         System::assert_last_event(
             Event::TokensRedeemed(
                 0,
                 Asset::ScalarOutcome(0, ScalarPosition::Short),
                 50 * BASE,
-                1250 * CENT_BASE, // 12.5
+                118750000000, // 12.5 - 5%
                 eve(),
             )
             .into(),
@@ -324,6 +325,7 @@ fn authorized_correctly_resolves_disputed_market() {
     // NOTE: Bonds are always in TRUU, irrespective of base_asset.
     let test = |base_asset: AssetOf<Runtime>| {
         let end = 2;
+        let winning_fee = <Runtime as Config>::WinnerFeePercentage::get() * CENT_BASE;
         WhitelistedMarketCreators::<Runtime>::insert(&alice(), ());
         assert_ok!(PredictionMarkets::create_market(
             RuntimeOrigin::signed(alice()),
@@ -450,7 +452,10 @@ fn authorized_correctly_resolves_disputed_market() {
 
         if base_asset == Asset::Tru {
             let charlie_balance = AssetManager::free_balance(Asset::Tru, &charlie());
-            assert_eq!(charlie_balance, 1_000 * BASE + <Runtime as Config>::OracleBond::get());
+            assert_eq!(
+                charlie_balance,
+                1_000 * BASE + <Runtime as Config>::OracleBond::get() - winning_fee
+            );
         } else {
             let charlie_balance = AssetManager::free_balance(Asset::Tru, &charlie());
             assert_eq!(charlie_balance, 1_000 * BASE + <Runtime as Config>::OracleBond::get());

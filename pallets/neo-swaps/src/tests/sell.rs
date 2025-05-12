@@ -45,12 +45,14 @@ fn sell_works() {
             amount_in,
             0,
         ));
-        let total_fee_percentage = swap_fee + EXTERNAL_FEES;
+
         let expected_amount_out = 59632253897;
-        let expected_fees = total_fee_percentage.bmul(expected_amount_out).unwrap();
-        let expected_swap_fee_amount = expected_fees / 2;
-        let expected_external_fee_amount = expected_fees - expected_swap_fee_amount;
+        let expected_fees =
+            swap_fee.bmul(expected_amount_out).unwrap() + NeoSwaps::additional_swap_fee().unwrap();
+        let expected_swap_fee_amount = expected_fees - NeoSwaps::additional_swap_fee().unwrap();
+        let expected_external_fee_amount = NeoSwaps::additional_swap_fee().unwrap();
         let expected_amount_out_minus_fees = expected_amount_out - expected_fees;
+
         assert_balance!(bob(), BASE_ASSET, expected_amount_out_minus_fees);
         assert_balance!(bob(), asset_in, 0);
         assert_pool_state!(

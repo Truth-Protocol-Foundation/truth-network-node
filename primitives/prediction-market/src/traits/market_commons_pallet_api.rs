@@ -129,3 +129,10 @@ pub trait MarketCommonsPalletApi {
     /// Returns the current UTC time (milliseconds)
     fn now() -> Self::Moment;
 }
+
+pub trait PalletAdminGetter {
+    type AccountId;
+
+    /// Returns the admin account ID of the pallet.
+    fn get_admin() -> Result<Self::AccountId, DispatchError>;
+}

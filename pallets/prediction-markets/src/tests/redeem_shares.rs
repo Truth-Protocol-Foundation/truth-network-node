@@ -29,6 +29,7 @@ use prediction_market_primitives::types::{OutcomeReport, ScalarPosition};
 fn it_allows_to_redeem_shares() {
     let test = |base_asset: AssetOf<Runtime>| {
         let end = 2;
+        let winning_fee = <Runtime as Config>::WinnerFeePercentage::get() * CENT_BASE;
         simple_create_categorical_market(
             base_asset,
             MarketCreation::Permissionless,
@@ -56,13 +57,13 @@ fn it_allows_to_redeem_shares() {
 
         assert_ok!(PredictionMarkets::redeem_shares(RuntimeOrigin::signed(charlie()), 0));
         let bal = Balances::free_balance(charlie());
-        assert_eq!(bal, 1_000 * BASE);
+        assert_eq!(bal, 1_000 * BASE - winning_fee);
         System::assert_last_event(
             Event::TokensRedeemed(
                 0,
                 Asset::CategoricalOutcome(0, 1),
                 CENT_BASE,
-                CENT_BASE,
+                CENT_BASE - winning_fee,
                 charlie(),
             )
             .into(),
@@ -110,9 +111,10 @@ fn redeem_shares_fails_if_invalid_resolution_mechanism(scoring_rule: ScoringRule
 #[test]
 fn scalar_market_correctly_resolves_on_out_of_range_outcomes_below_threshold() {
     let test = |base_asset: AssetOf<Runtime>| {
+        let winning_fee = <Runtime as Config>::WinnerFeePercentage::get() * (100 * BASE);
         scalar_market_correctly_resolves_common(base_asset, 50);
         assert_eq!(AssetManager::free_balance(base_asset, &charlie()), 900 * BASE);
-        assert_eq!(AssetManager::free_balance(base_asset, &eve()), 1100 * BASE);
+        assert_eq!(AssetManager::free_balance(base_asset, &eve()), 1100 * BASE - winning_fee);
     };
     ExtBuilder::default().build().execute_with(|| {
         test(Asset::Tru);
@@ -126,8 +128,9 @@ fn scalar_market_correctly_resolves_on_out_of_range_outcomes_below_threshold() {
 #[test]
 fn scalar_market_correctly_resolves_on_out_of_range_outcomes_above_threshold() {
     let test = |base_asset: AssetOf<Runtime>| {
+        let winning_fee = <Runtime as Config>::WinnerFeePercentage::get() * (100 * BASE);
         scalar_market_correctly_resolves_common(base_asset, 250);
-        assert_eq!(AssetManager::free_balance(base_asset, &charlie()), 1000 * BASE);
+        assert_eq!(AssetManager::free_balance(base_asset, &charlie()), 1000 * BASE - winning_fee);
         assert_eq!(AssetManager::free_balance(base_asset, &eve()), 1000 * BASE);
     };
     ExtBuilder::default().build().execute_with(|| {

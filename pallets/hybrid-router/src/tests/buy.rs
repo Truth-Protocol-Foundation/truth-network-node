@@ -65,16 +65,16 @@ fn buy_from_amm_and_then_fill_specified_order() {
             strategy,
         ));
 
-        let amm_amount_in = 2832657984;
+        let amm_amount_in = 2804328542;
         System::assert_has_event(
             NeoSwapsEvent::<Runtime>::BuyExecuted {
                 who: alice(),
                 market_id,
                 asset_out: asset,
                 amount_in: amm_amount_in,
-                amount_out: 5608094333,
-                swap_fee_amount: 28326580,
-                external_fee_amount: 28326579,
+                amount_out: 5606655193,
+                swap_fee_amount: 28043285,
+                external_fee_amount: 1000000,
             }
             .into(),
         );
@@ -82,20 +82,20 @@ fn buy_from_amm_and_then_fill_specified_order() {
         let order_ids = Orders::<Runtime>::iter().map(|(k, _)| k).collect::<Vec<_>>();
         assert_eq!(order_ids.len(), 1);
         let order = Orders::<Runtime>::get(order_ids[0]).unwrap();
-        let unfilled_base_asset_amount = 42832657984;
+        let unfilled_base_asset_amount = 42804328542;
         assert_eq!(
             order,
             Order {
                 market_id,
                 maker: charlie(),
                 maker_asset: Asset::CategoricalOutcome(market_id, 0),
-                maker_amount: 85665315968,
+                maker_amount: 85608657084,
                 taker_asset: BASE_ASSET,
                 taker_amount: unfilled_base_asset_amount,
             }
         );
         let filled_base_asset_amount = order_taker_amount - unfilled_base_asset_amount;
-        assert_eq!(filled_base_asset_amount, 17167342016);
+        assert_eq!(filled_base_asset_amount, 17195671458);
         assert_eq!(amm_amount_in + filled_base_asset_amount, amount_in);
     });
 }
@@ -430,9 +430,9 @@ fn buy_from_amm() {
                 market_id,
                 asset_out: asset,
                 amount_in: 20000000000,
-                amount_out: 36852900215,
+                amount_out: 37205851586,
                 swap_fee_amount: 200000000,
-                external_fee_amount: 200000000,
+                external_fee_amount: 1000000,
             }
             .into(),
         );
@@ -534,8 +534,8 @@ fn buy_from_amm_but_low_amount() {
                 who: alice(),
                 market_id,
                 asset_out: asset,
-                amount_in: 30,
-                amount_out: 60,
+                amount_in: 29,
+                amount_out: 58,
                 swap_fee_amount: 0,
                 external_fee_amount: 0,
             }
@@ -552,9 +552,9 @@ fn buy_from_amm_but_low_amount() {
                 market_id,
                 maker: alice(),
                 maker_asset: base_asset,
-                maker_amount: 19999999970,
+                maker_amount: 19999999971,
                 taker_asset: asset,
-                taker_amount: 39999999933,
+                taker_amount: 39999999935,
             }
         );
     });
@@ -598,9 +598,9 @@ fn buy_from_amm_only() {
                 market_id,
                 asset_out: asset,
                 amount_in: 20000000000,
-                amount_out: 36852900215,
+                amount_out: 37205851586,
                 swap_fee_amount: 200000000,
-                external_fee_amount: 200000000,
+                external_fee_amount: 1000000,
             }
             .into(),
         );
@@ -761,9 +761,9 @@ fn buy_emits_event() {
                 asset_in: BASE_ASSET,
                 amount_in,
                 asset_out: asset,
-                amount_out: 2301256894490,
-                external_fee_amount: 3423314400,
-                swap_fee_amount: 2273314407,
+                amount_out: 2302415689824,
+                external_fee_amount: 12000000,
+                swap_fee_amount: 2250551794,
             }
             .into(),
         );

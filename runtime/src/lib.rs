@@ -13,9 +13,13 @@ use asset_registry::CustomAssetProcessor;
 
 use codec::{Decode, Encode};
 use core::cmp::Ordering;
+use hex::FromHex;
 use orml_traits::parameter_type_with_key;
+use pallet_avn::sr25519::AuthorityId as AvnId;
+pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
 use pallet_grandpa::AuthorityId as GrandpaId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 use pallet_session::historical as pallet_session_historical;
 use scale_info::TypeInfo;
 use smallvec::smallvec;
@@ -33,10 +37,6 @@ use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-
-use pallet_avn::sr25519::AuthorityId as AvnId;
-pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
-use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 
 pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
@@ -57,9 +57,9 @@ pub use frame_support::{
     dispatch::DispatchClass,
     parameter_types,
     traits::{
-        ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains, Currency, EitherOfDiverse,
-        Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced, PrivilegeCmp, Randomness,
-        StorageInfo,
+        AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains,
+        Currency, EitherOfDiverse, Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
+        PrivilegeCmp, Randomness, StorageInfo,
     },
     weights::{
         constants::{
@@ -72,7 +72,7 @@ pub use frame_support::{
 };
 pub use frame_system::{
     limits::{BlockLength, BlockWeights},
-    Call as SystemCall, EnsureRoot,
+    Call as SystemCall, EnsureRoot, EnsureSigned,
 };
 use pallet_avn_transaction_payment::AvnCurrencyAdapter;
 pub use pallet_balances::Call as BalancesCall;
@@ -152,6 +152,18 @@ pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
     <T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
+pub fn gas_fee_recipient() -> AccountId {
+    to_account("7ef309ab58c407b3626ecb16864547356400383480bbf32d947239d89173212d")
+        .expect("Gas fee recipient address is valid")
+}
+
+fn to_account(pubkey_hex: &str) -> Result<AccountId, ()> {
+    let bytes = Vec::from_hex(pubkey_hex).map_err(|_| ())?;
+    let mut arr = [0u8; 32];
+    arr.copy_from_slice(&bytes);
+    Ok(AccountId::decode(&mut &arr[..]).map_err(|_| ())?)
+}
+
 pub struct Treasury<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for Treasury<R>
 where
@@ -161,8 +173,8 @@ where
     <R as frame_system::Config>::RuntimeEvent: From<pallet_balances::Event<R>>,
 {
     fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
-        let treasury_address = <pallet_token_manager::Pallet<R>>::compute_treasury_account_id();
-        <pallet_balances::Pallet<R>>::resolve_creating(&treasury_address, amount);
+        let recipient: <R as frame_system::Config>::AccountId = gas_fee_recipient().into();
+        <pallet_balances::Pallet<R>>::resolve_creating(&recipient, amount);
     }
 }
 
@@ -200,9 +212,9 @@ pub struct WeightToFee;
 impl WeightToFeePolynomial for WeightToFee {
     type Balance = Balance;
     fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
-        // We adjust the fee conversion so that the Extrinsic Base Weight corresponds to 150 micro
-        // TRUU fee.
-        let p = 150 * MICRO_BASE;
+        // We adjust the fee conversion so that a simple token transfer
+        // direct to chain costs ~ 50 milli TRUU fee.
+        let p = 208 * (MILLI_BASE / 10);
         let q = Balance::from(ExtrinsicBaseWeight::get().ref_time());
         smallvec![WeightToFeeCoefficient {
             degree: 1,
@@ -252,7 +264,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 21,
+    spec_version: 22,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -951,7 +963,11 @@ parameter_types! {
     pub const HybridRouterPalletId: PalletId = HYBRID_ROUTER_PALLET_ID;
     /// Maximum number of orders that can be placed in a single trade transaction.
     pub const MaxOrders: u32 = 100;
+    /// The percentage of winning we deduct from the winner.
+    pub const WinnerFeePercentage: Perbill = Perbill::from_percent(5);
 }
+
+impl_winner_fees!();
 
 impl pallet_prediction_markets::Config for Runtime {
     type AdvisoryBond = AdvisoryBond;
@@ -999,6 +1015,8 @@ impl pallet_prediction_markets::Config for Runtime {
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type TokenInterface = TokenManager;
+    type WinnerFeePercentage = WinnerFeePercentage;
+    type WinnerFeeHandler = WinnerFee;
 }
 
 parameter_types! {
@@ -1130,7 +1148,7 @@ impl_market_creator_fees!();
 
 impl pallet_pm_neo_swaps::Config for Runtime {
     type CompleteSetOperations = PredictionMarkets;
-    type ExternalFees = MarketCreatorFee;
+    type ExternalFees = AdditionalSwapFee;
     type MarketCommons = MarketCommons;
     type MultiCurrency = AssetManager;
     type RuntimeEvent = RuntimeEvent;
@@ -1142,11 +1160,12 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type SignedTxLifetime = ConstU32<16>;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
+    type PalletAdminGetter = PredictionMarkets;
 }
 
 impl pallet_pm_order_book::Config for Runtime {
     type AssetManager = AssetManager;
-    type ExternalFees = MarketCreatorFee;
+    type ExternalFees = AdditionalSwapFee;
     type RuntimeEvent = RuntimeEvent;
     type MarketCommons = MarketCommons;
     type PalletId = OrderbookPalletId;
@@ -1217,7 +1236,7 @@ construct_runtime!(
         Court: pallet_pm_court::{Call, Event<T>, Pallet, Storage} = 42,
         PredictionMarkets: pallet_prediction_markets::{Call, Config<T>, Event<T>, Pallet, Storage} = 43,
         GlobalDisputes: pallet_pm_global_disputes::{Call, Event<T>, Pallet, Storage} = 44,
-        NeoSwaps: pallet_pm_neo_swaps::{Call, Event<T>, Pallet, Storage} = 45,
+        NeoSwaps: pallet_pm_neo_swaps::{Call, Config<T>, Event<T>, Pallet, Storage} = 45,
         Orderbook: pallet_pm_order_book::{Call, Event<T>, Pallet, Storage} = 46,
         HybridRouter: pallet_pm_hybrid_router::{Call, Event<T>, Pallet, Storage} = 47,
     }

@@ -96,6 +96,8 @@ pub trait WeightInfoZeitgeist {
     fn signed_report_market_with_dispute_mechanism(m: u32) -> Weight;
     fn signed_report_trusted_market() -> Weight;
     fn signed_buy_complete_set(a: u32) -> Weight;
+    fn set_winnings_fee_account() -> Weight;
+    fn set_additional_swap_fee_account() -> Weight;
 }
 
 /// Weight functions for pallet_prediction_markets (automatically generated)
@@ -118,6 +120,34 @@ impl<T: frame_system::Config> WeightInfoZeitgeist for WeightInfo<T> {
             .saturating_add(Weight::from_parts(20_167, 0).saturating_mul(c.into()))
             .saturating_add(T::DbWeight::get().reads(3))
             .saturating_add(T::DbWeight::get().writes(2))
+    }
+    /// Storage: `PredictionMarkets::MarketAdmin` (r:1 w:0)
+    /// Proof: `PredictionMarkets::MarketAdmin` (`max_values`: Some(1), `max_size`: Some(32), added:
+    /// 527, mode: `MaxEncodedLen`) Storage: `PredictionMarkets::WinningsFeeAccount` (r:1 w:1)
+    /// Proof: `PredictionMarkets::WinningsFeeAccount` (`max_values`: Some(1), `max_size`: Some(32),
+    /// added: 527, mode: `MaxEncodedLen`)
+    fn set_winnings_fee_account() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `94`
+        //  Estimated: `1517`
+        // Minimum execution time: 14_796_000 picoseconds.
+        Weight::from_parts(16_504_000, 1517)
+            .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(1_u64))
+    }
+    /// Storage: `PredictionMarkets::MarketAdmin` (r:1 w:0)
+    /// Proof: `PredictionMarkets::MarketAdmin` (`max_values`: Some(1), `max_size`: Some(32), added:
+    /// 527, mode: `MaxEncodedLen`) Storage: `PredictionMarkets::AdditionalSwapFeeAccount` (r:1
+    /// w:1) Proof: `PredictionMarkets::AdditionalSwapFeeAccount` (`max_values`: Some(1),
+    /// `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
+    fn set_additional_swap_fee_account() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `94`
+        //  Estimated: `1517`
+        // Minimum execution time: 15_055_000 picoseconds.
+        Weight::from_parts(16_373_000, 1517)
+            .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(1_u64))
     }
     /// Storage: `MarketCommons::Markets` (r:1 w:1)
     /// Proof: `MarketCommons::Markets` (`max_values`: None, `max_size`: Some(694), added: 3169,
