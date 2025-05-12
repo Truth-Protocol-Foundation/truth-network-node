@@ -69,21 +69,21 @@ impl SignedJoinContext {
             Ok(())
         })
         .unwrap();
-        
+
         let pool = Pools::<Runtime>::get(self.market_id).unwrap();
         self.outcomes = pool.assets();
-        
+
         // Verify the initial pool state matches our expected values
         assert_pool_state!(
             self.market_id,
             self.pool_balances,
             self.spot_prices,
-            27_905_531_321,  // Updated liquidity parameter value
+            27_905_531_321, // Updated liquidity parameter value
             create_b_tree_map!({ alice() => _5 }),
             0,
         );
     }
-    
+
     fn prepare_outcome_tokens(&self, who: &TestAccountIdPK, amount: BalanceOf<Runtime>) {
         // Acquire outcome tokens for the test account to deposit into the pool
         deposit_complete_set(self.market_id, *who, amount);
@@ -99,16 +99,16 @@ fn signed_join_works() {
         let market_id = context.market_id;
         let pool_shares_amount = _4;
         let expected_liquidity_parameter = 50_229_956_378;
-        
+
         context.setup_market();
-        
+
         // Prepare outcome tokens for Bob to join the pool
         context.prepare_outcome_tokens(&bob(), pool_shares_amount * 2);
-        
+
         // Calculate expected amounts in based on pool state
         // Max amounts set high to ensure the test passes
         let max_amounts_in = vec![u128::MAX, u128::MAX];
-        
+
         let proof_blocknumber = System::block_number();
         let proof = create_signed_join_proof(
             &bob_account,
@@ -135,13 +135,13 @@ fn signed_join_works() {
 
         // Get the pool to verify state changes
         let pool = Pools::<Runtime>::get(market_id).unwrap();
-        
+
         // Check that Bob's outcome tokens were reduced
         let bob_final_balances = [
             <Runtime as Config>::MultiCurrency::free_balance(context.outcomes[0], &bob()),
             <Runtime as Config>::MultiCurrency::free_balance(context.outcomes[1], &bob()),
         ];
-        
+
         // Bob's balances should be less after joining
         assert!(bob_final_balances[0] < bob_initial_balances[0]);
         assert!(bob_final_balances[1] < bob_initial_balances[1]);
@@ -149,7 +149,7 @@ fn signed_join_works() {
         // Verify pool state changes
         assert_ok!(pool.liquidity_shares_manager.shares_of(&bob()));
         assert_eq!(pool.liquidity_parameter, expected_liquidity_parameter);
-        
+
         // Verify the event was emitted
         System::assert_has_event(
             Event::JoinExecuted {
@@ -178,12 +178,12 @@ mod fails_when {
 
             let market_id = context.market_id;
             context.setup_market();
-            
+
             context.prepare_outcome_tokens(&bob(), context.pool_shares_amount * 2);
-            
+
             let max_amounts_in = vec![u128::MAX, u128::MAX];
             let proof_blocknumber = System::block_number();
-            
+
             // Create proof with wrong relayer (dave instead of eve)
             let proof = Proof {
                 relayer: dave(),
@@ -217,12 +217,12 @@ mod fails_when {
 
             let market_id = context.market_id;
             context.setup_market();
-            
+
             context.prepare_outcome_tokens(&bob(), context.pool_shares_amount * 2);
-            
+
             let max_amounts_in = vec![u128::MAX, u128::MAX];
             let proof_blocknumber = System::block_number();
-            
+
             // Create proof with incorrect signature
             let proof = Proof {
                 signature: bob_account.key_pair().sign(&[1u8; 10]),
@@ -256,12 +256,12 @@ mod fails_when {
 
             let market_id = context.market_id;
             context.setup_market();
-            
+
             context.prepare_outcome_tokens(&bob(), context.pool_shares_amount * 2);
-            
+
             let max_amounts_in = vec![u128::MAX, u128::MAX];
             let proof_blocknumber = System::block_number();
-            
+
             // Create proof with wrong signer
             let proof = Proof {
                 signer: dave(),
@@ -295,12 +295,12 @@ mod fails_when {
 
             let market_id = context.market_id;
             context.setup_market();
-            
+
             context.prepare_outcome_tokens(&bob(), context.pool_shares_amount * 2);
-            
+
             let max_amounts_in = vec![u128::MAX, u128::MAX];
             let proof_blocknumber = System::block_number();
-            
+
             let proof = create_signed_join_proof(
                 &bob_account,
                 &market_id,
@@ -310,7 +310,7 @@ mod fails_when {
 
             // Advance blocks to expire the transaction
             System::set_block_number(proof_blocknumber + 100);
-            
+
             assert_noop!(
                 NeoSwaps::signed_join(
                     RuntimeOrigin::signed(bob()),
@@ -324,7 +324,7 @@ mod fails_when {
             );
         });
     }
-    
+
     #[test]
     fn insufficient_outcome_tokens() {
         ExtBuilder::default().build().execute_with(|| {
@@ -333,14 +333,14 @@ mod fails_when {
 
             let market_id = context.market_id;
             context.setup_market();
-            
+
             // Don't prepare enough outcome tokens (only prepare half of what's needed)
             context.prepare_outcome_tokens(&bob(), context.pool_shares_amount / 2);
-            
+
             // Set max_amounts_in to very small values that will cause the test to fail
             let max_amounts_in = vec![1, 1];
             let proof_blocknumber = System::block_number();
-            
+
             let proof = create_signed_join_proof(
                 &bob_account,
                 &market_id,
@@ -361,7 +361,7 @@ mod fails_when {
             );
         });
     }
-    
+
     #[test]
     fn market_not_active() {
         ExtBuilder::default().build().execute_with(|| {
@@ -369,23 +369,23 @@ mod fails_when {
             let bob_account = TestAccount::new([1; 32]);
 
             let market_id = context.market_id;
-            
+
             // First set up with Active status to ensure pool is properly initialized
             context.setup_market();
-            
+
             // Prepare outcome tokens while the market is still active
             context.prepare_outcome_tokens(&bob(), context.pool_shares_amount * 2);
-            
+
             // Then change market status to a non-active status
             MarketCommons::mutate_market(&market_id, |market| {
                 market.status = MarketStatus::Disputed;
                 Ok(())
             })
             .unwrap();
-            
+
             let max_amounts_in = vec![u128::MAX, u128::MAX];
             let proof_blocknumber = System::block_number();
-            
+
             let proof = create_signed_join_proof(
                 &bob_account,
                 &market_id,
@@ -407,7 +407,7 @@ mod fails_when {
             );
         });
     }
-    
+
     #[test]
     fn zero_pool_shares_amount() {
         ExtBuilder::default().build().execute_with(|| {
@@ -417,10 +417,10 @@ mod fails_when {
             let market_id = context.market_id;
             context.setup_market();
             context.prepare_outcome_tokens(&bob(), context.pool_shares_amount * 2);
-            
+
             let max_amounts_in = vec![u128::MAX, u128::MAX];
             let proof_blocknumber = System::block_number();
-            
+
             // Create proof with zero pool shares
             let zero_pool_shares: BalanceOf<Runtime> = 0;
             let proof = create_signed_join_proof(
@@ -443,7 +443,7 @@ mod fails_when {
             );
         });
     }
-    
+
     #[test]
     fn position_too_small() {
         ExtBuilder::default().build().execute_with(|| {
@@ -453,18 +453,14 @@ mod fails_when {
             let market_id = context.market_id;
             context.setup_market();
             context.prepare_outcome_tokens(&bob(), context.pool_shares_amount * 2);
-            
+
             let max_amounts_in = vec![u128::MAX, u128::MAX];
             let proof_blocknumber = System::block_number();
-            
+
             // Create a very small position
             let tiny_position: BalanceOf<Runtime> = 1;
-            let proof = create_signed_join_proof(
-                &bob_account,
-                &market_id,
-                &tiny_position,
-                &max_amounts_in,
-            );
+            let proof =
+                create_signed_join_proof(&bob_account, &market_id, &tiny_position, &max_amounts_in);
 
             assert_noop!(
                 NeoSwaps::signed_join(

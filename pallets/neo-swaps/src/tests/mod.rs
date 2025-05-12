@@ -25,9 +25,9 @@ mod join;
 mod liquidity_tree_interactions;
 mod sell;
 mod signed_exit;
+mod signed_join;
 mod signed_withdraw_fees;
 mod withdraw_fees;
-mod signed_join;
 
 use crate::{consts::*, mock::*, traits::*, *};
 use common_primitives::constants::currency::CENT_BASE;
