@@ -28,8 +28,9 @@ use tnf_node_runtime::{
     opaque::SessionKeys, AccountId, AnchorSummaryConfig, Asset, AssetRegistryConfig,
     AssetRegistryStringLimit, AuraConfig, AuthorsManagerConfig, BalancesConfig, CustomMetadata,
     EthBridgeConfig, EthereumEventsConfig, GrandpaConfig, ImOnlineConfig, NeoSwapsConfig,
-    NodeManagerConfig, PredictionMarketsConfig, RuntimeGenesisConfig, SessionConfig, Signature,
-    SudoConfig, SummaryConfig, SystemConfig, TokenManagerConfig, WASM_BINARY,
+    NodeManagerConfig, PalletConfigConfig, PredictionMarketsConfig, RuntimeGenesisConfig,
+    SessionConfig, Signature, SudoConfig, SummaryConfig, SystemConfig, TokenManagerConfig,
+    WASM_BINARY,
 };
 
 pub(crate) type EthPublicKey = ecdsa::Public;
@@ -183,6 +184,8 @@ pub fn development_config() -> Result<ChainSpec, String> {
                     )],
                 },
                 Some(get_account_id_from_dev_seed::<sr25519::Public>()),
+                Some(get_account_id_from_dev_seed::<sr25519::Public>()),
+                Some(get_account_id_from_dev_seed::<sr25519::Public>()),
             )
         },
         // Bootnodes
@@ -247,6 +250,8 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                 get_default_node_manager_config(),
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
                 Some(get_account_id_from_dev_seed::<sr25519::Public>()),
+                Some(get_account_id_from_dev_seed::<sr25519::Public>()),
+                Some(get_account_id_from_dev_seed::<sr25519::Public>()),
             )
         },
         // Bootnodes
@@ -305,6 +310,8 @@ pub fn dev_testnet_config() -> Result<ChainSpec, String> {
                 None,
                 get_default_node_manager_config(),
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
+                None,
+                None,
                 None,
             )
         },
@@ -370,6 +377,8 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
                     reward_amount: 75_000_000 * BASE,
                 },
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
+                None,
+                None,
                 None,
             )
         },
@@ -691,6 +700,8 @@ fn testnet_genesis(
     node_manager: NodeManagerConfig,
     asset_registry: AssetRegistryConfig,
     prediction_market_admin: Option<AccountId>,
+    gas_fee_recipient: Option<AccountId>,
+    config_admin_account: Option<AccountId>,
 ) -> RuntimeGenesisConfig {
     RuntimeGenesisConfig {
         avn: pallet_avn::GenesisConfig {
@@ -794,6 +805,11 @@ fn testnet_genesis(
         neo_swaps: NeoSwapsConfig {
             additional_swap_fee: 500_000_000, //0.05
         },
+        pallet_config: PalletConfigConfig {
+            admin_account: config_admin_account,
+            gas_fee_recipient,
+            base_gas_fee: 39958289666, // ~ 0.005 USD based on 0.0007 TRUU per USD price
+        },
     }
 }
 
@@ -869,6 +885,8 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                     reward_amount: 75_000_000 * BASE,
                 },
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
+                None,
+                None,
                 None,
             )
         },

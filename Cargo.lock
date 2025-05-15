@@ -5468,6 +5468,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-config"
+version = "1.8.0"
+dependencies = [
+ "common-primitives",
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "log",
+ "parity-scale-codec 3.6.9",
+ "prediction-market-primitives",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
+]
+
+[[package]]
 name = "pallet-eth-bridge"
 version = "6.8.2"
 source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?branch=avn-v6.8.1#6e7dc11b28a7e5dc65d25bec920ce68d1c8ec08b"
@@ -10515,6 +10535,7 @@ dependencies = [
  "pallet-avn-transaction-payment",
  "pallet-balances",
  "pallet-collective",
+ "pallet-config",
  "pallet-eth-bridge",
  "pallet-eth-bridge-runtime-api",
  "pallet-ethereum-events",
@@ -10549,6 +10570,7 @@ dependencies = [
  "scale-info",
  "smallvec",
  "sp-api",
+ "sp-arithmetic 16.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
  "sp-authority-discovery",
  "sp-avn-common",
  "sp-block-builder",
