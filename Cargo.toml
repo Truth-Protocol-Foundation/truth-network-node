@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.8.0"
+version = "1.9.0"
 authors = ["Aventus systems team"]
 homepage = "https://www.truth-network.io/"
 edition = "2021"
@@ -156,6 +156,7 @@ pallet-pm-hybrid-router = { path = "pallets/hybrid-router", default-features = f
 pallet-pm-order-book = { path = "pallets/order-book", default-features = false }
 pallet-pm-eth-asset-registry = { path = "pallets/eth-asset-registry", default-features = false }
 pallet-node-manager = { path = "pallets/node-manager", default-features = false }
+pallet-config = { path = "pallets/config", default-features = false }
 
 # Other (client)
 clap = "4.5.4"

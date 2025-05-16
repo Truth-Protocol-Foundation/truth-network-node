@@ -13,7 +13,6 @@ use asset_registry::CustomAssetProcessor;
 
 use codec::{Decode, Encode};
 use core::cmp::Ordering;
-use hex::FromHex;
 use orml_traits::parameter_type_with_key;
 use pallet_avn::sr25519::AuthorityId as AvnId;
 pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
@@ -24,6 +23,7 @@ use pallet_session::historical as pallet_session_historical;
 use scale_info::TypeInfo;
 use smallvec::smallvec;
 use sp_api::impl_runtime_apis;
+use sp_arithmetic::FixedU128;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
@@ -31,7 +31,7 @@ use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, One},
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, Percent, RuntimeAppPublic,
+    ApplyExtrinsicResult, FixedPointNumber, Percent, RuntimeAppPublic,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -152,18 +152,6 @@ pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
     <T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
-pub fn gas_fee_recipient() -> AccountId {
-    to_account("7ef309ab58c407b3626ecb16864547356400383480bbf32d947239d89173212d")
-        .expect("Gas fee recipient address is valid")
-}
-
-fn to_account(pubkey_hex: &str) -> Result<AccountId, ()> {
-    let bytes = Vec::from_hex(pubkey_hex).map_err(|_| ())?;
-    let mut arr = [0u8; 32];
-    arr.copy_from_slice(&bytes);
-    Ok(AccountId::decode(&mut &arr[..]).map_err(|_| ())?)
-}
-
 pub struct Treasury<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for Treasury<R>
 where
@@ -173,7 +161,10 @@ where
     <R as frame_system::Config>::RuntimeEvent: From<pallet_balances::Event<R>>,
 {
     fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
-        let recipient: <R as frame_system::Config>::AccountId = gas_fee_recipient().into();
+        let recipient: <R as frame_system::Config>::AccountId = PalletConfig::gas_fee_recipient()
+            .map(Into::into)
+            .unwrap_or_else(|_| <pallet_token_manager::Pallet<R>>::compute_treasury_account_id());
+
         <pallet_balances::Pallet<R>>::resolve_creating(&recipient, amount);
     }
 }
@@ -213,8 +204,15 @@ impl WeightToFeePolynomial for WeightToFee {
     type Balance = Balance;
     fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
         // We adjust the fee conversion so that a simple token transfer
-        // direct to chain costs ~ 50 milli TRUU fee.
-        let p = 208 * (MILLI_BASE / 10);
+        // direct to chain costs base_fee TRUU.
+        let base_fee = PalletConfig::base_gas_fee();
+
+        // The magic number (2.380951) is the result of :
+        // setting p = 50 * MILLI_BASE, the cost of a simple transfer was 119.04775 milli TRUU
+        // (visual observation on polkadot.js). magic_number = 119.04775 / 50 = 2.380951
+        let factor = FixedU128::saturating_from_rational(1_000_000u128, 2_380_951u128);
+
+        let p = factor.saturating_mul_int(base_fee);
         let q = Balance::from(ExtrinsicBaseWeight::get().ref_time());
         smallvec![WeightToFeeCoefficient {
             degree: 1,
@@ -264,7 +262,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 22,
+    spec_version: 23,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -781,6 +779,12 @@ impl pallet_utility::Config for Runtime {
     type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_config::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = pallet_config::default_weights::SubstrateWeight<Runtime>;
+}
+
 // Prediction market
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 
@@ -1223,6 +1227,7 @@ construct_runtime!(
         NftManager: pallet_nft_manager = 23,
         AnchorSummary: pallet_summary::<Instance2> = 26,
         NodeManager: pallet_node_manager = 27,
+        PalletConfig: pallet_config = 28,
 
         // Prediction Market pallets
         AdvisoryCommittee: pallet_collective::<Instance1>::{Call, Config<T>, Event<T>, Origin<T>, Pallet, Storage} = 30,
@@ -1301,6 +1306,7 @@ mod benches {
         [pallet_avn_proxy, AvnProxy]
         [pallet_nft_manager, NftManager]
         [pallet_node_manager, NodeManager]
+        [pallet_config, PalletConfig]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
         // Tnf pallets

@@ -36,6 +36,7 @@ frame-system = { version = "4.0.0-dev", default-features = false, git = "https:/
 frame-try-runtime = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", optional = true , branch = "release-polkadot-v1.1.0" }
 frame-executive = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
 sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-arithmetic = { workspace = true }
 sp-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
 sp-block-builder = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
 sp-consensus-aura = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
@@ -68,6 +69,7 @@ pallet-avn-proxy = { workspace = true }
 pallet-nft-manager = { workspace = true }
 
 # Tnf pallets
+pallet-config = { workspace = true }
 pallet-authors-manager = { workspace = true }
 pallet-node-manager = { workspace = true }
 
@@ -158,6 +160,7 @@ std = [
 	"pallet-nft-manager/std",
 
 	# TNF pallets
+	"pallet-config/std",
 	"pallet-authors-manager/std",
 	"pallet-node-manager/std",
 
@@ -207,6 +210,7 @@ runtime-benchmarks = [
 	"pallet-authors-manager/runtime-benchmarks",
 
 	# Tnf pallets
+	"pallet-config/runtime-benchmarks",
 	"pallet-node-manager/runtime-benchmarks",
 
 	#Prediction maket pallet
@@ -253,6 +257,7 @@ try-runtime = [
 	"pallet-nft-manager/try-runtime",
 
 	# Tnf pallets
+	"pallet-config/try-runtime",
 	"pallet-authors-manager/try-runtime",
 	"pallet-node-manager/try-runtime",
 
