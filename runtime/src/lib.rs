@@ -161,16 +161,9 @@ where
     <R as frame_system::Config>::RuntimeEvent: From<pallet_balances::Event<R>>,
 {
     fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
-        let recipient: <R as frame_system::Config>::AccountId;
-        match PalletConfig::gas_fee_recipient() {
-            Ok(fee_recipient) => {
-                recipient = fee_recipient.into();
-            },
-            Err(_) => {
-                // Default to the treasury account
-                recipient = <pallet_token_manager::Pallet<R>>::compute_treasury_account_id();
-            },
-        }
+        let recipient: <R as frame_system::Config>::AccountId = PalletConfig::gas_fee_recipient()
+            .map(Into::into)
+            .unwrap_or_else(|_| <pallet_token_manager::Pallet<R>>::compute_treasury_account_id());
 
         <pallet_balances::Pallet<R>>::resolve_creating(&recipient, amount);
     }
