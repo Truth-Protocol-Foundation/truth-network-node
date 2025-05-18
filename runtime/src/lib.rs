@@ -58,8 +58,8 @@ pub use frame_support::{
     parameter_types,
     traits::{
         AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains,
-        Currency, EitherOfDiverse, Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        PrivilegeCmp, Randomness, StorageInfo,
+        Currency, EitherOfDiverse, EnsureOrigin, Imbalance, KeyOwnerProofSystem, LockIdentifier,
+        OnUnbalanced, PrivilegeCmp, Randomness, StorageInfo,
     },
     weights::{
         constants::{
@@ -72,7 +72,7 @@ pub use frame_support::{
 };
 pub use frame_system::{
     limits::{BlockLength, BlockWeights},
-    Call as SystemCall, EnsureRoot, EnsureSigned,
+    Call as SystemCall, EnsureRoot, EnsureSigned, EnsureSignedBy,
 };
 use pallet_avn_transaction_payment::AvnCurrencyAdapter;
 pub use pallet_balances::Call as BalancesCall;
@@ -84,6 +84,7 @@ use sp_avn_common::{
     event_types::ValidEvents,
     InnerCallValidator, Proof,
 };
+
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill, RuntimeDebug};
@@ -106,6 +107,26 @@ type EnsureRootOrMoreThanTwoThirdsAdvisoryCommittee = EitherOfDiverse<
     EnsureRoot<AccountId>,
     EnsureProportionMoreThan<AccountId, AdvisoryCommitteeInstance, 2, 3>,
 >;
+
+pub struct EnsureConfigAdmin;
+impl EnsureOrigin<RuntimeOrigin> for EnsureConfigAdmin {
+    type Success = AccountId;
+
+    fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+        let origin = o.clone();
+        if let Ok(who) = EnsureSigned::<AccountId>::ensure_origin(o.clone()) {
+            if let Ok(admin) = PalletConfig::config_admin() {
+                if who == admin {
+                    return Ok(who);
+                }
+            }
+        }
+
+        Err(origin)
+    }
+}
+
+pub type EnsureAdminOrRoot = EitherOfDiverse<EnsureConfigAdmin, EnsureRoot<AccountId>>;
 
 // Accounts protected from being deleted due to a too low amount of funds.
 pub struct DustRemovalWhitelist;
@@ -518,6 +539,7 @@ impl pallet_avn_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type Currency = Balances;
+    type KnownUserOrigin = EnsureAdminOrRoot;
     type WeightInfo = pallet_avn_transaction_payment::default_weights::SubstrateWeight<Runtime>;
 }
 

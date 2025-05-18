@@ -160,6 +160,10 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        pub fn config_admin() -> Result<T::AccountId, Error<T>> {
+            Ok(<AdminAccount<T>>::get().ok_or(Error::<T>::AdminAccountNotSet)?)
+        }
+
         pub fn gas_fee_recipient() -> Result<T::AccountId, Error<T>> {
             Ok(<GasFeeRecipientAccount<T>>::get().ok_or(Error::<T>::GasFeeRecipientNotSet)?)
         }
