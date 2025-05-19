@@ -124,6 +124,12 @@ impl EnsureOrigin<RuntimeOrigin> for EnsureConfigAdmin {
 
         Err(origin)
     }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+        let admin = PalletConfig::config_admin().map_err(|_| ())?;
+        Ok(RuntimeOrigin::from(frame_system::RawOrigin::Signed(admin)))
+    }
 }
 
 pub type EnsureAdminOrRoot = EitherOfDiverse<EnsureConfigAdmin, EnsureRoot<AccountId>>;
