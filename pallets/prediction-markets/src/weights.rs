@@ -1048,18 +1048,19 @@ impl<T: frame_system::Config> WeightInfoZeitgeist for WeightInfo<T> {
             .saturating_add(Weight::from_parts(0, 2598).saturating_mul(a.into()))
     }
     /// Storage: `PredictionMarkets::MarketAdmin` (r:1 w:0)
-	/// Proof: `PredictionMarkets::MarketAdmin` (`max_values`: Some(1), `max_size`: Some(32), added: 527, mode: `MaxEncodedLen`)
-	/// Storage: `MarketCommons::Markets` (r:1 w:1)
-	/// Proof: `MarketCommons::Markets` (`max_values`: None, `max_size`: Some(678), added: 3153, mode: `MaxEncodedLen`)
-	/// Storage: `Timestamp::Now` (r:1 w:0)
-	/// Proof: `Timestamp::Now` (`max_values`: Some(1), `max_size`: Some(8), added: 503, mode: `MaxEncodedLen`)
-	fn admin_update_market_oracle() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `666`
-		//  Estimated: `4143`
-		// Minimum execution time: 23_727_000 picoseconds.
-		Weight::from_parts(24_897_000, 4143)
-			.saturating_add(T::DbWeight::get().reads(3_u64))
-			.saturating_add(T::DbWeight::get().writes(1_u64))
-	}
+    /// Proof: `PredictionMarkets::MarketAdmin` (`max_values`: Some(1), `max_size`: Some(32), added:
+    /// 527, mode: `MaxEncodedLen`) Storage: `MarketCommons::Markets` (r:1 w:1)
+    /// Proof: `MarketCommons::Markets` (`max_values`: None, `max_size`: Some(678), added: 3153,
+    /// mode: `MaxEncodedLen`) Storage: `Timestamp::Now` (r:1 w:0)
+    /// Proof: `Timestamp::Now` (`max_values`: Some(1), `max_size`: Some(8), added: 503, mode:
+    /// `MaxEncodedLen`)
+    fn admin_update_market_oracle() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `666`
+        //  Estimated: `4143`
+        // Minimum execution time: 23_727_000 picoseconds.
+        Weight::from_parts(24_897_000, 4143)
+            .saturating_add(T::DbWeight::get().reads(3_u64))
+            .saturating_add(T::DbWeight::get().writes(1_u64))
+    }
 }
