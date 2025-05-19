@@ -1682,7 +1682,7 @@ mod pallet {
         // Only closed markets, where the oracle has not submitted a result and its grace period has
         // passed can be updated.
         #[pallet::call_index(35)]
-        #[pallet::weight(T::WeightInfo::set_additional_swap_fee_account())]
+        #[pallet::weight(T::WeightInfo::admin_update_market_oracle())]
         pub fn admin_update_market_oracle(
             origin: OriginFor<T>,
             #[pallet::compact] market_id: MarketIdOf<T>,
@@ -1714,7 +1714,7 @@ mod pallet {
             });
 
             // The UpdateOracleOrigin should not pay fees for providing this service
-            Ok((Some(T::WeightInfo::set_additional_swap_fee_account()), Pays::No).into())
+            Ok((Some(T::WeightInfo::admin_update_market_oracle()), Pays::No).into())
         }
     }
 
