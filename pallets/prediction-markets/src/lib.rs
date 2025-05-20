@@ -1700,18 +1700,17 @@ mod pallet {
             Self::ensure_market_is_closed(&market)?;
             // Make sure the grace period for the oracle to report is over
             let current_block = <frame_system::Pallet<T>>::block_number();
-            Self::outsider_can_report(&market, current_block)?;
+            let reporting_window_expired =
+                Self::oracle_reporting_window_expired(&market, current_block)?;
+            ensure!(reporting_window_expired, Error::<T>::OracleReportingWindowNotExpired);
 
+            let old_oracle = market.oracle.clone();
             <pallet_pm_market_commons::Pallet<T>>::mutate_market(&market_id, |market| {
                 market.oracle = new_oracle.clone();
                 Ok(())
             })?;
 
-            Self::deposit_event(Event::MarketOracleUpdated {
-                market_id,
-                old_oracle: market.oracle.clone(),
-                new_oracle,
-            });
+            Self::deposit_event(Event::MarketOracleUpdated { market_id, old_oracle, new_oracle });
 
             // The UpdateOracleOrigin should not pay fees for providing this service
             Ok((Some(T::WeightInfo::admin_update_market_oracle()), Pays::No).into())
@@ -2110,6 +2109,8 @@ mod pallet {
         AdditionalSwapFeeAccountNotSet,
         /// The oracle of a market that can be disputed cannot be changed
         MarketCanBeDisputed,
+        /// The reporting window of the oracle has not expired
+        OracleReportingWindowNotExpired,
     }
 
     #[pallet::event]
@@ -3510,11 +3511,11 @@ mod pallet {
             Ok(market_builder)
         }
 
-        fn outsider_can_report(
+        fn oracle_reporting_window_expired(
             market: &MarketOf<T>,
             report_at: BlockNumberFor<T>,
         ) -> Result<bool, DispatchError> {
-            let mut can_report = true;
+            let mut window_expired = true;
             //NOTE: Saturating operation in following block may saturate to u32::MAX value
             //      but that will be the case after thousands of years time. So it is fine.
             match market.period {
@@ -3525,7 +3526,7 @@ mod pallet {
                         grace_period_end.saturating_add(market.deadlines.oracle_duration);
                     if report_at <= oracle_duration_end {
                         // The oracle has time to report
-                        can_report = false;
+                        window_expired = false;
                     }
                 },
                 MarketPeriod::Timestamp(ref range) => {
@@ -3543,12 +3544,12 @@ mod pallet {
                     let oracle_duration_end =
                         grace_period_end.saturating_add(oracle_duration_in_ms);
                     if now <= oracle_duration_end {
-                        can_report = false;
+                        window_expired = false;
                     }
                 },
             };
 
-            return Ok(can_report)
+            Ok(window_expired)
         }
 
         fn report_market_with_dispute_mechanism(
@@ -3558,12 +3559,13 @@ mod pallet {
         ) -> DispatchResultWithPostInfo {
             let sender = ensure_signed(origin.clone())?;
             <pallet_pm_market_commons::Pallet<T>>::mutate_market(&market_id, |market| {
-                let outsider_can_report = Self::outsider_can_report(market, report.at.clone())?;
+                let oracle_reporting_window_expired =
+                    Self::oracle_reporting_window_expired(market, report.at.clone())?;
 
                 let sender_is_oracle = sender == market.oracle;
                 let sender_is_outsider = !sender_is_oracle;
 
-                if !outsider_can_report {
+                if !oracle_reporting_window_expired {
                     ensure!(sender_is_oracle, Error::<T>::ReporterNotOracle);
                 } else if sender_is_outsider {
                     let outsider_bond = T::OutsiderBond::get();
