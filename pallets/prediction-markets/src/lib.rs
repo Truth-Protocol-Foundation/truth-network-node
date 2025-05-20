@@ -1672,6 +1672,49 @@ mod pallet {
 
             Ok(())
         }
+
+        /// Allows the `UpdateOracleOrigin` to update the oracle of a market.
+        /// This is to avoid funds being locked if the market is created with dispute mechanism:
+        /// None
+        //
+        // ***** IMPORTANT *****
+        //
+        // Only closed markets, where the oracle has not submitted a result and its grace period has
+        // passed can be updated.
+        #[pallet::call_index(35)]
+        #[pallet::weight(T::WeightInfo::admin_update_market_oracle())]
+        pub fn admin_update_market_oracle(
+            origin: OriginFor<T>,
+            #[pallet::compact] market_id: MarketIdOf<T>,
+            new_oracle: T::AccountId,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let market_admin = <MarketAdmin<T>>::get().ok_or(Error::<T>::MarketAdminNotSet)?;
+            ensure!(who == market_admin, Error::<T>::SenderNotMarketAdmin);
+
+            let market = <pallet_pm_market_commons::Pallet<T>>::market(&market_id)?;
+            // Make sure the market is not already resolved
+            ensure!(market.report.is_none(), Error::<T>::MarketAlreadyReported);
+            ensure!(market.dispute_mechanism.is_none(), Error::<T>::MarketCanBeDisputed);
+            // Make sure the market is closed
+            Self::ensure_market_is_closed(&market)?;
+            // Make sure the grace period for the oracle to report is over
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            let reporting_window_expired =
+                Self::oracle_reporting_window_expired(&market, current_block)?;
+            ensure!(reporting_window_expired, Error::<T>::OracleReportingWindowNotExpired);
+
+            let old_oracle = market.oracle.clone();
+            <pallet_pm_market_commons::Pallet<T>>::mutate_market(&market_id, |market| {
+                market.oracle = new_oracle.clone();
+                Ok(())
+            })?;
+
+            Self::deposit_event(Event::MarketOracleUpdated { market_id, old_oracle, new_oracle });
+
+            // The UpdateOracleOrigin should not pay fees for providing this service
+            Ok((Some(T::WeightInfo::admin_update_market_oracle()), Pays::No).into())
+        }
     }
 
     #[pallet::config]
@@ -2064,6 +2107,10 @@ mod pallet {
         WinningsFeeAccountNotSet,
         /// Additional swap fee account must be set before using it
         AdditionalSwapFeeAccountNotSet,
+        /// The oracle of a market that can be disputed cannot be changed
+        MarketCanBeDisputed,
+        /// The reporting window of the oracle has not expired
+        OracleReportingWindowNotExpired,
     }
 
     #[pallet::event]
@@ -2133,6 +2180,12 @@ mod pallet {
         AdditionalSwapFeeAccountSet { new_account: T::AccountId },
         /// A new account address has been set for the collection of winnings fees
         WinningsFeeAccountSet { new_account: T::AccountId },
+        /// The oracle of a market has been updated. \[market_id, old_oracle, new_oracle\]
+        MarketOracleUpdated {
+            market_id: MarketIdOf<T>,
+            old_oracle: T::AccountId,
+            new_oracle: T::AccountId,
+        },
     }
 
     #[pallet::hooks]
@@ -3458,6 +3511,47 @@ mod pallet {
             Ok(market_builder)
         }
 
+        fn oracle_reporting_window_expired(
+            market: &MarketOf<T>,
+            report_at: BlockNumberFor<T>,
+        ) -> Result<bool, DispatchError> {
+            let mut window_expired = true;
+            //NOTE: Saturating operation in following block may saturate to u32::MAX value
+            //      but that will be the case after thousands of years time. So it is fine.
+            match market.period {
+                MarketPeriod::Block(ref range) => {
+                    let grace_period_end = range.end.saturating_add(market.deadlines.grace_period);
+                    ensure!(grace_period_end <= report_at, Error::<T>::NotAllowedToReportYet);
+                    let oracle_duration_end =
+                        grace_period_end.saturating_add(market.deadlines.oracle_duration);
+                    if report_at <= oracle_duration_end {
+                        // The oracle has time to report
+                        window_expired = false;
+                    }
+                },
+                MarketPeriod::Timestamp(ref range) => {
+                    let grace_period_in_moments: MomentOf<T> =
+                        market.deadlines.grace_period.saturated_into::<u32>().into();
+                    let grace_period_in_ms =
+                        grace_period_in_moments.saturating_mul(MILLISECS_PER_BLOCK.into());
+                    let grace_period_end = range.end.saturating_add(grace_period_in_ms);
+                    let now = <pallet_pm_market_commons::Pallet<T>>::now();
+                    ensure!(grace_period_end <= now, Error::<T>::NotAllowedToReportYet);
+                    let oracle_duration_in_moments: MomentOf<T> =
+                        market.deadlines.oracle_duration.saturated_into::<u32>().into();
+                    let oracle_duration_in_ms =
+                        oracle_duration_in_moments.saturating_mul(MILLISECS_PER_BLOCK.into());
+                    let oracle_duration_end =
+                        grace_period_end.saturating_add(oracle_duration_in_ms);
+                    if now <= oracle_duration_end {
+                        window_expired = false;
+                    }
+                },
+            };
+
+            Ok(window_expired)
+        }
+
         fn report_market_with_dispute_mechanism(
             origin: OriginFor<T>,
             market_id: MarketIdOf<T>,
@@ -3465,44 +3559,13 @@ mod pallet {
         ) -> DispatchResultWithPostInfo {
             let sender = ensure_signed(origin.clone())?;
             <pallet_pm_market_commons::Pallet<T>>::mutate_market(&market_id, |market| {
-                let mut should_check_origin = false;
-                //NOTE: Saturating operation in following block may saturate to u32::MAX value
-                //      but that will be the case after thousands of years time. So it is fine.
-                match market.period {
-                    MarketPeriod::Block(ref range) => {
-                        let grace_period_end =
-                            range.end.saturating_add(market.deadlines.grace_period);
-                        ensure!(grace_period_end <= report.at, Error::<T>::NotAllowedToReportYet);
-                        let oracle_duration_end =
-                            grace_period_end.saturating_add(market.deadlines.oracle_duration);
-                        if report.at <= oracle_duration_end {
-                            should_check_origin = true;
-                        }
-                    },
-                    MarketPeriod::Timestamp(ref range) => {
-                        let grace_period_in_moments: MomentOf<T> =
-                            market.deadlines.grace_period.saturated_into::<u32>().into();
-                        let grace_period_in_ms =
-                            grace_period_in_moments.saturating_mul(MILLISECS_PER_BLOCK.into());
-                        let grace_period_end = range.end.saturating_add(grace_period_in_ms);
-                        let now = <pallet_pm_market_commons::Pallet<T>>::now();
-                        ensure!(grace_period_end <= now, Error::<T>::NotAllowedToReportYet);
-                        let oracle_duration_in_moments: MomentOf<T> =
-                            market.deadlines.oracle_duration.saturated_into::<u32>().into();
-                        let oracle_duration_in_ms =
-                            oracle_duration_in_moments.saturating_mul(MILLISECS_PER_BLOCK.into());
-                        let oracle_duration_end =
-                            grace_period_end.saturating_add(oracle_duration_in_ms);
-                        if now <= oracle_duration_end {
-                            should_check_origin = true;
-                        }
-                    },
-                }
+                let oracle_reporting_window_expired =
+                    Self::oracle_reporting_window_expired(market, report.at.clone())?;
 
                 let sender_is_oracle = sender == market.oracle;
                 let sender_is_outsider = !sender_is_oracle;
 
-                if should_check_origin {
+                if !oracle_reporting_window_expired {
                     ensure!(sender_is_oracle, Error::<T>::ReporterNotOracle);
                 } else if sender_is_outsider {
                     let outsider_bond = T::OutsiderBond::get();

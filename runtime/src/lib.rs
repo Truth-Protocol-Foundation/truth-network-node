@@ -58,8 +58,8 @@ pub use frame_support::{
     parameter_types,
     traits::{
         AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains,
-        Currency, EitherOfDiverse, Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        PrivilegeCmp, Randomness, StorageInfo,
+        Currency, EitherOfDiverse, EnsureOrigin, Imbalance, KeyOwnerProofSystem, LockIdentifier,
+        OnUnbalanced, PrivilegeCmp, Randomness, StorageInfo,
     },
     weights::{
         constants::{
@@ -72,7 +72,7 @@ pub use frame_support::{
 };
 pub use frame_system::{
     limits::{BlockLength, BlockWeights},
-    Call as SystemCall, EnsureRoot, EnsureSigned,
+    Call as SystemCall, EnsureRoot, EnsureSigned, EnsureSignedBy,
 };
 use pallet_avn_transaction_payment::AvnCurrencyAdapter;
 pub use pallet_balances::Call as BalancesCall;
@@ -84,6 +84,7 @@ use sp_avn_common::{
     event_types::ValidEvents,
     InnerCallValidator, Proof,
 };
+
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill, RuntimeDebug};
@@ -106,6 +107,32 @@ type EnsureRootOrMoreThanTwoThirdsAdvisoryCommittee = EitherOfDiverse<
     EnsureRoot<AccountId>,
     EnsureProportionMoreThan<AccountId, AdvisoryCommitteeInstance, 2, 3>,
 >;
+
+pub struct EnsureConfigAdmin;
+impl EnsureOrigin<RuntimeOrigin> for EnsureConfigAdmin {
+    type Success = AccountId;
+
+    fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+        let origin = o.clone();
+        if let Ok(who) = EnsureSigned::<AccountId>::ensure_origin(o.clone()) {
+            if let Ok(admin) = PalletConfig::config_admin() {
+                if who == admin {
+                    return Ok(who);
+                }
+            }
+        }
+
+        Err(origin)
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+        let admin = PalletConfig::config_admin().map_err(|_| ())?;
+        Ok(RuntimeOrigin::from(frame_system::RawOrigin::Signed(admin)))
+    }
+}
+
+pub type EnsureAdminOrRoot = EitherOfDiverse<EnsureConfigAdmin, EnsureRoot<AccountId>>;
 
 // Accounts protected from being deleted due to a too low amount of funds.
 pub struct DustRemovalWhitelist;
@@ -262,7 +289,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 23,
+    spec_version: 24,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -518,6 +545,7 @@ impl pallet_avn_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type Currency = Balances;
+    type KnownUserOrigin = EnsureAdminOrRoot;
     type WeightInfo = pallet_avn_transaction_payment::default_weights::SubstrateWeight<Runtime>;
 }
 
