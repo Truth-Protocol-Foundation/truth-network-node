@@ -345,6 +345,7 @@ fn do_report_market_with_dispute_mechanism<T: Config>(
     m: u32,
     caller_account_id: &Option<T::AccountId>,
     dispute_mechanism: Option<MarketDisputeMechanism>,
+    expire_reporting_period: bool,
 ) -> Result<MarketIdOf<T>, DispatchError>
 where
     T: Config + pallet_timestamp::Config,
@@ -376,9 +377,16 @@ where
             return Err(DispatchError::Other("foo"));
         },
     };
-    let grace_period: u32 =
+    let mut end_period: u32 =
         (market.deadlines.grace_period.saturated_into::<u32>() + 1) * MILLISECS_PER_BLOCK;
-    pallet_timestamp::Pallet::<T>::set_timestamp((end + grace_period).into());
+
+    if expire_reporting_period {
+        end_period +=
+            (market.deadlines.oracle_duration.saturated_into::<u32>() + 1) * MILLISECS_PER_BLOCK;
+    }
+
+    pallet_timestamp::Pallet::<T>::set_timestamp((end + end_period).into());
+
     let report_at = frame_system::Pallet::<T>::block_number();
     let resolves_at = report_at.saturating_add(market.deadlines.dispute_duration);
     for i in 0..m {
@@ -974,7 +982,7 @@ benchmarks! {
         let m in 0..63;
         let outcome = OutcomeReport::Categorical(0);
         let caller: T::AccountId = whitelisted_caller();
-        let market_id = do_report_market_with_dispute_mechanism::<T>(m, &None, Some(MarketDisputeMechanism::Court))?;
+        let market_id = do_report_market_with_dispute_mechanism::<T>(m, &None, Some(MarketDisputeMechanism::Court), false)?;
         let call = Call::<T>::report { market_id, outcome };
     }: {
         call.dispatch_bypass_filter(RawOrigin::Signed(caller).into())?;
@@ -1687,7 +1695,7 @@ benchmarks! {
         let (caller_key_pair, caller_account_id) = get_user_account::<T>();
 
         let outcome = OutcomeReport::Categorical(0);
-        let market_id = do_report_market_with_dispute_mechanism::<T>(m, &Some(caller_account_id.clone()), Some(MarketDisputeMechanism::Court),)?;
+        let market_id = do_report_market_with_dispute_mechanism::<T>(m, &Some(caller_account_id.clone()), Some(MarketDisputeMechanism::Court), false)?;
 
         let signed_payload =
             (REPORT_OUTCOME_CONTEXT, relayer_account_id.clone(), 0u64, market_id, outcome.clone());
@@ -1786,7 +1794,7 @@ benchmarks! {
         MarketAdmin::<T>::set(Some(market_admin.clone()));
         let old_oracle: T::AccountId = account("oldOracle", 0, 0);
         let new_oracle: T::AccountId = account("newOracle", 1, 1);
-        let market_id = do_report_market_with_dispute_mechanism::<T>(0, &Some(old_oracle.clone()), None)?;
+        let market_id = do_report_market_with_dispute_mechanism::<T>(0, &Some(old_oracle.clone()), None, true)?;
     }: admin_update_market_oracle(RawOrigin::Signed(market_admin), market_id, new_oracle.clone())
     verify {
         let market = pallet_pm_market_commons::Pallet::<T>::market(&market_id)?;
