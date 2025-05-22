@@ -246,6 +246,7 @@ impl crate::Config for Runtime {
     type Public = TestAccountIdPK;
     type Signature = SignatureTest;
     type PalletAdminGetter = PredictionMarkets;
+    type OnLiquidityProvided = PredictionMarkets;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

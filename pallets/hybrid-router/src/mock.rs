@@ -50,7 +50,7 @@ use prediction_market_primitives::{
         PmPalletId, RemoveKeysLimit, RequestInterval, TreasuryPalletId, VotePeriod,
         VotingOutcomeFee, BASE, CENT_BASE, MAX_ASSETS,
     },
-    traits::DistributeFees,
+    traits::{DistributeFees, NoopLiquidityProvider},
     types::{
         Asset, BasicCurrencyAdapter, CurrencyId, CustomMetadata, MarketId, OrmlAmount,
         SignatureTest, TestAccountIdPK,
@@ -262,6 +262,7 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type Signature = SignatureTest;
     type RuntimeCall = RuntimeCall;
     type PalletAdminGetter = PredictionMarkets;
+    type OnLiquidityProvided = NoopLiquidityProvider<TestAccountIdPK, MarketId>;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

@@ -45,6 +45,8 @@ fn join_works(
         );
         let pool_shares_amount = _4; // Add 40% to the pool.
         deposit_complete_set(market_id, who, pool_shares_amount);
+        assert_eq!(PredictionMarkets::is_liquidity_provider(&market_id, &who), false);
+
         assert_ok!(NeoSwaps::join(
             RuntimeOrigin::signed(who),
             market_id,
@@ -72,6 +74,8 @@ fn join_works(
             }
             .into(),
         );
+
+        assert_eq!(PredictionMarkets::is_liquidity_provider(&market_id, &who), true);
     });
 }
 
