@@ -55,7 +55,7 @@ use prediction_market_primitives::{
             CENT_BASE,
         },
     },
-    traits::{DeployPoolApi, DistributeFees, NoopLiquidityProvider},
+    traits::{DeployPoolApi, DistributeFees},
     types::{
         Asset, BasicCurrencyAdapter, CurrencyId, CustomMetadata, MarketId, OrmlAmount,
         SignatureTest, TestAccountIdPK,
@@ -246,7 +246,7 @@ impl crate::Config for Runtime {
     type Public = TestAccountIdPK;
     type Signature = SignatureTest;
     type PalletAdminGetter = PredictionMarkets;
-    type OnLiquidityProvided = PredictionMarkets; //NoopLiquidityProvider<TestAccountIdPK, MarketId>;
+    type OnLiquidityProvided = PredictionMarkets;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
