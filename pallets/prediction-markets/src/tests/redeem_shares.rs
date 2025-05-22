@@ -17,9 +17,9 @@
 // along with Zeitgeist. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use test_case::test_case;
-
+use crate::LiquidityProviders;
 use prediction_market_primitives::types::{OutcomeReport, ScalarPosition};
+use test_case::test_case;
 
 // TODO(#1239) MarketIsNotResolved
 // TODO(#1239) NoWinningBalance
@@ -27,9 +27,13 @@ use prediction_market_primitives::types::{OutcomeReport, ScalarPosition};
 
 #[test]
 fn it_allows_to_redeem_shares() {
-    let test = |base_asset: AssetOf<Runtime>| {
+    let test = |base_asset: AssetOf<Runtime>, is_liquidity_provider: bool| {
         let end = 2;
-        let winning_fee = <Runtime as Config>::WinnerFeePercentage::get() * CENT_BASE;
+        let mut winning_fee = <Runtime as Config>::WinnerFeePercentage::get() * CENT_BASE;
+        if is_liquidity_provider {
+            winning_fee = 0;
+        }
+
         simple_create_categorical_market(
             base_asset,
             MarketCreation::Permissionless,
@@ -55,9 +59,18 @@ fn it_allows_to_redeem_shares() {
         let market = MarketCommons::market(&0).unwrap();
         assert_eq!(market.status, MarketStatus::Resolved);
 
+        if is_liquidity_provider {
+            LiquidityProviders::<Runtime>::insert(0, charlie(), ());
+        }
+
         assert_ok!(PredictionMarkets::redeem_shares(RuntimeOrigin::signed(charlie()), 0));
         let bal = Balances::free_balance(charlie());
-        assert_eq!(bal, 1_000 * BASE - winning_fee);
+        if base_asset == Asset::Tru {
+            assert_eq!(bal, 1_000 * BASE - winning_fee);
+        } else {
+            assert_eq!(bal, 1_000 * BASE);
+        }
+
         System::assert_last_event(
             Event::TokensRedeemed(
                 0,
@@ -70,11 +83,16 @@ fn it_allows_to_redeem_shares() {
         );
     };
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::Tru);
+        test(Asset::Tru, false);
     });
-    #[cfg(feature = "parachain")]
     ExtBuilder::default().build().execute_with(|| {
-        test(Asset::ForeignAsset(100));
+        test(Asset::ForeignAsset(100), false);
+    });
+    ExtBuilder::default().build().execute_with(|| {
+        test(Asset::Tru, true);
+    });
+    ExtBuilder::default().build().execute_with(|| {
+        test(Asset::ForeignAsset(100), true);
     });
 }
 

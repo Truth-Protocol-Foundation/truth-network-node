@@ -66,7 +66,7 @@ mod pallet {
         traits::{
             CompleteSetOperationsApi, DeployPoolApi, DisputeApi, DisputeMaxWeightApi,
             DisputeResolutionApi, DistributeFees, InspectEthAsset, MarketBuilderTrait,
-            PalletAdminGetter,
+            OnLiquidityProvided, PalletAdminGetter,
         },
         types::{
             AdminConfig, Asset, Bond, CustomMetadata, Deadlines, EarlyClose, EarlyCloseState,
@@ -2370,6 +2370,17 @@ mod pallet {
     #[pallet::storage]
     pub type AdditionalSwapFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
+    #[pallet::storage]
+    pub type LiquidityProviders<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        MarketIdOf<T>,
+        Blake2_128Concat,
+        T::AccountId,
+        (),
+        ValueQuery,
+    >;
+
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub vault_account: Option<T::AccountId>,
@@ -2666,16 +2677,19 @@ mod pallet {
                 let remaining_bal =
                     T::AssetManager::free_balance(market.base_asset, &market_account);
                 let max_payout = payout.min(remaining_bal);
+                let mut actual_payout = max_payout;
 
-                // Deduct winning fee
-                let paid_winner_fee = T::WinnerFeeHandler::distribute(
-                    market_id,
-                    market.base_asset,
-                    &market_account,
-                    max_payout,
-                );
+                if !<LiquidityProviders<T>>::contains_key(&market_id, who.clone()) {
+                    // "Who" is not a liquidity provider, so we need to deduct a winning fee
+                    let paid_winner_fee = T::WinnerFeeHandler::distribute(
+                        market_id,
+                        market.base_asset,
+                        &market_account,
+                        max_payout,
+                    );
 
-                let actual_payout = max_payout.saturating_sub(paid_winner_fee);
+                    actual_payout = max_payout.saturating_sub(paid_winner_fee);
+                }
 
                 // Pay out the winner.
                 T::AssetManager::transfer(market.base_asset, &market_account, &who, actual_payout)?;
@@ -3616,6 +3630,11 @@ mod pallet {
             Self::on_resolution(&market_id, &market)?;
             Ok(Some(T::WeightInfo::report_trusted_market()).into())
         }
+
+        #[cfg(feature = "mock")]
+        pub fn is_liquidity_provider(market_id: &MarketIdOf<T>, account: &T::AccountId) -> bool {
+            <LiquidityProviders<T>>::contains_key(market_id, account)
+        }
     }
 
     fn remove_item<I: cmp::PartialEq, G>(items: &mut BoundedVec<I, G>, item: &I) {
@@ -3824,6 +3843,17 @@ mod pallet {
 
         fn get_admin() -> Result<Self::AccountId, DispatchError> {
             Ok(<MarketAdmin<T>>::get().ok_or(Error::<T>::MarketAdminNotSet)?)
+        }
+    }
+
+    impl<T: Config> OnLiquidityProvided for Pallet<T> {
+        type AccountId = T::AccountId;
+        type MarketId = MarketIdOf<T>;
+
+        fn on_liquidity_provided(market_id: &Self::MarketId, provider: &Self::AccountId) {
+            if !<LiquidityProviders<T>>::contains_key(market_id, provider) {
+                <LiquidityProviders<T>>::insert(market_id, provider, ());
+            }
         }
     }
 

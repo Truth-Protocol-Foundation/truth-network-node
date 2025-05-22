@@ -1193,6 +1193,7 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type PalletAdminGetter = PredictionMarkets;
+    type OnLiquidityProvided = PredictionMarkets;
 }
 
 impl pallet_pm_order_book::Config for Runtime {

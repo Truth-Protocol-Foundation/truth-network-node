@@ -78,7 +78,7 @@ mod pallet {
         },
         traits::{
             CompleteSetOperationsApi, DeployPoolApi, DistributeFees, HybridRouterAmmApi,
-            PalletAdminGetter,
+            OnLiquidityProvided, PalletAdminGetter,
         },
         types::{Asset, MarketStatus, ScoringRule},
     };
@@ -182,6 +182,11 @@ mod pallet {
             + From<sp_core::sr25519::Signature>;
 
         type PalletAdminGetter: PalletAdminGetter<AccountId = Self::AccountId>;
+
+        type OnLiquidityProvided: OnLiquidityProvided<
+            AccountId = Self::AccountId,
+            MarketId = MarketIdOf<Self>,
+        >;
     }
 
     #[pallet::pallet]
@@ -965,6 +970,10 @@ mod pallet {
                     amounts_in,
                     new_liquidity_parameter,
                 });
+
+                // Notify other pallets that liquidity has been provided.
+                T::OnLiquidityProvided::on_liquidity_provided(&market_id, &who);
+
                 Ok(benchmark_info)
             })?;
             let weight = match benchmark_info {

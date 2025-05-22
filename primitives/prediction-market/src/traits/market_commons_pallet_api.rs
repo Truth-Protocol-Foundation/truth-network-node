@@ -136,3 +136,39 @@ pub trait PalletAdminGetter {
     /// Returns the admin account ID of the pallet.
     fn get_admin() -> Result<Self::AccountId, DispatchError>;
 }
+
+pub trait OnLiquidityProvided {
+    type AccountId;
+    type MarketId: AtLeast32Bit
+        + Copy
+        + Default
+        + MaybeSerializeDeserialize
+        + MaxEncodedLen
+        + Member
+        + Parameter;
+
+    /// Called when liquidity is provided to a market.
+    fn on_liquidity_provided(market_id: &Self::MarketId, provider: &Self::AccountId);
+}
+
+#[cfg(feature = "mock")]
+pub struct NoopLiquidityProvider<AccountIdT, MarketIdT>(PhantomData<(AccountIdT, MarketIdT)>);
+
+#[cfg(feature = "mock")]
+impl<AccountIdT, MarketIdT> OnLiquidityProvided for NoopLiquidityProvider<AccountIdT, MarketIdT>
+where
+    MarketIdT: AtLeast32Bit
+        + Copy
+        + Default
+        + MaybeSerializeDeserialize
+        + MaxEncodedLen
+        + Member
+        + Parameter,
+{
+    type AccountId = AccountIdT;
+    type MarketId = MarketIdT;
+
+    fn on_liquidity_provided(_market_id: &Self::MarketId, _provider: &Self::AccountId) {
+        // No-op
+    }
+}
