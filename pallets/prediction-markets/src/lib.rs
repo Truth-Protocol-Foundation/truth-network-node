@@ -2370,6 +2370,8 @@ mod pallet {
     #[pallet::storage]
     pub type AdditionalSwapFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
+    /// Tracks the liquidity providers for each market. This is used to prevent charging them a
+    /// winning fee.
     #[pallet::storage]
     pub type LiquidityProviders<T: Config> = StorageDoubleMap<
         _,
@@ -2679,7 +2681,7 @@ mod pallet {
                 let max_payout = payout.min(remaining_bal);
                 let mut actual_payout = max_payout;
 
-                if !<LiquidityProviders<T>>::contains_key(&market_id, who.clone()) {
+                if !<LiquidityProviders<T>>::contains_key(&market_id, who) {
                     // "Who" is not a liquidity provider, so we need to deduct a winning fee
                     let paid_winner_fee = T::WinnerFeeHandler::distribute(
                         market_id,
