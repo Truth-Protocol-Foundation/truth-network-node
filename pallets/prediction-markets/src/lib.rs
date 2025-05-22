@@ -2681,7 +2681,7 @@ mod pallet {
                 let max_payout = payout.min(remaining_bal);
                 let mut actual_payout = max_payout;
 
-                if !<LiquidityProviders<T>>::contains_key(&market_id, who) {
+                if !<LiquidityProviders<T>>::contains_key(&market_id, who.clone()) {
                     // "Who" is not a liquidity provider, so we need to deduct a winning fee
                     let paid_winner_fee = T::WinnerFeeHandler::distribute(
                         market_id,

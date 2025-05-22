@@ -23,6 +23,7 @@ use crate::{
     types::{Market, PoolId},
 };
 use alloc::fmt::Debug;
+use core::marker::PhantomData;
 use frame_support::{
     dispatch::DispatchResult,
     pallet_prelude::{MaybeSerializeDeserialize, Member},
