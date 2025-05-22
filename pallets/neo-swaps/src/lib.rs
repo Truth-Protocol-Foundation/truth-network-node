@@ -1162,6 +1162,10 @@ mod pallet {
                 T::MultiCurrency::minimum_balance(collateral),
             )?;
             Pools::<T>::insert(market_id, pool);
+
+            // Notify other pallets that liquidity has been provided.
+            T::OnLiquidityProvided::on_liquidity_provided(&market_id, &who);
+
             Self::deposit_event(Event::<T>::PoolDeployed {
                 who,
                 market_id,
