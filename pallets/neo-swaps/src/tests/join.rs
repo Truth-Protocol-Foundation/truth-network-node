@@ -43,9 +43,11 @@ fn join_works(
             spot_prices.clone(),
             swap_fee,
         );
+        // Alice should be a LP because she deployed a pool
+        assert_eq!(PredictionMarkets::is_liquidity_provider(&market_id, &alice()), true);
+
         let pool_shares_amount = _4; // Add 40% to the pool.
         deposit_complete_set(market_id, who, pool_shares_amount);
-        assert_eq!(PredictionMarkets::is_liquidity_provider(&market_id, &who), false);
 
         assert_ok!(NeoSwaps::join(
             RuntimeOrigin::signed(who),
