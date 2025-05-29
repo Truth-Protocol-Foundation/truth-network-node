@@ -11,7 +11,7 @@ pub mod fees;
 pub mod third_party_weights;
 use asset_registry::CustomAssetProcessor;
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use core::cmp::Ordering;
 use orml_traits::parameter_type_with_key;
 use pallet_avn::sr25519::AuthorityId as AvnId;
@@ -58,8 +58,8 @@ pub use frame_support::{
     parameter_types,
     traits::{
         AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains,
-        Currency, EitherOfDiverse, EnsureOrigin, Imbalance, KeyOwnerProofSystem, LockIdentifier,
-        OnUnbalanced, PrivilegeCmp, Randomness, StorageInfo,
+        Currency, EitherOfDiverse, EnsureOrigin, Imbalance, InstanceFilter, KeyOwnerProofSystem,
+        LockIdentifier, OnUnbalanced, PrivilegeCmp, Randomness, StorageInfo,
     },
     weights::{
         constants::{
@@ -629,6 +629,70 @@ impl pallet_multisig::Config for Runtime {
     type DepositFactor = DepositFactor;
     type MaxSignatories = ConstU32<100>;
     type WeightInfo = pallet_multisig::weights::SubstrateWeight<Runtime>;
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Encode,
+    Decode,
+    RuntimeDebug,
+    MaxEncodedLen,
+    scale_info::TypeInfo,
+)]
+pub enum ProxyType {
+    Any,
+}
+impl Default for ProxyType {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
+impl InstanceFilter<RuntimeCall> for ProxyType {
+    fn filter(&self, c: &RuntimeCall) -> bool {
+        match self {
+            ProxyType::Any => true,
+        }
+    }
+    fn is_superset(&self, o: &Self) -> bool {
+        match (self, o) {
+            (x, y) if x == y => true,
+            (ProxyType::Any, _) => true,
+            (_, ProxyType::Any) => false,
+            _ => false,
+        }
+    }
+}
+
+parameter_types! {
+    // One storage item; key size 32, value size 8; .
+    pub const ProxyDepositBase: Balance = deposit(1, 8);
+    // Additional storage item size of 33 bytes.
+    pub const ProxyDepositFactor: Balance = deposit(0, 33);
+    pub const MaxProxies: u16 = 32;
+    pub const AnnouncementDepositBase: Balance = deposit(1, 8);
+    pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
+    pub const MaxPending: u16 = 32;
+}
+impl pallet_proxy::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type ProxyType = ProxyType;
+    type ProxyDepositBase = ProxyDepositBase;
+    type ProxyDepositFactor = ProxyDepositFactor;
+    type MaxProxies = MaxProxies;
+    type WeightInfo = pallet_proxy::weights::SubstrateWeight<Runtime>;
+    type MaxPending = MaxPending;
+    type CallHasher = BlakeTwo256;
+    type AnnouncementDepositBase = AnnouncementDepositBase;
+    type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
 impl pallet_ethereum_events::Config for Runtime {
@@ -1273,6 +1337,7 @@ construct_runtime!(
         NeoSwaps: pallet_pm_neo_swaps::{Call, Config<T>, Event<T>, Pallet, Storage} = 45,
         Orderbook: pallet_pm_order_book::{Call, Event<T>, Pallet, Storage} = 46,
         HybridRouter: pallet_pm_hybrid_router::{Call, Event<T>, Pallet, Storage} = 47,
+        Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 48,
     }
 );
 
@@ -1338,6 +1403,7 @@ mod benches {
         [pallet_config, PalletConfig]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
+        [pallet_proxy, Proxy]
         // Tnf pallets
         [pallet_authors_manager, AuthorsManager]
         [pallet_prediction_markets, PredictionMarkets]
