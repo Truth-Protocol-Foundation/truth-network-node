@@ -23,6 +23,7 @@ use crate::{
     types::{Market, PoolId},
 };
 use alloc::fmt::Debug;
+#[cfg(feature = "mock")]
 use core::marker::PhantomData;
 use frame_support::{
     dispatch::DispatchResult,

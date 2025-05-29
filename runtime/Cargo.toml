@@ -54,7 +54,8 @@ pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/paritytech/
 common-primitives = { workspace = true }
 
 # Multisig pallet
-pallet-multisig = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.1.0" }
+pallet-multisig = { workspace = true }
+pallet-proxy = { workspace = true }
 
 # AvN pallets
 sp-avn-common = { workspace = true }
@@ -128,6 +129,7 @@ std = [
 	"pallet-im-online/std",
 	"pallet-offences/std",
 	"pallet-multisig/std",
+	"pallet-proxy/std",
 	"sp-api/std",
 	"sp-authority-discovery/std",
 	"sp-block-builder/std",
@@ -198,6 +200,7 @@ runtime-benchmarks = [
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
+	"pallet-proxy/runtime-benchmarks",
 
 	# AvN pallets
 	"pallet-avn/runtime-benchmarks",
@@ -241,6 +244,7 @@ try-runtime = [
 	"pallet-scheduler/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-multisig/try-runtime",
+	"pallet-proxy/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-insecure-randomness-collective-flip/try-runtime",
