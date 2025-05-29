@@ -655,18 +655,13 @@ impl Default for ProxyType {
 }
 
 impl InstanceFilter<RuntimeCall> for ProxyType {
-    fn filter(&self, c: &RuntimeCall) -> bool {
+    fn filter(&self, _c: &RuntimeCall) -> bool {
         match self {
             ProxyType::Any => true,
         }
     }
     fn is_superset(&self, o: &Self) -> bool {
-        match (self, o) {
-            (x, y) if x == y => true,
-            (ProxyType::Any, _) => true,
-            (_, ProxyType::Any) => false,
-            _ => false,
-        }
+        self == &ProxyType::Any || self == o
     }
 }
 
