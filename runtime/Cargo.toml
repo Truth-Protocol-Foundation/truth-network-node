@@ -17,6 +17,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.6.9", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 smallvec = "1.11.0"
+hex = { workspace = true }
 
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
 pallet-aura = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
@@ -35,6 +36,7 @@ frame-system = { version = "4.0.0-dev", default-features = false, git = "https:/
 frame-try-runtime = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", optional = true , branch = "release-polkadot-v1.1.0" }
 frame-executive = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
 sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+sp-arithmetic = { workspace = true }
 sp-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
 sp-block-builder = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
 sp-consensus-aura = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
@@ -52,7 +54,8 @@ pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/paritytech/
 common-primitives = { workspace = true }
 
 # Multisig pallet
-pallet-multisig = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.1.0" }
+pallet-multisig = { workspace = true }
+pallet-proxy = { workspace = true }
 
 # AvN pallets
 sp-avn-common = { workspace = true }
@@ -67,6 +70,7 @@ pallet-avn-proxy = { workspace = true }
 pallet-nft-manager = { workspace = true }
 
 # Tnf pallets
+pallet-config = { workspace = true }
 pallet-authors-manager = { workspace = true }
 pallet-node-manager = { workspace = true }
 
@@ -125,6 +129,7 @@ std = [
 	"pallet-im-online/std",
 	"pallet-offences/std",
 	"pallet-multisig/std",
+	"pallet-proxy/std",
 	"sp-api/std",
 	"sp-authority-discovery/std",
 	"sp-block-builder/std",
@@ -157,6 +162,7 @@ std = [
 	"pallet-nft-manager/std",
 
 	# TNF pallets
+	"pallet-config/std",
 	"pallet-authors-manager/std",
 	"pallet-node-manager/std",
 
@@ -194,6 +200,7 @@ runtime-benchmarks = [
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
+	"pallet-proxy/runtime-benchmarks",
 
 	# AvN pallets
 	"pallet-avn/runtime-benchmarks",
@@ -206,6 +213,7 @@ runtime-benchmarks = [
 	"pallet-authors-manager/runtime-benchmarks",
 
 	# Tnf pallets
+	"pallet-config/runtime-benchmarks",
 	"pallet-node-manager/runtime-benchmarks",
 
 	#Prediction maket pallet
@@ -236,6 +244,7 @@ try-runtime = [
 	"pallet-scheduler/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-multisig/try-runtime",
+	"pallet-proxy/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-insecure-randomness-collective-flip/try-runtime",
@@ -252,6 +261,7 @@ try-runtime = [
 	"pallet-nft-manager/try-runtime",
 
 	# Tnf pallets
+	"pallet-config/try-runtime",
 	"pallet-authors-manager/try-runtime",
 	"pallet-node-manager/try-runtime",
 

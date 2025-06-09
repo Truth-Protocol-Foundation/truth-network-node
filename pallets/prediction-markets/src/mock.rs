@@ -23,17 +23,18 @@
 #![cfg(feature = "mock")]
 
 use crate as prediction_markets;
-use crate::{EthEvent, TokenInterface};
+use crate::{AssetOf, BalanceOf, EthEvent, MarketIdOf, TokenInterface};
 use common_primitives::{
     constants::MILLISECS_PER_BLOCK,
     types::{Balance, BlockNumber, Hash, Moment},
 };
+use core::marker::PhantomData;
 use frame_support::{
     construct_runtime, ord_parameter_types, parameter_types,
     traits::{Everything, NeverEnsureOrigin, OnFinalize, OnInitialize},
 };
 use frame_system::{mocking::MockBlockU32, EnsureRoot, EnsureSignedBy};
-use orml_traits::asset_registry::AssetProcessor;
+use orml_traits::{asset_registry::AssetProcessor, MultiCurrency};
 use parity_scale_codec::{alloc::sync::Arc, Encode};
 pub use prediction_market_primitives::test_helper::get_account;
 use prediction_market_primitives::{
@@ -52,18 +53,18 @@ use prediction_market_primitives::{
         RemoveKeysLimit, RequestInterval, TreasuryPalletId, VotePeriod, VotingOutcomeFee, BASE,
         CENT_BASE,
     },
-    traits::DeployPoolApi,
+    traits::{DeployPoolApi, DistributeFees},
     types::{
         Asset, BasicCurrencyAdapter, BlockTest, CurrencyId, CustomMetadata, MarketId, OrmlAmount,
         SignatureTest, TestAccountIdPK,
     },
 };
-use sp_arithmetic::per_things::Percent;
-use sp_core::H160;
+use sp_arithmetic::{per_things::Percent, Perbill};
+use sp_core::{Get, H160};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
-    traits::{BlakeTwo256, ConstU32, IdentityLookup},
-    BuildStorage, DispatchError, DispatchResult,
+    traits::{BlakeTwo256, ConstU32, IdentityLookup, Zero},
+    BuildStorage, DispatchError, DispatchResult, SaturatedConversion,
 };
 use std::cell::RefCell;
 
@@ -108,7 +109,12 @@ pub fn request_edit_origin() -> TestAccountIdPK {
 pub fn resolve_origin() -> TestAccountIdPK {
     get_account(75u8)
 }
-
+pub fn winning_fee_account() -> TestAccountIdPK {
+    get_account(95u8)
+}
+pub fn market_admin() -> TestAccountIdPK {
+    get_account(17u8)
+}
 pub const INITIAL_BALANCE: u128 = 1_000 * BASE;
 
 #[allow(unused)]
@@ -197,6 +203,9 @@ parameter_types! {
     pub const OracleBond: Balance = 25 * CENT_BASE;
     pub const ValidityBond: Balance = 53 * CENT_BASE;
     pub const DisputeBond: Balance = 109 * CENT_BASE;
+    pub const WinnerFeePercentage: Perbill = Perbill::from_percent(5);
+    pub FeeAccount: TestAccountIdPK = winning_fee_account();
+
 }
 
 construct_runtime!(
@@ -239,6 +248,39 @@ impl TokenInterface<H160, TestAccountIdPK> for NoopTokenInterface {
         _raw_amount: u128,
     ) -> DispatchResult {
         Ok(())
+    }
+}
+
+pub fn fee_percentage<T: crate::Config>() -> Perbill {
+    WinnerFeePercentage::get()
+}
+
+pub fn calculate_fee<T: crate::Config>(amount: BalanceOf<T>) -> BalanceOf<T> {
+    fee_percentage::<T>().mul_floor(amount.saturated_into::<BalanceOf<T>>())
+}
+
+pub struct WinningFees<T, F>(PhantomData<T>, PhantomData<F>);
+
+impl<T: crate::Config, F> DistributeFees for WinningFees<T, F>
+where
+    F: Get<T::AccountId>,
+{
+    type Asset = AssetOf<T>;
+    type AccountId = T::AccountId;
+    type Balance = BalanceOf<T>;
+    type MarketId = MarketIdOf<T>;
+
+    fn distribute(
+        _market_id: Self::MarketId,
+        asset: Self::Asset,
+        account: &Self::AccountId,
+        amount: Self::Balance,
+    ) -> Self::Balance {
+        let fees = calculate_fee::<T>(amount);
+        match T::AssetManager::transfer(asset, account, &F::get(), fees) {
+            Ok(_) => fees,
+            Err(_) => Zero::zero(),
+        }
     }
 }
 
@@ -288,6 +330,8 @@ impl crate::Config for Runtime {
     type Public = TestAccountIdPK;
     type Signature = SignatureTest;
     type TokenInterface = NoopTokenInterface;
+    type WinnerFeePercentage = WinnerFeePercentage;
+    type WinnerFeeHandler = WinningFees<Runtime, FeeAccount>;
 }
 
 impl frame_system::Config for Runtime {
@@ -547,6 +591,13 @@ impl ExtBuilder {
                 ),
             ],
             last_asset_id: Asset::ForeignAsset(420),
+        }
+        .assimilate_storage(&mut t)
+        .unwrap();
+
+        prediction_markets::GenesisConfig::<Runtime> {
+            vault_account: Some(sudo()),
+            market_admin: Some(market_admin()),
         }
         .assimilate_storage(&mut t)
         .unwrap();

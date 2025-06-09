@@ -58,7 +58,7 @@ mod pallet {
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
         ensure,
-        pallet_prelude::StorageMap,
+        pallet_prelude::{BuildGenesisConfig, OptionQuery, StorageMap, StorageValue},
         require_transactional,
         traits::{Get, IsSubType, IsType, StorageVersion},
         transactional, PalletError, PalletId, Parameter, Twox64Concat,
@@ -76,7 +76,10 @@ mod pallet {
             checked_ops_res::{CheckedAddRes, CheckedSubRes},
             fixed::{BaseProvider, FixedDiv, FixedMul, PredictionMarketBase},
         },
-        traits::{CompleteSetOperationsApi, DeployPoolApi, DistributeFees, HybridRouterAmmApi},
+        traits::{
+            CompleteSetOperationsApi, DeployPoolApi, DistributeFees, HybridRouterAmmApi,
+            OnLiquidityProvided, PalletAdminGetter,
+        },
         types::{Asset, MarketStatus, ScoringRule},
     };
     use scale_info::{prelude::boxed::Box, TypeInfo};
@@ -86,13 +89,13 @@ mod pallet {
             AccountIdConversion, CheckedSub, Dispatchable, IdentifyAccount, Member, Saturating,
             Verify, Zero,
         },
-        DispatchError, DispatchResult, Perbill, RuntimeDebug, SaturatedConversion,
+        DispatchError, DispatchResult, RuntimeDebug, SaturatedConversion,
     };
 
     pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     // These should not be config parameters to avoid misconfigurations.
-    pub(crate) const EXIT_FEE: u128 = CENT_BASE / 10;
+    pub(crate) const EXIT_FEE: u128 = CENT_BASE / 10; // 0.1%
     /// The minimum allowed swap fee. Hardcoded to avoid misconfigurations which may lead to
     /// exploits.
     pub(crate) const MIN_SWAP_FEE: u128 = BASE / 1_000; // 0.1%.
@@ -177,6 +180,13 @@ mod pallet {
             + Encode
             + TypeInfo
             + From<sp_core::sr25519::Signature>;
+
+        type PalletAdminGetter: PalletAdminGetter<AccountId = Self::AccountId>;
+
+        type OnLiquidityProvided: OnLiquidityProvided<
+            AccountId = Self::AccountId,
+            MarketId = MarketIdOf<Self>,
+        >;
     }
 
     #[pallet::pallet]
@@ -185,6 +195,32 @@ mod pallet {
 
     #[pallet::storage]
     pub(crate) type Pools<T: Config> = StorageMap<_, Twox64Concat, MarketIdOf<T>, PoolOf<T>>;
+
+    /// The account that receives the early exit fee
+    #[pallet::storage]
+    pub type EarlyExitFeeAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
+
+    /// The amount of additional swap fee to be paid
+    #[pallet::storage]
+    pub type AdditionalSwapFee<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub additional_swap_fee: BalanceOf<T>,
+    }
+
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self { additional_swap_fee: 0u128.saturated_into() }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            AdditionalSwapFee::<T>::set(Some(self.additional_swap_fee.clone()));
+        }
+    }
 
     #[pallet::event]
     #[pallet::generate_deposit(fn deposit_event)]
@@ -249,6 +285,10 @@ mod pallet {
             market_id: MarketIdOf<T>,
             amounts_out: Vec<BalanceOf<T>>,
         },
+        /// A fee for the additional swap fee was set.
+        AdditionalSwapFeeSet { new_fee: BalanceOf<T> },
+        /// The account that receives the early exit fee was set.
+        EarlyExitFeeAccountSet { new_account: T::AccountId },
     }
 
     #[pallet::error]
@@ -314,6 +354,12 @@ mod pallet {
         UnauthorizedSignedTransaction,
         /// The signed transaction has expired
         SignedTransactionExpired,
+        /// Early exit fee account must be set before using it
+        EarlyExitFeeAccountNotSet,
+        /// Additional swap fee must be set before using it
+        AdditionalSwapFeeNotSet,
+        /// The user is not the pallet admin
+        SenderNotMarketAdmin,
     }
 
     #[derive(Decode, Encode, Eq, PartialEq, PalletError, RuntimeDebug, TypeInfo)]
@@ -704,6 +750,35 @@ mod pallet {
             // TODO return weight
             Ok(().into())
         }
+
+        #[pallet::call_index(9)]
+        #[pallet::weight(T::WeightInfo::set_early_exit_fee_account())]
+        #[transactional]
+        pub fn set_early_exit_fee_account(
+            origin: OriginFor<T>,
+            account: T::AccountId,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            ensure!(who == T::PalletAdminGetter::get_admin()?, Error::<T>::SenderNotMarketAdmin);
+
+            <EarlyExitFeeAccount<T>>::mutate(|a| *a = Some(account.clone()));
+            Self::deposit_event(Event::EarlyExitFeeAccountSet { new_account: account });
+
+            Ok(())
+        }
+
+        #[pallet::call_index(10)]
+        #[pallet::weight(T::WeightInfo::set_additional_swap_fee())]
+        #[transactional]
+        pub fn set_additional_swap_fee(origin: OriginFor<T>, fee: BalanceOf<T>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            ensure!(who == T::PalletAdminGetter::get_admin()?, Error::<T>::SenderNotMarketAdmin);
+
+            <AdditionalSwapFee<T>>::mutate(|f| *f = Some(fee));
+            Self::deposit_event(Event::AdditionalSwapFeeSet { new_fee: fee });
+
+            Ok(())
+        }
     }
 
     impl<T: Config> Pallet<T> {
@@ -895,6 +970,10 @@ mod pallet {
                     amounts_in,
                     new_liquidity_parameter,
                 });
+
+                // Notify other pallets that liquidity has been provided.
+                T::OnLiquidityProvided::on_liquidity_provided(&market_id, &who);
+
                 Ok(benchmark_info)
             })?;
             let weight = match benchmark_info {
@@ -945,9 +1024,17 @@ mod pallet {
                         T::MultiCurrency::withdraw(asset, &pool.account_id, remaining)?;
                         Ok(())
                     };
-                    // TODO(#1220): We will withdraw all remaining funds (the "buffer"). This is an
-                    // ugly hack and frame_system should offer the option to whitelist accounts.
-                    withdraw_remaining(&pool.collateral)?;
+
+                    // Transfer any remaining base assets to the designated account.
+                    let remaining =
+                        T::MultiCurrency::free_balance(pool.collateral, &pool.account_id);
+                    T::MultiCurrency::transfer(
+                        pool.collateral,
+                        &pool.account_id,
+                        &Self::early_exit_account()?,
+                        remaining,
+                    )?;
+
                     // Clear left-over tokens. These naturally occur in the form of exit fees.
                     for asset in pool.assets().iter() {
                         withdraw_remaining(asset)?;
@@ -1075,6 +1162,10 @@ mod pallet {
                 T::MultiCurrency::minimum_balance(collateral),
             )?;
             Pools::<T>::insert(market_id, pool);
+
+            // Notify other pallets that liquidity has been provided.
+            T::OnLiquidityProvided::on_liquidity_provided(&market_id, &who);
+
             Self::deposit_event(Event::<T>::PoolDeployed {
                 who,
                 market_id,
@@ -1091,6 +1182,14 @@ mod pallet {
         #[inline]
         pub(crate) fn pool_account_id(market_id: &MarketIdOf<T>) -> T::AccountId {
             T::PalletId::get().into_sub_account_truncating((*market_id).saturated_into::<u128>())
+        }
+
+        pub fn early_exit_account() -> Result<T::AccountId, Error<T>> {
+            Ok(<EarlyExitFeeAccount<T>>::get().ok_or(Error::<T>::EarlyExitFeeAccountNotSet)?)
+        }
+
+        pub fn additional_swap_fee() -> Result<BalanceOf<T>, Error<T>> {
+            Ok(<AdditionalSwapFee<T>>::get().ok_or(Error::<T>::AdditionalSwapFeeNotSet)?)
         }
 
         /// Distribute swap fees and external fees and returns the remaining amount.
@@ -1158,15 +1257,6 @@ mod pallet {
             amount.bdiv(fee_divisor)
         }
 
-        fn total_fee_fractional(
-            swap_fee: BalanceOf<T>,
-            external_fee_percentage: Perbill,
-        ) -> Result<BalanceOf<T>, DispatchError> {
-            let external_fee_fractional =
-                external_fee_percentage.mul_floor(PredictionMarketBase::<BalanceOf<T>>::get()?);
-            swap_fee.checked_add_res(&external_fee_fractional)
-        }
-
         fn match_failure(error: DispatchError) -> ApiError<AmmSoftFail> {
             let spot_price_too_low: DispatchError =
                 Error::<T>::NumericalLimits(NumericalLimitsError::SpotPriceTooLow).into();
@@ -1213,10 +1303,8 @@ mod pallet {
         ) -> Result<Self::Balance, DispatchError> {
             let pool = Pools::<T>::get(market_id).ok_or(Error::<T>::PoolNotFound)?;
             let buy_amount = pool.calculate_buy_amount_until(asset, until)?;
-            let total_fee_fractional = Self::total_fee_fractional(
-                pool.swap_fee,
-                T::ExternalFees::fee_percentage(market_id),
-            )?;
+            let total_fee_fractional =
+                pool.swap_fee.checked_add_res(&Self::additional_swap_fee()?)?;
             let buy_amount_plus_fees =
                 Self::amount_including_fee_surplus(buy_amount, total_fee_fractional)?;
             Ok(buy_amount_plus_fees)

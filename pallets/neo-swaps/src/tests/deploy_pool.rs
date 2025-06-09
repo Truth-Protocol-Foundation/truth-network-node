@@ -82,6 +82,7 @@ fn deploy_pool_works_with_binary_markets() {
             }
             .into(),
         );
+        assert_eq!(PredictionMarkets::is_liquidity_provider(&market_id, &alice()), true);
     });
 }
 
@@ -164,6 +165,7 @@ fn deploy_pool_works_with_scalar_marktes() {
             }
             .into(),
         );
+        assert_eq!(PredictionMarkets::is_liquidity_provider(&market_id, &alice()), true);
     });
 }
 

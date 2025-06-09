@@ -38,6 +38,7 @@ common-primitives = { workspace = true }
 pallet-avn = { workspace = true }
 
 [dev-dependencies]
+pallet-avn-proxy = { workspace = true }
 more-asserts = { workspace = true }
 test-case = { workspace = true }
 pallet-pm-neo-swaps = { workspace = true, features = ["mock"] }

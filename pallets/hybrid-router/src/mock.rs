@@ -50,7 +50,7 @@ use prediction_market_primitives::{
         PmPalletId, RemoveKeysLimit, RequestInterval, TreasuryPalletId, VotePeriod,
         VotingOutcomeFee, BASE, CENT_BASE, MAX_ASSETS,
     },
-    traits::DistributeFees,
+    traits::{DistributeFees, NoopLiquidityProvider},
     types::{
         Asset, BasicCurrencyAdapter, CurrencyId, CustomMetadata, MarketId, OrmlAmount,
         SignatureTest, TestAccountIdPK,
@@ -65,7 +65,6 @@ use sp_runtime::{
 
 pub use prediction_market_primitives::test_helper::get_account;
 
-pub const EXTERNAL_FEES: Balance = CENT_BASE;
 pub const INITIAL_BALANCE: Balance = 100 * BASE;
 
 pub fn alice() -> TestAccountIdPK {
@@ -93,6 +92,9 @@ pub fn fee_account() -> TestAccountIdPK {
 pub fn market_creator() -> TestAccountIdPK {
     alice()
 }
+pub fn winning_fee_account() -> TestAccountIdPK {
+    get_account(95u8)
+}
 
 pub const FOREIGN_ASSET: Asset<MarketId> = Asset::ForeignAsset(1);
 
@@ -115,14 +117,14 @@ parameter_types! {
     pub const ValidityBond: Balance = 0;
     pub const DisputeBond: Balance = 0;
     pub const MaxCategories: u16 = MAX_ASSETS + 1;
+    pub const WinnerFeePercentage: Perbill = Perbill::from_percent(5);
+    pub WinningFeeAccount: TestAccountIdPK = winning_fee_account();
 }
 
-pub fn fee_percentage() -> Perbill {
-    Perbill::from_rational(EXTERNAL_FEES, BASE)
-}
-
-pub fn calculate_fee<T: crate::Config>(amount: BalanceOf<T>) -> BalanceOf<T> {
-    fee_percentage().mul_floor(amount.saturated_into::<BalanceOf<T>>())
+pub fn calculate_fee<T: crate::Config>(_amount: BalanceOf<T>) -> BalanceOf<T> {
+    pallet_pm_neo_swaps::AdditionalSwapFee::<Runtime>::get()
+        .unwrap()
+        .saturated_into()
 }
 
 pub struct ExternalFees<T, F>(PhantomData<T>, PhantomData<F>);
@@ -148,9 +150,34 @@ where
             Err(_) => Zero::zero(),
         }
     }
+}
 
-    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
-        fee_percentage()
+pub fn calculate_winning_fee<T: crate::Config>(amount: BalanceOf<T>) -> BalanceOf<T> {
+    WinnerFeePercentage::get().mul_floor(amount.saturated_into::<BalanceOf<T>>())
+}
+
+pub struct WinningFees<T, F>(PhantomData<T>, PhantomData<F>);
+
+impl<T: crate::Config, F> DistributeFees for WinningFees<T, F>
+where
+    F: Get<T::AccountId>,
+{
+    type Asset = AssetOf<T>;
+    type AccountId = T::AccountId;
+    type Balance = BalanceOf<T>;
+    type MarketId = MarketIdOf<T>;
+
+    fn distribute(
+        _market_id: Self::MarketId,
+        asset: Self::Asset,
+        account: &Self::AccountId,
+        amount: Self::Balance,
+    ) -> Self::Balance {
+        let fees = calculate_winning_fee::<T>(amount);
+        match T::AssetManager::transfer(asset, account, &F::get(), fees) {
+            Ok(_) => fees,
+            Err(_) => Zero::zero(),
+        }
     }
 }
 
@@ -234,6 +261,8 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type Public = TestAccountIdPK;
     type Signature = SignatureTest;
     type RuntimeCall = RuntimeCall;
+    type PalletAdminGetter = PredictionMarkets;
+    type OnLiquidityProvided = NoopLiquidityProvider<TestAccountIdPK, MarketId>;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
@@ -284,6 +313,8 @@ impl pallet_prediction_markets::Config for Runtime {
     type Signature = SignatureTest;
     type WeightInfo = pallet_prediction_markets::weights::WeightInfo<Runtime>;
     type TokenInterface = ();
+    type WinnerFeePercentage = WinnerFeePercentage;
+    type WinnerFeeHandler = WinningFees<Runtime, WinningFeeAccount>;
 }
 
 impl pallet_pm_authorized::Config for Runtime {
@@ -489,6 +520,9 @@ impl ExtBuilder {
         let mut t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
         // see the logs in tests when using `RUST_LOG=debug cargo test -- --nocapture`
         let _ = env_logger::builder().is_test(true).try_init();
+        pallet_pm_neo_swaps::GenesisConfig::<Runtime> { additional_swap_fee: CENT_BASE / 100 }
+            .assimilate_storage(&mut t)
+            .unwrap();
         pallet_balances::GenesisConfig::<Runtime> { balances: self.balances }
             .assimilate_storage(&mut t)
             .unwrap();
@@ -522,6 +556,13 @@ impl ExtBuilder {
         }
         .assimilate_storage(&mut t)
         .unwrap();
+        pallet_prediction_markets::GenesisConfig::<Runtime> {
+            vault_account: Some(sudo()),
+            market_admin: Some(market_creator()),
+        }
+        .assimilate_storage(&mut t)
+        .unwrap();
+
         let mut test_ext: sp_io::TestExternalities = t.into();
         test_ext.register_extension(KeystoreExt(Arc::new(keystore)));
         test_ext.execute_with(|| System::set_block_number(1));

@@ -74,9 +74,9 @@ fn sell_to_amm_and_then_fill_specified_order() {
                 market_id,
                 asset_in: asset,
                 amount_in: amm_amount_in,
-                amount_out: 2775447716,
+                amount_out: 2802768611,
                 swap_fee_amount: 28320895,
-                external_fee_amount: 28320895,
+                external_fee_amount: 1000000,
             }
             .into(),
         );
@@ -448,9 +448,9 @@ fn sell_to_amm() {
                 market_id,
                 asset_in: asset,
                 amount_in: 20000000000,
-                amount_out: 9460629504,
+                amount_out: 9556166539,
                 swap_fee_amount: 96537036,
-                external_fee_amount: 96537035,
+                external_fee_amount: 1000000,
             }
             .into(),
         );
@@ -675,9 +675,9 @@ fn sell_to_amm_only() {
                 market_id,
                 asset_in: asset,
                 amount_in: 20000000000,
-                amount_out: 9460629504,
+                amount_out: 9556166539,
                 swap_fee_amount: 96537036,
-                external_fee_amount: 96537035,
+                external_fee_amount: 1000000,
             }
             .into(),
         );
@@ -842,8 +842,8 @@ fn sell_emits_event() {
                 asset_in: asset,
                 amount_in,
                 asset_out: BASE_ASSET,
-                amount_out: 4551619284973,
-                external_fee_amount: 45985911066,
+                amount_out: 4597547196039,
+                external_fee_amount: 58000000,
                 swap_fee_amount: 985911072,
             }
             .into(),

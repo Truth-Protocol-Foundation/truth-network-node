@@ -11,15 +11,19 @@ pub mod fees;
 pub mod third_party_weights;
 use asset_registry::CustomAssetProcessor;
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use core::cmp::Ordering;
 use orml_traits::parameter_type_with_key;
+use pallet_avn::sr25519::AuthorityId as AvnId;
+pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
 use pallet_grandpa::AuthorityId as GrandpaId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 use pallet_session::historical as pallet_session_historical;
 use scale_info::TypeInfo;
 use smallvec::smallvec;
 use sp_api::impl_runtime_apis;
+use sp_arithmetic::FixedU128;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
@@ -27,16 +31,12 @@ use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, One},
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, Percent, RuntimeAppPublic,
+    ApplyExtrinsicResult, FixedPointNumber, Percent, RuntimeAppPublic,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-
-use pallet_avn::sr25519::AuthorityId as AvnId;
-pub use pallet_avn_proxy::{Event as AvnProxyEvent, ProvableProxy};
-use pallet_node_manager::sr25519::AuthorityId as NodeManagerKeyId;
 
 pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
@@ -57,9 +57,9 @@ pub use frame_support::{
     dispatch::DispatchClass,
     parameter_types,
     traits::{
-        ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains, Currency, EitherOfDiverse,
-        Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced, PrivilegeCmp, Randomness,
-        StorageInfo,
+        AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Contains,
+        Currency, EitherOfDiverse, EnsureOrigin, Imbalance, InstanceFilter, KeyOwnerProofSystem,
+        LockIdentifier, OnUnbalanced, PrivilegeCmp, Randomness, StorageInfo,
     },
     weights::{
         constants::{
@@ -72,7 +72,7 @@ pub use frame_support::{
 };
 pub use frame_system::{
     limits::{BlockLength, BlockWeights},
-    Call as SystemCall, EnsureRoot,
+    Call as SystemCall, EnsureRoot, EnsureSigned, EnsureSignedBy,
 };
 use pallet_avn_transaction_payment::AvnCurrencyAdapter;
 pub use pallet_balances::Call as BalancesCall;
@@ -84,6 +84,7 @@ use sp_avn_common::{
     event_types::ValidEvents,
     InnerCallValidator, Proof,
 };
+
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill, RuntimeDebug};
@@ -106,6 +107,32 @@ type EnsureRootOrMoreThanTwoThirdsAdvisoryCommittee = EitherOfDiverse<
     EnsureRoot<AccountId>,
     EnsureProportionMoreThan<AccountId, AdvisoryCommitteeInstance, 2, 3>,
 >;
+
+pub struct EnsureConfigAdmin;
+impl EnsureOrigin<RuntimeOrigin> for EnsureConfigAdmin {
+    type Success = AccountId;
+
+    fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+        let origin = o.clone();
+        if let Ok(who) = EnsureSigned::<AccountId>::ensure_origin(o.clone()) {
+            if let Ok(admin) = PalletConfig::config_admin() {
+                if who == admin {
+                    return Ok(who);
+                }
+            }
+        }
+
+        Err(origin)
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+        let admin = PalletConfig::config_admin().map_err(|_| ())?;
+        Ok(RuntimeOrigin::from(frame_system::RawOrigin::Signed(admin)))
+    }
+}
+
+pub type EnsureAdminOrRoot = EitherOfDiverse<EnsureConfigAdmin, EnsureRoot<AccountId>>;
 
 // Accounts protected from being deleted due to a too low amount of funds.
 pub struct DustRemovalWhitelist;
@@ -161,8 +188,11 @@ where
     <R as frame_system::Config>::RuntimeEvent: From<pallet_balances::Event<R>>,
 {
     fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
-        let treasury_address = <pallet_token_manager::Pallet<R>>::compute_treasury_account_id();
-        <pallet_balances::Pallet<R>>::resolve_creating(&treasury_address, amount);
+        let recipient: <R as frame_system::Config>::AccountId = PalletConfig::gas_fee_recipient()
+            .map(Into::into)
+            .unwrap_or_else(|_| <pallet_token_manager::Pallet<R>>::compute_treasury_account_id());
+
+        <pallet_balances::Pallet<R>>::resolve_creating(&recipient, amount);
     }
 }
 
@@ -200,9 +230,16 @@ pub struct WeightToFee;
 impl WeightToFeePolynomial for WeightToFee {
     type Balance = Balance;
     fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
-        // We adjust the fee conversion so that the Extrinsic Base Weight corresponds to 150 micro
-        // TRUU fee.
-        let p = 150 * MICRO_BASE;
+        // We adjust the fee conversion so that a simple token transfer
+        // direct to chain costs base_fee TRUU.
+        let base_fee = PalletConfig::base_gas_fee();
+
+        // The magic number (2.380951) is the result of :
+        // setting p = 50 * MILLI_BASE, the cost of a simple transfer was 119.04775 milli TRUU
+        // (visual observation on polkadot.js). magic_number = 119.04775 / 50 = 2.380951
+        let factor = FixedU128::saturating_from_rational(1_000_000u128, 2_380_951u128);
+
+        let p = factor.saturating_mul_int(base_fee);
         let q = Balance::from(ExtrinsicBaseWeight::get().ref_time());
         smallvec![WeightToFeeCoefficient {
             degree: 1,
@@ -252,7 +289,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 20,
+    spec_version: 29,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -508,6 +545,7 @@ impl pallet_avn_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type Currency = Balances;
+    type KnownUserOrigin = EnsureAdminOrRoot;
     type WeightInfo = pallet_avn_transaction_payment::default_weights::SubstrateWeight<Runtime>;
 }
 
@@ -591,6 +629,65 @@ impl pallet_multisig::Config for Runtime {
     type DepositFactor = DepositFactor;
     type MaxSignatories = ConstU32<100>;
     type WeightInfo = pallet_multisig::weights::SubstrateWeight<Runtime>;
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Encode,
+    Decode,
+    RuntimeDebug,
+    MaxEncodedLen,
+    scale_info::TypeInfo,
+)]
+pub enum ProxyType {
+    Any,
+}
+impl Default for ProxyType {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
+impl InstanceFilter<RuntimeCall> for ProxyType {
+    fn filter(&self, _c: &RuntimeCall) -> bool {
+        match self {
+            ProxyType::Any => true,
+        }
+    }
+    fn is_superset(&self, o: &Self) -> bool {
+        self == &ProxyType::Any || self == o
+    }
+}
+
+parameter_types! {
+    // One storage item; key size 32, value size 8; .
+    pub const ProxyDepositBase: Balance = deposit(1, 8);
+    // Additional storage item size of 33 bytes.
+    pub const ProxyDepositFactor: Balance = deposit(0, 33);
+    pub const MaxProxies: u16 = 32;
+    pub const AnnouncementDepositBase: Balance = deposit(1, 8);
+    pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
+    pub const MaxPending: u16 = 32;
+}
+impl pallet_proxy::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type ProxyType = ProxyType;
+    type ProxyDepositBase = ProxyDepositBase;
+    type ProxyDepositFactor = ProxyDepositFactor;
+    type MaxProxies = MaxProxies;
+    type WeightInfo = pallet_proxy::weights::SubstrateWeight<Runtime>;
+    type MaxPending = MaxPending;
+    type CallHasher = BlakeTwo256;
+    type AnnouncementDepositBase = AnnouncementDepositBase;
+    type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
 impl pallet_ethereum_events::Config for Runtime {
@@ -767,6 +864,12 @@ impl pallet_utility::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type PalletsOrigin = OriginCaller;
     type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
+}
+
+impl pallet_config::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = pallet_config::default_weights::SubstrateWeight<Runtime>;
 }
 
 // Prediction market
@@ -951,7 +1054,11 @@ parameter_types! {
     pub const HybridRouterPalletId: PalletId = HYBRID_ROUTER_PALLET_ID;
     /// Maximum number of orders that can be placed in a single trade transaction.
     pub const MaxOrders: u32 = 100;
+    /// The percentage of winning we deduct from the winner.
+    pub const WinnerFeePercentage: Perbill = Perbill::from_percent(5);
 }
+
+impl_winner_fees!();
 
 impl pallet_prediction_markets::Config for Runtime {
     type AdvisoryBond = AdvisoryBond;
@@ -999,6 +1106,8 @@ impl pallet_prediction_markets::Config for Runtime {
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type TokenInterface = TokenManager;
+    type WinnerFeePercentage = WinnerFeePercentage;
+    type WinnerFeeHandler = WinnerFee;
 }
 
 parameter_types! {
@@ -1130,7 +1239,7 @@ impl_market_creator_fees!();
 
 impl pallet_pm_neo_swaps::Config for Runtime {
     type CompleteSetOperations = PredictionMarkets;
-    type ExternalFees = MarketCreatorFee;
+    type ExternalFees = AdditionalSwapFee;
     type MarketCommons = MarketCommons;
     type MultiCurrency = AssetManager;
     type RuntimeEvent = RuntimeEvent;
@@ -1142,11 +1251,13 @@ impl pallet_pm_neo_swaps::Config for Runtime {
     type SignedTxLifetime = ConstU32<16>;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
+    type PalletAdminGetter = PredictionMarkets;
+    type OnLiquidityProvided = PredictionMarkets;
 }
 
 impl pallet_pm_order_book::Config for Runtime {
     type AssetManager = AssetManager;
-    type ExternalFees = MarketCreatorFee;
+    type ExternalFees = AdditionalSwapFee;
     type RuntimeEvent = RuntimeEvent;
     type MarketCommons = MarketCommons;
     type PalletId = OrderbookPalletId;
@@ -1204,6 +1315,7 @@ construct_runtime!(
         NftManager: pallet_nft_manager = 23,
         AnchorSummary: pallet_summary::<Instance2> = 26,
         NodeManager: pallet_node_manager = 27,
+        PalletConfig: pallet_config = 28,
 
         // Prediction Market pallets
         AdvisoryCommittee: pallet_collective::<Instance1>::{Call, Config<T>, Event<T>, Origin<T>, Pallet, Storage} = 30,
@@ -1217,9 +1329,10 @@ construct_runtime!(
         Court: pallet_pm_court::{Call, Event<T>, Pallet, Storage} = 42,
         PredictionMarkets: pallet_prediction_markets::{Call, Config<T>, Event<T>, Pallet, Storage} = 43,
         GlobalDisputes: pallet_pm_global_disputes::{Call, Event<T>, Pallet, Storage} = 44,
-        NeoSwaps: pallet_pm_neo_swaps::{Call, Event<T>, Pallet, Storage} = 45,
+        NeoSwaps: pallet_pm_neo_swaps::{Call, Config<T>, Event<T>, Pallet, Storage} = 45,
         Orderbook: pallet_pm_order_book::{Call, Event<T>, Pallet, Storage} = 46,
         HybridRouter: pallet_pm_hybrid_router::{Call, Event<T>, Pallet, Storage} = 47,
+        Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 48,
     }
 );
 
@@ -1282,8 +1395,10 @@ mod benches {
         [pallet_avn_proxy, AvnProxy]
         [pallet_nft_manager, NftManager]
         [pallet_node_manager, NodeManager]
+        [pallet_config, PalletConfig]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
+        [pallet_proxy, Proxy]
         // Tnf pallets
         [pallet_authors_manager, AuthorsManager]
         [pallet_prediction_markets, PredictionMarkets]

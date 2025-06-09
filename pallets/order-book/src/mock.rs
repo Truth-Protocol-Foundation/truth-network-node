@@ -35,25 +35,21 @@ use prediction_market_primitives::{
 };
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup, Zero},
-    BuildStorage, Perbill, SaturatedConversion,
+    BuildStorage, SaturatedConversion,
 };
 
 pub const ALICE: AccountIdTest = 0;
 pub const BOB: AccountIdTest = 1;
 pub const MARKET_CREATOR: AccountIdTest = 42;
 pub const INITIAL_BALANCE: Balance = 100 * BASE;
-pub const EXTERNAL_FEES: Balance = CENT_BASE;
+pub const EXTERNAL_FEES: Balance = CENT_BASE / 100;
 
 parameter_types! {
     pub const FeeAccount: AccountIdTest = MARKET_CREATOR;
 }
 
-pub fn fee_percentage<T: crate::Config>() -> Perbill {
-    Perbill::from_rational(EXTERNAL_FEES, BASE)
-}
-
-pub fn calculate_fee<T: crate::Config>(amount: BalanceOf<T>) -> BalanceOf<T> {
-    fee_percentage::<T>().mul_floor(amount.saturated_into::<BalanceOf<T>>())
+pub fn calculate_fee<T: crate::Config>(_amount: BalanceOf<T>) -> BalanceOf<T> {
+    EXTERNAL_FEES.saturated_into()
 }
 
 pub struct ExternalFees<T, F>(PhantomData<T>, PhantomData<F>);
@@ -78,10 +74,6 @@ where
             Ok(_) => fees,
             Err(_) => Zero::zero(),
         }
-    }
-
-    fn fee_percentage(_market_id: Self::MarketId) -> Perbill {
-        fee_percentage::<T>()
     }
 }
 
