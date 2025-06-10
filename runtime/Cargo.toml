@@ -72,6 +72,7 @@ pallet-nft-manager = { workspace = true }
 pallet-config = { workspace = true }
 pallet-authors-manager = { workspace = true }
 pallet-node-manager = { workspace = true }
+pallet-watchtower = { workspace = true }
 
 # Used for the node's RPCs
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
@@ -163,6 +164,7 @@ std = [
 	"pallet-config/std",
 	"pallet-authors-manager/std",
 	"pallet-node-manager/std",
+	"pallet-watchtower/std",
 
 	# Prediction market pallets
 	"prediction-market-primitives/std",
@@ -212,6 +214,7 @@ runtime-benchmarks = [
 	# Tnf pallets
 	"pallet-config/runtime-benchmarks",
 	"pallet-node-manager/runtime-benchmarks",
+	"pallet-watchtower/runtime-benchmarks",
 
 	#Prediction maket pallet
 	"pallet-pm-authorized/runtime-benchmarks",
@@ -260,6 +263,7 @@ try-runtime = [
 	"pallet-config/try-runtime",
 	"pallet-authors-manager/try-runtime",
 	"pallet-node-manager/try-runtime",
+	"pallet-watchtower/try-runtime",
 
 	# Prediction market pallets
 	"pallet-collective/try-runtime",
