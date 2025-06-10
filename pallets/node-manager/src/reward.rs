@@ -12,7 +12,7 @@ impl<T: Config> Pallet<T> {
         let uptime_threshold_u64 = uptime_threshold as u64;
         if actual_uptime >= uptime_threshold_u64 {
             if actual_uptime > uptime_threshold_u64 {
-                log::warn!("✋ Node ({:?}) has been up for more than the minimum uptime. Actual: {:?}, Min: {:?}", node_id, actual_uptime, uptime_threshold);
+                log::warn!("✋ Node ({:?}) has been up for more than the expected uptime. Actual: {:?}, Expected: {:?}", node_id, actual_uptime, uptime_threshold);
             }
             uptime_threshold_u64
         } else {
