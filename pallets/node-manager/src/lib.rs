@@ -818,7 +818,7 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        fn calculate_uptime_threshold(reward_period_length: u32) -> u32 {
+        pub(crate) fn calculate_uptime_threshold(reward_period_length: u32) -> u32 {
             let heartbeat_period = HeartbeatPeriod::<T>::get();
             let threshold = MinUptimeThreshold::<T>::get().unwrap_or(Self::get_default_threshold());
 

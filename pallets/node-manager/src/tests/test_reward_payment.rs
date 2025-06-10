@@ -248,8 +248,8 @@ fn payment_is_based_on_uptime() {
     ext.execute_with(|| {
         let node_count = <MaxBatchSize<TestRuntime>>::get() - 1;
         let context = Context::new(node_count as u8);
-        let reward_period = <RewardPeriod<TestRuntime>>::get();
-        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_period = <RewardPeriod<TestRuntime>>::get(); // 200
+        let reward_amount = <RewardAmount<TestRuntime>>::get(); // 5
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
@@ -262,8 +262,12 @@ fn payment_is_based_on_uptime() {
         let new_owner = TestAccount::new([111u8; 32]).account_id();
         let new_node =
             register_node(context.registrar.clone(), new_owner, reward_period_to_pay, 199);
-        // Increase the uptime of the node by 4 (total 5) to change the rewards
-        incr_heartbeats(reward_period_to_pay, vec![new_node], 4);
+
+        let total_expected_uptime =
+            NodeManager::calculate_uptime_threshold(reward_period_length as u32);
+        // The node falls below the min threshold to get the full rewards. They should still get
+        // their share
+        incr_heartbeats(reward_period_to_pay, vec![new_node], total_expected_uptime as u64 - 2);
 
         let total_uptime = <TotalUptime<TestRuntime>>::get(reward_period_to_pay);
 
@@ -280,10 +284,243 @@ fn payment_is_based_on_uptime() {
         assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
 
         // The owner has received the reward
-        let expected_new_owner_reward = reward_amount * 5 / total_uptime as u128;
+        // total_expected_uptime - 1 because we run the OCW
+        let expected_new_owner_reward =
+            reward_amount * (total_expected_uptime as u128 - 1) / total_uptime as u128;
         assert!(
             Balances::free_balance(&new_owner).abs_diff(expected_new_owner_reward) < 10,
             "Values differ by more than 10"
+        );
+        let expected_old_owner_reward = reward_amount - expected_new_owner_reward;
+
+        assert!(
+            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward) < 10,
+            "Value {} differs by more than 10",
+            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward)
+        );
+
+        // The pot has gone down by half
+        assert!(
+            Balances::free_balance(&NodeManager::compute_reward_account_id())
+                .abs_diff(reward_amount) <
+                10,
+            "Value {} differs by more than 10",
+            Balances::free_balance(&NodeManager::compute_reward_account_id())
+                .abs_diff(reward_amount)
+        );
+
+        System::assert_last_event(
+            Event::RewardPayoutCompleted { reward_period_index: reward_period_to_pay }.into(),
+        );
+    });
+}
+
+#[test]
+fn payment_works_when_uptime_is_threshold() {
+    let (mut ext, pool_state, offchain_state) = ExtBuilder::build_default()
+        .with_genesis_config()
+        .with_authors()
+        .for_offchain_worker()
+        .as_externality_with_state();
+    ext.execute_with(|| {
+        let node_count = <MaxBatchSize<TestRuntime>>::get() - 1;
+        let context = Context::new(node_count as u8);
+        let reward_period = <RewardPeriod<TestRuntime>>::get(); // 200
+        let reward_amount = <RewardAmount<TestRuntime>>::get(); // 5
+        let reward_period_length = reward_period.length as u64;
+        let reward_period_to_pay = reward_period.current;
+
+        // make sure the pot has the expected amount
+        assert_eq!(
+            Balances::free_balance(&NodeManager::compute_reward_account_id()),
+            reward_amount * 2u128
+        );
+
+        let new_owner = TestAccount::new([111u8; 32]).account_id();
+        let new_node =
+            register_node(context.registrar.clone(), new_owner, reward_period_to_pay, 199);
+
+        let total_expected_uptime =
+            NodeManager::calculate_uptime_threshold(reward_period_length as u32);
+        // The node's uptime is exactly the threshold, so they should get the full rewards
+        incr_heartbeats(reward_period_to_pay, vec![new_node], total_expected_uptime as u64 - 1);
+
+        let total_uptime = <TotalUptime<TestRuntime>>::get(reward_period_to_pay);
+
+        // Complete a reward period
+        roll_forward((reward_period_length - System::block_number()) + 1);
+
+        // Pay out
+        mock_get_finalised_block(
+            &mut offchain_state.write(),
+            &Some(hex::encode(1u32.encode()).into()),
+        );
+        NodeManager::offchain_worker(System::block_number());
+        let tx = pop_tx_from_mempool(pool_state);
+        assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
+
+        // The owner has received the reward
+        let expected_new_owner_reward =
+            reward_amount * total_expected_uptime as u128 / total_uptime as u128;
+        assert!(
+            Balances::free_balance(&new_owner).abs_diff(expected_new_owner_reward) < 10,
+            "Values differ by more than 10"
+        );
+        let expected_old_owner_reward = reward_amount - expected_new_owner_reward;
+
+        assert!(
+            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward) < 10,
+            "Value {} differs by more than 10",
+            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward)
+        );
+
+        // The pot has gone down by half
+        assert!(
+            Balances::free_balance(&NodeManager::compute_reward_account_id())
+                .abs_diff(reward_amount) <
+                10,
+            "Value {} differs by more than 10",
+            Balances::free_balance(&NodeManager::compute_reward_account_id())
+                .abs_diff(reward_amount)
+        );
+
+        System::assert_last_event(
+            Event::RewardPayoutCompleted { reward_period_index: reward_period_to_pay }.into(),
+        );
+    });
+}
+
+#[test]
+fn payment_works_even_when_uptime_is_over_threshold() {
+    let (mut ext, pool_state, offchain_state) = ExtBuilder::build_default()
+        .with_genesis_config()
+        .with_authors()
+        .for_offchain_worker()
+        .as_externality_with_state();
+    ext.execute_with(|| {
+        let node_count = <MaxBatchSize<TestRuntime>>::get() - 1;
+        let context = Context::new(node_count as u8);
+        let reward_period = <RewardPeriod<TestRuntime>>::get();
+        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_period_length = reward_period.length as u64;
+        let reward_period_to_pay = reward_period.current;
+
+        // make sure the pot has the expected amount
+        assert_eq!(
+            Balances::free_balance(&NodeManager::compute_reward_account_id()),
+            reward_amount * 2u128
+        );
+
+        let new_owner = TestAccount::new([111u8; 32]).account_id();
+        let new_node =
+            register_node(context.registrar.clone(), new_owner, reward_period_to_pay, 199);
+
+        let total_expected_uptime =
+            NodeManager::calculate_uptime_threshold(reward_period_length as u32);
+        // The node's uptime is over the threshold. This is unexpected but handled
+        incr_heartbeats(reward_period_to_pay, vec![new_node], total_expected_uptime as u64);
+
+        let total_uptime = <TotalUptime<TestRuntime>>::get(reward_period_to_pay);
+
+        // Complete a reward period
+        roll_forward((reward_period_length - System::block_number()) + 1);
+
+        // Pay out
+        mock_get_finalised_block(
+            &mut offchain_state.write(),
+            &Some(hex::encode(1u32.encode()).into()),
+        );
+        NodeManager::offchain_worker(System::block_number());
+        let tx = pop_tx_from_mempool(pool_state);
+        assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
+
+        // The owner has received the reward
+        // The system limits the reward to the expected uptime
+        let expected_new_owner_reward =
+            reward_amount * total_expected_uptime as u128 / total_uptime as u128;
+        assert!(
+            Balances::free_balance(&new_owner).abs_diff(expected_new_owner_reward) < 10,
+            "Values differ by more than 10"
+        );
+        let expected_old_owner_reward = reward_amount - expected_new_owner_reward;
+
+        assert!(
+            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward) < 10,
+            "Value {} differs by more than 10",
+            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward)
+        );
+
+        // The pot has gone down by half
+        assert!(
+            Balances::free_balance(&NodeManager::compute_reward_account_id())
+                .abs_diff(reward_amount) <
+                10,
+            "Value {} differs by more than 10",
+            Balances::free_balance(&NodeManager::compute_reward_account_id())
+                .abs_diff(reward_amount)
+        );
+
+        System::assert_last_event(
+            Event::RewardPayoutCompleted { reward_period_index: reward_period_to_pay }.into(),
+        );
+    });
+}
+
+#[test]
+fn threshold_update_is_respected() {
+    let (mut ext, pool_state, offchain_state) = ExtBuilder::build_default()
+        .with_genesis_config()
+        .with_authors()
+        .for_offchain_worker()
+        .as_externality_with_state();
+    ext.execute_with(|| {
+        let node_count = <MaxBatchSize<TestRuntime>>::get() - 1;
+        let context = Context::new(node_count as u8);
+        let reward_period = <RewardPeriod<TestRuntime>>::get();
+        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_period_length = reward_period.length as u64;
+        let reward_period_to_pay = reward_period.current;
+
+        // make sure the pot has the expected amount
+        assert_eq!(
+            Balances::free_balance(&NodeManager::compute_reward_account_id()),
+            reward_amount * 2u128
+        );
+
+        let new_owner = TestAccount::new([111u8; 32]).account_id();
+        let new_node =
+            register_node(context.registrar.clone(), new_owner, reward_period_to_pay, 199);
+        let total_expected_uptime =
+            NodeManager::calculate_uptime_threshold(reward_period_length as u32);
+        // Increase the uptime of the node by 4 (total 5) to change the rewards
+        incr_heartbeats(reward_period_to_pay, vec![new_node], total_expected_uptime as u64 - 1);
+
+        let total_uptime = <TotalUptime<TestRuntime>>::get(reward_period_to_pay);
+
+        // Set a new threshold before rolling forward. This will change the current period's
+        // threshold but should not affect the rewards of the previous period
+        MinUptimeThreshold::<TestRuntime>::put(Perbill::from_percent(5));
+
+        // Complete a reward period
+        roll_forward((reward_period_length - System::block_number()) + 1);
+
+        // Pay out
+        mock_get_finalised_block(
+            &mut offchain_state.write(),
+            &Some(hex::encode(1u32.encode()).into()),
+        );
+        NodeManager::offchain_worker(System::block_number());
+        let tx = pop_tx_from_mempool(pool_state);
+        assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
+
+        // The owner has received the reward
+        let expected_new_owner_reward =
+            reward_amount * total_expected_uptime as u128 / total_uptime as u128;
+        assert!(
+            Balances::free_balance(&new_owner).abs_diff(expected_new_owner_reward) < 10,
+            "Values {} and {} differ by more than 10",
+            Balances::free_balance(&new_owner),
+            expected_new_owner_reward
         );
         let expected_old_owner_reward = reward_amount - expected_new_owner_reward;
 
