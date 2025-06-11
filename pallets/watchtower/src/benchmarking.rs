@@ -6,7 +6,6 @@
 //! The benchmarking runtime should use the same mock implementations as defined in mock.rs:
 //! - MockNodeManager for T::NodeManager 
 //! - MockSummaryServiceProvider for T::SummaryServiceProvider
-//! - MockEventInterpreter for T::EventInterpreter
 //! 
 //! Additionally, the benchmarking runtime should ensure that whitelisted accounts
 //! are properly configured as authorized watchtowers in the NodeManager mock.

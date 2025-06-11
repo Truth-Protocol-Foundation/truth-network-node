@@ -52,7 +52,7 @@ pub const HTTP_TIMEOUT_MS: u64 = 5000;
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub const WATCHTOWER_OCW_CONTEXT: &[u8] = b"watchtower_ocw_vote";
 pub const WATCHTOWER_VOTE_PROVIDE_TAG: &[u8] = b"WatchtowerVoteProvideTag";
-pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100; // ~10 minutes with 6s blocks
+pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 
 pub type AVN<T> = avn::Pallet<T>;
 
@@ -72,12 +72,6 @@ pub trait SummaryServices<TSystemConfig: frame_system::Config> {
         root_id: WatchtowerRootId<BlockNumberFor<TSystemConfig>>,
         status: WatchtowerSummaryStatus,
     ) -> DispatchResult;
-}
-
-pub trait EventInterpreter<SystemRuntimeEvent, BlockNumber: AtLeast32Bit, OnChainHash> {
-    fn interpret_summary_ready_event(
-        event: &SystemRuntimeEvent,
-    ) -> Option<(SummarySourceInstance, WatchtowerRootId<BlockNumber>, OnChainHash)>;
 }
 
 pub trait NodeManagerInterface<AccountId, SignerId, MaxWatchtowers: Get<u32>> {
@@ -127,11 +121,6 @@ pub mod pallet {
             + MaxEncodedLen;
 
         type SummaryServiceProvider: SummaryServices<Self>;
-        type EventInterpreter: EventInterpreter<
-            <Self as frame_system::Config>::RuntimeEvent,
-            BlockNumberFor<Self>,
-            WatchtowerOnChainHash,
-        >;
         type NodeManager: NodeManagerInterface<Self::AccountId, Self::SignerId, Self::MaxWatchtowers>;
         type MaxWatchtowers: Get<u32>;
         
@@ -174,7 +163,14 @@ pub mod pallet {
         DefaultVotingPeriod<T>,
     >;
 
-
+    #[pallet::storage]
+    #[pallet::getter(fn pending_validation_root_hash)]
+    pub type PendingValidationRootHash<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat, (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        WatchtowerOnChainHash,
+        OptionQuery,
+    >;
 
     #[pallet::type_value]
     pub fn DefaultVotingPeriod<T: Config>() -> BlockNumberFor<T> {
@@ -242,15 +238,8 @@ pub mod pallet {
         fn offchain_worker(block_number: BlockNumberFor<T>)
         {
             log::debug!(target: "runtime::watchtower::ocw", "Watchtower OCW running for block {:?}", block_number);
-
-            for record in frame_system::Pallet::<T>::read_events_no_consensus() {
-                if let Some((instance, root_id, onchain_root_hash)) =
-                    T::EventInterpreter::interpret_summary_ready_event(&record.event)
-                {
-                    log::info!(target: "runtime::watchtower::ocw", "[{:?}] Detected SummaryReadyForValidation for root: {:?}, onchain_hash: {:?}", instance, root_id, onchain_root_hash);
-                    Self::perform_ocw_recalculation(instance, root_id, onchain_root_hash);
-                }
-            }
+            
+            Self::process_pending_validations();
         }
     }
 
@@ -350,7 +339,6 @@ pub mod pallet {
         ) -> DispatchResult {
             ensure_root(origin)?;
 
-            // Validate the new voting period (must be at least 10 blocks)
             let min_period: BlockNumberFor<T> = 10u32.into();
             ensure!(
                 new_period >= min_period,
@@ -427,10 +415,8 @@ pub mod pallet {
                     node, summary_instance, root_id, vote_is_valid, source
                 );
 
-                // Allow Local (OCW), External (propagated), and InBlock (when block author includes it)
                 match source {
                     TransactionSource::Local | TransactionSource::External | TransactionSource::InBlock => {
-                        // Source is acceptable, proceed with other validations
                         log::debug!(
                             target: "runtime::watchtower::validate",
                             "[VALIDATE_UNSIGNED] Source {:?} is acceptable.",
@@ -439,7 +425,6 @@ pub mod pallet {
                     }
                 }
 
-                // Validate the node is authorized
                 if !T::NodeManager::is_authorized_watchtower(node) {
                     log::error!(
                         target: "runtime::watchtower::validate",
@@ -512,6 +497,99 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        pub fn notify_summary_ready_for_validation(
+            instance: SummarySourceInstance,
+            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_hash: WatchtowerOnChainHash,
+        ) -> DispatchResult {
+            log::info!(
+                target: "runtime::watchtower::notification",
+                "Received notification: instance={:?}, root_id={:?}, hash={:?}",
+                instance, root_id, root_hash
+            );
+            
+            let consensus_key = (instance, root_id.clone());
+            
+            if VoteConsensusReached::<T>::get(&consensus_key) {
+                log::warn!(
+                    target: "runtime::watchtower::notification",
+                    "Consensus already reached for summary: {:?}",
+                    consensus_key
+                );
+                return Ok(());
+            }
+            
+            if VotingStartBlock::<T>::get(&consensus_key).is_some() {
+                log::warn!(
+                    target: "runtime::watchtower::notification",
+                    "Voting already active for summary: {:?}",
+                    consensus_key
+                );
+                return Ok(());
+            }
+            
+            if root_hash == sp_core::H256::zero() {
+                log::warn!(
+                    target: "runtime::watchtower::notification",
+                    "Received empty root hash for summary: {:?}",
+                    consensus_key
+                );
+            }
+            
+            VotingStartBlock::<T>::insert(&consensus_key, frame_system::Pallet::<T>::block_number());
+            PendingValidationRootHash::<T>::insert(&consensus_key, root_hash);
+                        
+            log::info!(
+                target: "runtime::watchtower::notification",
+                "Started voting period for summary: instance={:?}, root_id={:?}, hash={:?}",
+                instance, root_id, root_hash
+            );
+            
+            Ok(())
+        }
+
+        fn process_pending_validations() {
+            log::debug!(target: "runtime::watchtower::ocw", "Processing pending validations");
+            
+            let current_block = frame_system::Pallet::<T>::block_number();
+            let voting_period = VotingPeriod::<T>::get();
+            
+            for (consensus_key, start_block) in VotingStartBlock::<T>::iter() {
+                let (instance, root_id) = consensus_key.clone();
+                
+                if VoteConsensusReached::<T>::get(&consensus_key) {
+                    continue;
+                }
+                
+                if current_block > start_block + voting_period {
+                    log::warn!(
+                        target: "runtime::watchtower::ocw",
+                        "Voting period expired for {:?}, skipping OCW validation",
+                        consensus_key
+                    );
+                    continue;
+                }
+                
+                if let Some(root_hash) = PendingValidationRootHash::<T>::get(&consensus_key) {
+                    log::info!(
+                        target: "runtime::watchtower::ocw",
+                        "Processing OCW validation for {:?}, root_hash: {:?}",
+                        consensus_key, root_hash
+                    );
+                    
+                    Self::perform_ocw_recalculation(instance, root_id, root_hash);
+                    
+                    PendingValidationRootHash::<T>::remove(&consensus_key);
+                } else {
+                    log::warn!(
+                        target: "runtime::watchtower::ocw",
+                        "No root hash found for active voting period: {:?}",
+                        consensus_key
+                    );
+                }
+            }
+        }
+
         fn perform_ocw_recalculation(
             instance: SummarySourceInstance,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
@@ -778,8 +856,10 @@ pub mod pallet {
                         "[{:?}] Voting period expired for {:?}. Cleaning up votes. Current block: {:?}, deadline: {:?}",
                         summary_instance, root_id, current_block, voting_deadline
                     );
+
                     IndividualWatchtowerVotes::<T>::remove(summary_instance, &root_id);
                     VotingStartBlock::<T>::remove(&consensus_key);
+                    PendingValidationRootHash::<T>::remove(&consensus_key);
                     return Err(Error::<T>::VotingPeriodExpired.into());
                 }
             }
@@ -831,6 +911,20 @@ pub mod pallet {
             }
 
             if consensus_reached {
+                VoteConsensusReached::<T>::insert(&consensus_key, true);
+                
+                Self::deposit_event(Event::WatchtowerConsensusReached {
+                    summary_instance,
+                    root_id,
+                    consensus_result: consensus_result.clone(),
+                });
+                
+                log::info!(
+                    target: "runtime::watchtower",
+                    "[{:?}] Consensus reached for {:?}, now updating summary status",
+                    summary_instance, root_id
+                );
+
                 T::SummaryServiceProvider::update_summary_status(summary_instance, root_id.clone(), consensus_result.clone())
                     .map_err(|e| {
                         log::error!(
@@ -840,20 +934,13 @@ pub mod pallet {
                         );
                         Error::<T>::SummaryUpdateFailed
                     })?;
-
-                VoteConsensusReached::<T>::insert(&consensus_key, true);
                 
                 VotingStartBlock::<T>::remove(&consensus_key);
-                
-                Self::deposit_event(Event::WatchtowerConsensusReached {
-                    summary_instance,
-                    root_id,
-                    consensus_result,
-                });
+                PendingValidationRootHash::<T>::remove(&consensus_key);
                 
                 log::info!(
                     target: "runtime::watchtower",
-                    "[{:?}] Consensus reached and summary status updated for {:?}",
+                    "[{:?}] Summary status updated successfully for {:?}",
                     summary_instance, root_id
                 );
             }

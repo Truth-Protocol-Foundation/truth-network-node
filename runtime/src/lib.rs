@@ -546,7 +546,7 @@ impl pallet_avn_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type Currency = Balances;
-    // type KnownUserOrigin = EnsureAdminOrRoot;
+    type KnownUserOrigin = EnsureAdminOrRoot;
     type WeightInfo = pallet_avn_transaction_payment::default_weights::SubstrateWeight<Runtime>;
 }
 
@@ -754,6 +754,34 @@ parameter_types! {
     pub const MaxWatchtowersRuntime: u32 = 100000;
 }
 
+pub struct RuntimeWatchtowerNotifier;
+impl sp_avn_common::WatchtowerNotification<BlockNumber> for RuntimeWatchtowerNotifier {
+    fn notify_summary_ready_for_validation(
+        instance_id: u8,
+        root_id: sp_avn_common::RootId<BlockNumber>,
+        root_hash: sp_core::H256,
+    ) -> DispatchResult {
+        use pallet_watchtower::SummarySourceInstance;
+        
+        // Map instance ID to summary source instance
+        let summary_instance = match instance_id {
+            1 => SummarySourceInstance::EthereumBridge,   // EthereumInstanceId
+            2 => SummarySourceInstance::AnchorStorage,    // AvnInstanceId  
+            _ => {
+                
+                return Err(DispatchError::Other("UnknownSummaryInstance"));
+            }
+        };
+        
+        // Call the watchtower's notification method directly
+        pallet_watchtower::Pallet::<Runtime>::notify_summary_ready_for_validation(
+            summary_instance,
+            root_id,
+            root_hash,
+        )
+    }
+}
+
 pub type EthSummary = pallet_summary::Instance1;
 impl pallet_summary::Config<EthSummary> for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -766,6 +794,7 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
     type RequireWatchtowerValidation = RequireWatchtowerValidation;
+    type WatchtowerNotifier = RuntimeWatchtowerNotifier; 
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -780,6 +809,7 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
     type RequireWatchtowerValidation = RequireWatchtowerValidation;
+    type WatchtowerNotifier = RuntimeWatchtowerNotifier; 
 }
 
 impl pallet_authors_manager::Config for Runtime {
@@ -814,10 +844,10 @@ impl pallet_watchtower::SummaryServices<Runtime> for Runtime {
     ) -> DispatchResult {
         match instance {
             pallet_watchtower::SummarySourceInstance::EthereumBridge => {
-                Summary::set_summary_status(root_id, status)
+                Summary::set_summary_status_and_process(root_id, status)
             },
             pallet_watchtower::SummarySourceInstance::AnchorStorage => {
-                AnchorSummary::set_summary_status(root_id, status)
+                AnchorSummary::set_summary_status_and_process(root_id, status)
             },
         }
     }
@@ -828,7 +858,6 @@ impl pallet_watchtower::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type WeightInfo = pallet_watchtower::default_weights::SubstrateWeight<Runtime>;
     type SummaryServiceProvider = Self;
-    type EventInterpreter = RuntimeEventInterpreter;
     type NodeManager = RuntimeNodeManager;
     type MaxWatchtowers = MaxWatchtowersRuntime;
     type SignerId = NodeManagerKeyId;
@@ -1704,36 +1733,6 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 
     fn get_events_to_migrate() -> Option<BoundedVec<EventMigration, ProcessingBatchBound>> {
         EthereumEvents::get_events_to_migrate()
-    }
-}
-
-pub struct RuntimeEventInterpreter;
-
-impl pallet_watchtower::EventInterpreter<RuntimeEvent, BlockNumber, pallet_watchtower::WatchtowerOnChainHash> for RuntimeEventInterpreter {
-    fn interpret_summary_ready_event(
-        event: &RuntimeEvent,
-    ) -> Option<(
-        pallet_watchtower::SummarySourceInstance,
-        pallet_watchtower::WatchtowerRootId<BlockNumber>,
-        pallet_watchtower::WatchtowerOnChainHash
-    )> {
-        match event {
-            RuntimeEvent::Summary(pallet_summary::Event::SummaryReadyForValidation { root_id, root_hash }) => {
-                Some((
-                    pallet_watchtower::SummarySourceInstance::EthereumBridge,
-                    root_id.clone(),
-                    *root_hash,
-                ))
-            },
-            RuntimeEvent::AnchorSummary(pallet_summary::Event::SummaryReadyForValidation { root_id, root_hash }) => {
-                Some((
-                    pallet_watchtower::SummarySourceInstance::AnchorStorage,
-                    root_id.clone(),
-                    *root_hash,
-                ))
-            },
-            _ => None
-        }
     }
 }
 

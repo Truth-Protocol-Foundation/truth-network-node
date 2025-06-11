@@ -105,15 +105,6 @@ impl SummaryServices<TestRuntime> for MockSummaryServiceProvider {
     }
 }
 
-pub struct MockEventInterpreter;
-impl EventInterpreter<RuntimeEvent, BlockNumber, WatchtowerOnChainHash> for MockEventInterpreter {
-    fn interpret_summary_ready_event(
-        _event: &RuntimeEvent,
-    ) -> Option<(SummarySourceInstance, WatchtowerRootId<BlockNumber>, WatchtowerOnChainHash)> {
-        None
-    }
-}
-
 pub struct MockNodeManager;
 impl NodeManagerInterface<AccountId, UintAuthorityId, MaxWatchtowers> for MockNodeManager {
     fn get_authorized_watchtowers() -> Result<BoundedVec<AccountId, MaxWatchtowers>, DispatchError> {
@@ -157,7 +148,6 @@ impl Config for TestRuntime {
     type WeightInfo = ();
     type SignerId = UintAuthorityId;
     type SummaryServiceProvider = MockSummaryServiceProvider;
-    type EventInterpreter = MockEventInterpreter;
     type NodeManager = MockNodeManager;
     type MaxWatchtowers = MaxWatchtowers;
 }
