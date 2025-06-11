@@ -34,7 +34,7 @@ fn register_nodes(registrar: AccountId, owner: AccountId, num_of_nodes: u8) -> A
     let reward_period = <RewardPeriod<TestRuntime>>::get().current;
 
     for i in 0..num_of_nodes {
-        register_node(registrar, owner.clone(), reward_period, i);
+        register_node_and_send_heartbeat(registrar, owner.clone(), reward_period, i);
     }
 
     let this_node = TestAccount::new([0 as u8; 32]).account_id();
@@ -46,7 +46,7 @@ fn register_nodes(registrar: AccountId, owner: AccountId, num_of_nodes: u8) -> A
     return this_node;
 }
 
-fn register_node(
+fn register_node_and_send_heartbeat(
     registrar: AccountId,
     owner: AccountId,
     reward_period: RewardPeriodIndex,
@@ -260,8 +260,12 @@ fn payment_is_based_on_uptime() {
         );
 
         let new_owner = TestAccount::new([111u8; 32]).account_id();
-        let new_node =
-            register_node(context.registrar.clone(), new_owner, reward_period_to_pay, 199);
+        let new_node = register_node_and_send_heartbeat(
+            context.registrar.clone(),
+            new_owner,
+            reward_period_to_pay,
+            199,
+        );
 
         let total_expected_uptime =
             NodeManager::calculate_uptime_threshold(reward_period_length as u32);
@@ -337,8 +341,12 @@ fn payment_works_when_uptime_is_threshold() {
         );
 
         let new_owner = TestAccount::new([111u8; 32]).account_id();
-        let new_node =
-            register_node(context.registrar.clone(), new_owner, reward_period_to_pay, 199);
+        let new_node = register_node_and_send_heartbeat(
+            context.registrar.clone(),
+            new_owner,
+            reward_period_to_pay,
+            199,
+        );
 
         let total_expected_uptime =
             NodeManager::calculate_uptime_threshold(reward_period_length as u32);
@@ -405,25 +413,27 @@ fn payment_works_even_when_uptime_is_over_threshold() {
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
+        let initial_pot = reward_amount * 2u128;
         // make sure the pot has the expected amount
-        assert_eq!(
-            Balances::free_balance(&NodeManager::compute_reward_account_id()),
-            reward_amount * 2u128
-        );
+        assert_eq!(Balances::free_balance(&NodeManager::compute_reward_account_id()), initial_pot);
 
         let new_owner = TestAccount::new([111u8; 32]).account_id();
-        let new_node =
-            register_node(context.registrar.clone(), new_owner, reward_period_to_pay, 199);
+        let new_node = register_node_and_send_heartbeat(
+            context.registrar.clone(),
+            new_owner,
+            reward_period_to_pay,
+            199,
+        );
 
         let total_expected_uptime =
             NodeManager::calculate_uptime_threshold(reward_period_length as u32);
         // The node's uptime is over the threshold. This is unexpected but handled
-        incr_heartbeats(reward_period_to_pay, vec![new_node], total_expected_uptime as u64);
+        incr_heartbeats(reward_period_to_pay, vec![new_node], total_expected_uptime as u64 + 1u64);
 
         let total_uptime = <TotalUptime<TestRuntime>>::get(reward_period_to_pay);
 
         // Complete a reward period
-        roll_forward((reward_period_length - System::block_number()) + 1);
+        roll_forward(reward_period_length - System::block_number());
 
         // Pay out
         mock_get_finalised_block(
@@ -439,25 +449,37 @@ fn payment_works_even_when_uptime_is_over_threshold() {
         let expected_new_owner_reward =
             reward_amount * total_expected_uptime as u128 / total_uptime as u128;
         assert!(
-            Balances::free_balance(&new_owner).abs_diff(expected_new_owner_reward) < 10,
+            Balances::free_balance(&new_owner).abs_diff(expected_new_owner_reward) < 1,
             "Values differ by more than 10"
         );
-        let expected_old_owner_reward = reward_amount - expected_new_owner_reward;
+        //The old owner gets a smaller share of the rewards because the total_uptime has now
+        // increased by the extra uptime
+        let expected_old_owner_reward =
+            (reward_amount * 1u128 / total_uptime as u128) * node_count as u128;
 
         assert!(
-            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward) < 10,
-            "Value {} differs by more than 10",
-            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward)
+            Balances::free_balance(&context.owner).abs_diff(expected_old_owner_reward) < 1,
+            "Value {} and {} differs by more than 10",
+            Balances::free_balance(&context.owner),
+            expected_old_owner_reward
         );
 
-        // The pot has gone down by half
+        // The pot should have gone down by half (because we started with reward_amount * 2), but it
+        // hasn't because it didn't pay out the full reward.
+        // This is because one of the nodes went over the expected uptime, which increased the total
+        // uptime But we limit how much a node can get paid based on the expected uptime.
+        // This is a safeguard against paying out more than the expected amount if nodes
+        // somehow manipulate their uptime.
+        assert!(Balances::free_balance(&NodeManager::compute_reward_account_id()) > reward_amount);
+
+        // Make sure the pot has gone down by the expected amount
         assert!(
             Balances::free_balance(&NodeManager::compute_reward_account_id())
-                .abs_diff(reward_amount) <
+                .abs_diff(initial_pot - (expected_new_owner_reward + expected_old_owner_reward)) <
                 10,
-            "Value {} differs by more than 10",
-            Balances::free_balance(&NodeManager::compute_reward_account_id())
-                .abs_diff(reward_amount)
+            "Value {} and {} differs by more than 10",
+            Balances::free_balance(&NodeManager::compute_reward_account_id()),
+            expected_new_owner_reward + expected_old_owner_reward
         );
 
         System::assert_last_event(
@@ -488,8 +510,12 @@ fn threshold_update_is_respected() {
         );
 
         let new_owner = TestAccount::new([111u8; 32]).account_id();
-        let new_node =
-            register_node(context.registrar.clone(), new_owner, reward_period_to_pay, 199);
+        let new_node = register_node_and_send_heartbeat(
+            context.registrar.clone(),
+            new_owner,
+            reward_period_to_pay,
+            199,
+        );
         let total_expected_uptime =
             NodeManager::calculate_uptime_threshold(reward_period_length as u32);
         // Increase the uptime of the node by 4 (total 5) to change the rewards
