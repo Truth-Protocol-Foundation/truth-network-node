@@ -253,6 +253,7 @@ pub fn new_full(
     let name = config.network.node_name.clone();
     let enable_grandpa = !config.disable_grandpa;
     let prometheus_registry = config.prometheus_registry().cloned();
+    let offchain_worker_enabled = config.offchain_worker.enabled;
 
     let rpc_extensions_builder = {
         let client = client.clone();
@@ -321,16 +322,6 @@ pub fn new_full(
             },
         )?;
 
-        let tnf_config = tnf_service::Config::<Block, _> {
-            keystore: keystore_container.local_keystore(),
-            keystore_path: keystore_path.to_path_buf().clone(),
-            tnf_service_port: tnf_service_port.clone(),
-            eth_node_url: eth_node_url.clone(),
-            web3_data_mutex: Arc::new(Mutex::new(Web3Data::new())),
-            client: client.clone(),
-            _block: Default::default(),
-        };
-
         let eth_event_handler_config =
             tnf_service::ethereum_events_handler::EthEventHandlerConfig::<Block, _> {
                 keystore: keystore_container.local_keystore(),
@@ -352,15 +343,38 @@ pub fn new_full(
             .spawn_blocking("aura", Some("block-authoring"), aura);
 
         task_manager.spawn_essential_handle().spawn(
-            "tnf-service",
-            None,
-            tnf_service::start(tnf_config),
-        );
-
-        task_manager.spawn_essential_handle().spawn(
             "eth-events-handler",
             None,
             tnf_service::ethereum_events_handler::start_eth_event_handler(eth_event_handler_config),
+        );
+    }
+
+    // Setup TNF service for authority nodes or any node with offchain workers enabled (watchtower nodes)
+    if role.is_authority() || offchain_worker_enabled {
+        let port_to_use = tnf_service_port.clone()
+            .unwrap_or_else(|| DEFAULT_EXTERNAL_SERVICE_PORT_NUMBER.to_string());
+        
+        log::info!(
+            "🚀 Starting TNF service on port {} (authority: {}, offchain_worker: {})", 
+            port_to_use, 
+            role.is_authority(), 
+            offchain_worker_enabled
+        );
+
+        let tnf_config = tnf_service::Config::<Block, _> {
+            keystore: keystore_container.local_keystore(),
+            keystore_path: keystore_path.to_path_buf().clone(),
+            tnf_service_port: tnf_service_port.clone(),
+            eth_node_url: eth_node_url.clone(),
+            web3_data_mutex: Arc::new(Mutex::new(Web3Data::new())),
+            client: client.clone(),
+            _block: Default::default(),
+        };
+
+        task_manager.spawn_essential_handle().spawn(
+            "tnf-service",
+            None,
+            tnf_service::start(tnf_config),
         );
     }
 
