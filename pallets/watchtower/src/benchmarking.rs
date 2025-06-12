@@ -73,19 +73,6 @@ benchmarks! {
         // Check that events were emitted
         assert_events_emitted::<T>();
     }
-
-    query_voting_info {
-        let caller: T::AccountId = whitelisted_caller();
-        whitelist_account!(caller);
-
-        let summary_instance = SummarySourceInstance::EthereumBridge;
-        let root_id = create_test_root_id::<T>(1);
-
-    }: _(RawOrigin::Signed(caller), summary_instance, root_id)
-    verify {
-        // This extrinsic only queries and logs, so we just verify it doesn't error
-        // The main verification is that it completes successfully
-    }
 }
 
 impl_benchmark_test_suite!(

@@ -265,7 +265,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(1)]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::submit_watchtower_vote())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::offchain_submit_watchtower_vote())]
         pub fn offchain_submit_watchtower_vote(
             origin: OriginFor<T>,
             node: T::AccountId,
@@ -274,12 +274,6 @@ pub mod pallet {
             vote_is_valid: bool,
             _signature: <T::SignerId as sp_runtime::RuntimeAppPublic>::Signature,
         ) -> DispatchResult {
-            log::error!(
-                target: "runtime::watchtower::execute",
-                "!!! [EXECUTE_VOTE_STARTED] Watchtower vote EXECUTION has BEGUN for node {:?}, root {:?}, vote {} !!!",
-                node, root_id, vote_is_valid
-            );
-
             ensure_none(origin).map_err(|e| {
                 log::error!(
                     target: "runtime::watchtower::execute",
@@ -289,12 +283,6 @@ pub mod pallet {
                 e
             })?;
 
-            log::debug!(
-                target: "runtime::watchtower::execute",
-                "[EXECUTE_VOTE] Origin check passed, verifying node authorization. Node: {:?}, Root: {:?}",
-                node, root_id
-            );
-
             ensure!(T::NodeManager::is_authorized_watchtower(&node), {
                 log::error!(
                     target: "runtime::watchtower::execute",
@@ -303,12 +291,6 @@ pub mod pallet {
                 );
                 Error::<T>::NotAuthorizedWatchtower
             });
-
-            log::debug!(
-                target: "runtime::watchtower::execute",
-                "[EXECUTE_VOTE] Node authorization passed, calling internal_submit_vote. Node: {:?}, Root: {:?}",
-                node, root_id
-            );
 
             Self::internal_submit_vote(node.clone(), summary_instance, root_id.clone(), vote_is_valid)
                 .map_err(|e| {
@@ -320,17 +302,11 @@ pub mod pallet {
                     e
                 })?;
 
-            log::info!(
-                target: "runtime::watchtower::execute",
-                "[EXECUTE_VOTE] SUCCESS: Watchtower vote executed successfully for node {:?}, root {:?}.",
-                node, root_id
-            );
-
             Ok(())
         }
 
         #[pallet::call_index(2)]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::submit_watchtower_vote())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::set_voting_period())]
         pub fn set_voting_period(
             origin: OriginFor<T>,
             new_period: BlockNumberFor<T>,
@@ -350,40 +326,6 @@ pub mod pallet {
                 "Voting period updated from {:?} to {:?} blocks",
                 old_period, new_period
             );
-
-            Ok(())
-        }
-
-        #[pallet::call_index(3)]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::submit_watchtower_vote())]
-        pub fn query_voting_info(
-            origin: OriginFor<T>,
-            summary_instance: SummarySourceInstance,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
-        ) -> DispatchResult {
-            ensure_signed(origin)?;
-
-            let consensus_key = (summary_instance, root_id.clone());
-            let current_block = frame_system::Pallet::<T>::block_number();
-            let voting_period = VotingPeriod::<T>::get();
-
-            if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
-                let deadline = start_block + voting_period;
-                let votes = IndividualWatchtowerVotes::<T>::get(summary_instance, root_id.clone());
-                let consensus_reached = VoteConsensusReached::<T>::get(&consensus_key);
-
-                log::info!(
-                    target: "runtime::watchtower::query",
-                    "Voting info for {:?}: Start: {:?}, Current: {:?}, Deadline: {:?}, Votes: {}, Consensus: {}",
-                    consensus_key, start_block, current_block, deadline, votes.len(), consensus_reached
-                );
-            } else {
-                log::info!(
-                    target: "runtime::watchtower::query",
-                    "No voting started for {:?}. Current voting period: {:?} blocks",
-                    consensus_key, voting_period
-                );
-            }
 
             Ok(())
         }

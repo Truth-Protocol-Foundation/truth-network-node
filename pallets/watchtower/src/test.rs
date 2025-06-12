@@ -35,10 +35,6 @@ fn mock_setup_works() {
         });
 }
 
-// ================================
-// HAPPY PATH TESTS
-// ================================
-
 #[test]
 fn submit_watchtower_vote_works() {
     ExtBuilder::build_default()
@@ -48,7 +44,6 @@ fn submit_watchtower_vote_works() {
             let root_id = get_test_root_id();
             let instance = SummarySourceInstance::EthereumBridge;
 
-            // Submit a vote from an authorized watchtower
             assert_ok!(Watchtower::submit_watchtower_vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -56,10 +51,8 @@ fn submit_watchtower_vote_works() {
                 true
             ));
 
-            // Check that the vote was recorded
             assert_watchtower_vote_event_emitted(&watchtower_account_1(), instance, &root_id, true);
 
-            // Verify voting period was initialized
             assert!(Watchtower::is_voting_active(instance, root_id.clone()));
         });
 }
@@ -88,14 +81,12 @@ fn voting_consensus_acceptance_works() {
                 true
             ));
 
-            // Check that consensus was reached with acceptance
             assert_consensus_reached_event_emitted(
                 instance,
                 &root_id,
                 WatchtowerSummaryStatus::Accepted,
             );
 
-            // Verify voting is no longer active
             assert!(!Watchtower::is_voting_active(instance, root_id));
         });
 }
@@ -124,7 +115,6 @@ fn voting_consensus_rejection_works() {
                 false
             ));
 
-            // Check that consensus was reached with rejection
             assert_consensus_reached_event_emitted(
                 instance,
                 &root_id,
@@ -159,39 +149,6 @@ fn voting_period_update_works() {
 }
 
 #[test]
-fn query_voting_info_works() {
-    ExtBuilder::build_default()
-        .with_watchtowers()
-        .as_externality()
-        .execute_with(|| {
-            let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
-
-            // Query voting info before any votes
-            assert_ok!(Watchtower::query_voting_info(
-                RuntimeOrigin::signed(watchtower_account_1()),
-                instance,
-                root_id.clone()
-            ));
-
-            // Submit a vote
-            assert_ok!(Watchtower::submit_watchtower_vote(
-                RuntimeOrigin::signed(watchtower_account_1()),
-                instance,
-                root_id.clone(),
-                true
-            ));
-
-            // Query voting info after vote
-            assert_ok!(Watchtower::query_voting_info(
-                RuntimeOrigin::signed(watchtower_account_1()),
-                instance,
-                root_id
-            ));
-        });
-}
-
-#[test]
 fn multiple_summary_instances_work_independently() {
     ExtBuilder::build_default()
         .with_watchtowers()
@@ -201,7 +158,6 @@ fn multiple_summary_instances_work_independently() {
             let ethereum_instance = SummarySourceInstance::EthereumBridge;
             let anchor_instance = SummarySourceInstance::AnchorStorage;
 
-            // Submit votes for EthereumBridge
             assert_ok!(Watchtower::submit_watchtower_vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 ethereum_instance,
@@ -216,7 +172,6 @@ fn multiple_summary_instances_work_independently() {
                 true
             ));
 
-            // Submit votes for AnchorStorage
             assert_ok!(Watchtower::submit_watchtower_vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 anchor_instance,
@@ -231,7 +186,6 @@ fn multiple_summary_instances_work_independently() {
                 false
             ));
 
-            // Check that both reached different consensus
             assert_consensus_reached_event_emitted(
                 ethereum_instance,
                 &root_id,
@@ -245,10 +199,6 @@ fn multiple_summary_instances_work_independently() {
             );
         });
 }
-
-// ================================
-// EDGE CASE TESTS
-// ================================
 
 #[test]
 fn submit_watchtower_vote_unauthorized_fails() {
@@ -480,10 +430,6 @@ fn cleanup_expired_votes_works() {
             assert!(!Watchtower::is_voting_active(instance, root_id));
         });
 }
-
-// ================================
-// OFFCHAIN WORKER TESTS
-// ================================
 
 #[test]
 fn ocw_signature_validation_works() {
