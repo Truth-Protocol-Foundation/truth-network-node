@@ -69,7 +69,7 @@ use sp_std::prelude::*;
 
 const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
 
@@ -512,12 +512,13 @@ pub mod pallet {
             ensure_none(origin)?;
 
             let oldest_period = OldestUnpaidRewardPeriodIndex::<T>::get();
-            let reward_period = RewardPeriod::<T>::get();
-            let current_period = reward_period.current;
+            // Be careful when using current period. Everything here should be based on previous
+            // period
+            let RewardPeriodInfo { current, length, .. } = RewardPeriod::<T>::get();
 
             // Only pay for completed periods
             ensure!(
-                reward_period_index == oldest_period && oldest_period < current_period,
+                reward_period_index == oldest_period && oldest_period < current,
                 Error::<T>::InvalidRewardPaymentRequest
             );
 
@@ -533,7 +534,14 @@ pub mod pallet {
             ensure!(total_heartbeats > 0, Error::<T>::TotalUptimeNotFound);
             ensure!(maybe_node_uptime.is_some(), Error::<T>::NodeUptimeNotFound);
 
-            let total_reward = Self::get_total_reward(&oldest_period)?;
+            let reward_pot = RewardPot::<T>::get(&oldest_period).unwrap_or_else(|| {
+                RewardPotInfo::new(
+                    RewardAmount::<T>::get(),
+                    Self::calculate_uptime_threshold(length),
+                )
+            });
+
+            let total_reward = reward_pot.total_reward;
 
             let mut paid_nodes = Vec::new();
             let mut last_node_paid: Option<T::AccountId> = None;
@@ -554,11 +562,8 @@ pub mod pallet {
             }
 
             for (node, uptime) in iter.by_ref().take(MaxBatchSize::<T>::get() as usize) {
-                let node_uptime = Self::calculate_node_uptime(
-                    &node,
-                    uptime.count,
-                    reward_period.uptime_threshold as u64,
-                );
+                let node_uptime =
+                    Self::calculate_node_uptime(&node, uptime.count, reward_pot.uptime_threshold);
                 let reward_amount =
                     Self::calculate_reward(node_uptime, &total_heartbeats, &total_reward)?;
                 Self::pay_reward(&oldest_period, node.clone(), reward_amount)?;
@@ -694,20 +699,19 @@ pub mod pallet {
 
             let reward_period = RewardPeriod::<T>::get();
             let previous_index = reward_period.current;
+            let previous_uptime_threshold = reward_period.uptime_threshold;
 
             if reward_period.should_update(n) {
-                let heartbeat_period = HeartbeatPeriod::<T>::get();
-                let threshold =
-                    MinUptimeThreshold::<T>::get().unwrap_or(Self::get_default_threshold());
-                let reward_period = reward_period.update(n, heartbeat_period, threshold);
+                let uptime_threshold = Self::calculate_uptime_threshold(reward_period.length);
+
+                let reward_period = reward_period.update(n, uptime_threshold);
                 RewardPeriod::<T>::mutate(|p| *p = reward_period);
 
                 // take a snapshot of the reward pot amount to pay for the previous reward period
                 let reward_amount = RewardAmount::<T>::get();
-                let total_heartbeats = <TotalUptime<T>>::get(previous_index);
                 <RewardPot<T>>::insert(
                     previous_index,
-                    RewardPotInfo::<BalanceOf<T>>::new(reward_amount, total_heartbeats),
+                    RewardPotInfo::<BalanceOf<T>>::new(reward_amount, previous_uptime_threshold),
                 );
 
                 Self::deposit_event(Event::NewRewardPeriodStarted {
@@ -814,6 +818,14 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        pub(crate) fn calculate_uptime_threshold(reward_period_length: u32) -> u32 {
+            let heartbeat_period = HeartbeatPeriod::<T>::get();
+            let threshold = MinUptimeThreshold::<T>::get().unwrap_or(Self::get_default_threshold());
+
+            let max_heartbeats = reward_period_length.saturating_div(heartbeat_period);
+            threshold * max_heartbeats
+        }
+
         fn do_register_node(
             node: NodeId<T>,
             owner: T::AccountId,
