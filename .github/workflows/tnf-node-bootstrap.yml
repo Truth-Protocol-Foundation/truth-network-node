@@ -12,11 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger workflow in tnf-node-bootstrap
-        env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           curl -X POST \
-            -H "Authorization: token $GH_TOKEN" \
+            -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/Truth-Protocol-Foundation/tnf-node-bootstrap/actions/workflows/docker-build-push.yml/dispatches \
             -d '{"ref":"main","inputs":{"version":"${{ inputs.version }}"}}'
