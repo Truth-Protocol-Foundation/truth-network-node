@@ -349,15 +349,17 @@ pub fn new_full(
         );
     }
 
-    // Setup TNF service for authority nodes or any node with offchain workers enabled (watchtower nodes)
+    // Setup TNF service for authority nodes or any node with offchain workers enabled (watchtower
+    // nodes)
     if role.is_authority() || offchain_worker_enabled {
-        let port_to_use = tnf_service_port.clone()
+        let port_to_use = tnf_service_port
+            .clone()
             .unwrap_or_else(|| DEFAULT_EXTERNAL_SERVICE_PORT_NUMBER.to_string());
-        
+
         log::info!(
-            "🚀 Starting TNF service on port {} (authority: {}, offchain_worker: {})", 
-            port_to_use, 
-            role.is_authority(), 
+            "🚀 Starting TNF service on port {} (authority: {}, offchain_worker: {})",
+            port_to_use,
+            role.is_authority(),
             offchain_worker_enabled
         );
 

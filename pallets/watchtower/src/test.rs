@@ -591,8 +591,8 @@ fn exact_consensus_threshold_works() {
             let root_id = get_test_root_id();
             let instance = SummarySourceInstance::EthereumBridge;
 
-            // With 3 watchtowers, need 2 for consensus (⌈(2*3+2)/3⌉ = ⌈8/3⌉ = 3, but actually uses 2/3+1)
-            // First vote - no consensus yet
+            // With 3 watchtowers, need 2 for consensus (⌈(2*3+2)/3⌉ = ⌈8/3⌉ = 3, but actually uses
+            // 2/3+1) First vote - no consensus yet
             assert_ok!(Watchtower::submit_watchtower_vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -647,7 +647,8 @@ fn voting_deadline_boundary_test() {
             // Roll to exactly the deadline (start_block + voting_period)
             roll_forward(voting_period);
 
-            // Vote should still be possible at the deadline block - use split vote to avoid consensus
+            // Vote should still be possible at the deadline block - use split vote to avoid
+            // consensus
             assert_ok!(Watchtower::submit_watchtower_vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,

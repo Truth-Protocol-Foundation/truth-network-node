@@ -750,7 +750,7 @@ parameter_types! {
 
     pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
         RuntimeBlockWeights::get().max_block;
-    
+
     pub const RequireWatchtowerValidation: bool = true;
 }
 
@@ -821,17 +821,16 @@ impl sp_avn_common::WatchtowerNotification<BlockNumber> for RuntimeWatchtowerNot
         root_hash: sp_core::H256,
     ) -> DispatchResult {
         use pallet_watchtower::SummarySourceInstance;
-        
+
         // Map instance ID to summary source instance
         let summary_instance = match instance_id {
-            1 => SummarySourceInstance::EthereumBridge,   // EthereumInstanceId
-            2 => SummarySourceInstance::AnchorStorage,    // AvnInstanceId  
+            1 => SummarySourceInstance::EthereumBridge, // EthereumInstanceId
+            2 => SummarySourceInstance::AnchorStorage,  // AvnInstanceId
             _ => {
-                
                 return Err(DispatchError::Other("UnknownSummaryInstance"));
-            }
+            },
         };
-        
+
         // Call the watchtower's notification method directly
         pallet_watchtower::Pallet::<Runtime>::notify_summary_ready_for_validation(
             summary_instance,
@@ -853,7 +852,7 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
     type RequireWatchtowerValidation = RequireWatchtowerValidation;
-    type WatchtowerNotifier = RuntimeWatchtowerNotifier; 
+    type WatchtowerNotifier = RuntimeWatchtowerNotifier;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -868,7 +867,7 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
     type RequireWatchtowerValidation = RequireWatchtowerValidation;
-    type WatchtowerNotifier = RuntimeWatchtowerNotifier; 
+    type WatchtowerNotifier = RuntimeWatchtowerNotifier;
 }
 
 impl pallet_authors_manager::Config for Runtime {
@@ -902,12 +901,10 @@ impl pallet_watchtower::SummaryServices<Runtime> for Runtime {
         status: pallet_watchtower::WatchtowerSummaryStatus,
     ) -> DispatchResult {
         match instance {
-            pallet_watchtower::SummarySourceInstance::EthereumBridge => {
-                Summary::set_summary_status_and_process(root_id, status)
-            },
-            pallet_watchtower::SummarySourceInstance::AnchorStorage => {
-                AnchorSummary::set_summary_status_and_process(root_id, status)
-            },
+            pallet_watchtower::SummarySourceInstance::EthereumBridge =>
+                Summary::set_summary_status_and_process(root_id, status),
+            pallet_watchtower::SummarySourceInstance::AnchorStorage =>
+                AnchorSummary::set_summary_status_and_process(root_id, status),
         }
     }
 }
@@ -1783,8 +1780,8 @@ use sp_runtime::BoundedVec;
 pub struct ProcessedEventCustodian {}
 impl ProcessedEventsChecker for ProcessedEventCustodian {
     fn processed_event_exists(event_id: &EthEventId) -> bool {
-        EthBridge::processed_event_exists(event_id)
-            || EthereumEvents::processed_event_exists(event_id)
+        EthBridge::processed_event_exists(event_id) ||
+            EthereumEvents::processed_event_exists(event_id)
     }
 
     fn add_processed_event(event_id: &EthEventId, accepted: bool) -> Result<(), ()> {
@@ -1798,18 +1795,20 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 }
 
 pub struct RuntimeNodeManager;
-impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId, MaxWatchtowersRuntime> for RuntimeNodeManager {
-    fn get_authorized_watchtowers() -> Result<BoundedVec<AccountId, MaxWatchtowersRuntime>, DispatchError> {
-        let nodes: Vec<AccountId> = pallet_node_manager::NodeRegistry::<Runtime>::iter_keys().collect();
+impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId, MaxWatchtowersRuntime>
+    for RuntimeNodeManager
+{
+    fn get_authorized_watchtowers(
+    ) -> Result<BoundedVec<AccountId, MaxWatchtowersRuntime>, DispatchError> {
+        let nodes: Vec<AccountId> =
+            pallet_node_manager::NodeRegistry::<Runtime>::iter_keys().collect();
         BoundedVec::try_from(nodes).map_err(|_| DispatchError::Other("TooManyWatchtowers"))
     }
 
-    fn is_authorized_watchtower(
-        who: &AccountId,
-    ) -> bool {
+    fn is_authorized_watchtower(who: &AccountId) -> bool {
         pallet_node_manager::NodeRegistry::<Runtime>::contains_key(who)
     }
-    
+
     fn get_node_signing_key(node: &AccountId) -> Option<NodeManagerKeyId> {
         pallet_node_manager::NodeRegistry::<Runtime>::get(node)
             .map(|node_info| node_info.signing_key)

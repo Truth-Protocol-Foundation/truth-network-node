@@ -409,9 +409,9 @@ pub mod pallet {
                 );
 
                 match source {
-                    TransactionSource::Local
-                    | TransactionSource::External
-                    | TransactionSource::InBlock => {
+                    TransactionSource::Local |
+                    TransactionSource::External |
+                    TransactionSource::InBlock => {
                         log::debug!(
                             target: "runtime::watchtower::validate",
                             "[VALIDATE_UNSIGNED] Source {:?} is acceptable.",

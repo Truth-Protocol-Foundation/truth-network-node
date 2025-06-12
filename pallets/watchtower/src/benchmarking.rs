@@ -12,8 +12,9 @@
 
 use super::*;
 use crate::Pallet as Watchtower;
-use frame_benchmarking::impl_benchmark_test_suite;
-use frame_benchmarking::{benchmarks, whitelist_account, whitelisted_caller};
+use frame_benchmarking::{
+    benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
+};
 use frame_system::{Pallet as System, RawOrigin};
 
 // Helper function to create a RootId for testing
