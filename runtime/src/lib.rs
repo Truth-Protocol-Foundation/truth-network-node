@@ -10,6 +10,7 @@ pub mod asset_registry;
 pub mod fees;
 pub mod third_party_weights;
 use asset_registry::CustomAssetProcessor;
+use frame_support::pallet_prelude::DispatchResult;
 
 use codec::{Decode, Encode, MaxEncodedLen};
 use core::cmp::Ordering;
@@ -289,7 +290,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 29,
+    spec_version: 30,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -749,6 +750,8 @@ parameter_types! {
 
     pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
         RuntimeBlockWeights::get().max_block;
+
+    pub const RequireWatchtowerValidation: bool = true;
 }
 
 /// Used the compare the privilege of an origin inside the scheduler.
@@ -807,6 +810,34 @@ parameter_types! {
     pub const EthAutoSubmitSummaries: bool = true;
     pub const AvnAutoSubmitSummaries: bool = false;
     pub const AvnInstanceId: u8 = 2u8;
+    pub const MaxWatchtowersRuntime: u32 = 100000;
+}
+
+pub struct RuntimeWatchtowerNotifier;
+impl sp_avn_common::WatchtowerNotification<BlockNumber> for RuntimeWatchtowerNotifier {
+    fn notify_summary_ready_for_validation(
+        instance_id: u8,
+        root_id: sp_avn_common::RootId<BlockNumber>,
+        root_hash: sp_core::H256,
+    ) -> DispatchResult {
+        use pallet_watchtower::SummarySourceInstance;
+
+        // Map instance ID to summary source instance
+        let summary_instance = match instance_id {
+            1 => SummarySourceInstance::EthereumBridge, // EthereumInstanceId
+            2 => SummarySourceInstance::AnchorStorage,  // AvnInstanceId
+            _ => {
+                return Err(DispatchError::Other("UnknownSummaryInstance"));
+            },
+        };
+
+        // Call the watchtower's notification method directly
+        pallet_watchtower::Pallet::<Runtime>::notify_summary_ready_for_validation(
+            summary_instance,
+            root_id,
+            root_hash,
+        )
+    }
 }
 
 pub type EthSummary = pallet_summary::Instance1;
@@ -820,6 +851,8 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
+    type RequireWatchtowerValidation = RequireWatchtowerValidation;
+    type WatchtowerNotifier = RuntimeWatchtowerNotifier;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -833,6 +866,8 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
+    type RequireWatchtowerValidation = RequireWatchtowerValidation;
+    type WatchtowerNotifier = RuntimeWatchtowerNotifier;
 }
 
 impl pallet_authors_manager::Config for Runtime {
@@ -857,6 +892,31 @@ impl pallet_node_manager::Config for Runtime {
     type Signature = Signature;
     type SignedTxLifetime = ConstU32<64>;
     type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
+}
+
+impl pallet_watchtower::SummaryServices<Runtime> for Runtime {
+    fn update_summary_status(
+        instance: pallet_watchtower::SummarySourceInstance,
+        root_id: pallet_watchtower::WatchtowerRootId<BlockNumber>,
+        status: pallet_watchtower::WatchtowerSummaryStatus,
+    ) -> DispatchResult {
+        match instance {
+            pallet_watchtower::SummarySourceInstance::EthereumBridge =>
+                Summary::set_summary_status_and_process(root_id, status),
+            pallet_watchtower::SummarySourceInstance::AnchorStorage =>
+                AnchorSummary::set_summary_status_and_process(root_id, status),
+        }
+    }
+}
+
+impl pallet_watchtower::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = pallet_watchtower::default_weights::SubstrateWeight<Runtime>;
+    type SummaryServiceProvider = Self;
+    type NodeManager = RuntimeNodeManager;
+    type MaxWatchtowers = MaxWatchtowersRuntime;
+    type SignerId = NodeManagerKeyId;
 }
 
 impl pallet_utility::Config for Runtime {
@@ -1316,6 +1376,7 @@ construct_runtime!(
         AnchorSummary: pallet_summary::<Instance2> = 26,
         NodeManager: pallet_node_manager = 27,
         PalletConfig: pallet_config = 28,
+        Watchtower: pallet_watchtower = 29,
 
         // Prediction Market pallets
         AdvisoryCommittee: pallet_collective::<Instance1>::{Call, Config<T>, Event<T>, Origin<T>, Pallet, Storage} = 30,
@@ -1396,6 +1457,7 @@ mod benches {
         [pallet_nft_manager, NftManager]
         [pallet_node_manager, NodeManager]
         [pallet_config, PalletConfig]
+        [pallet_watchtower, Watchtower]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
         [pallet_proxy, Proxy]
@@ -1729,5 +1791,26 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 
     fn get_events_to_migrate() -> Option<BoundedVec<EventMigration, ProcessingBatchBound>> {
         EthereumEvents::get_events_to_migrate()
+    }
+}
+
+pub struct RuntimeNodeManager;
+impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId, MaxWatchtowersRuntime>
+    for RuntimeNodeManager
+{
+    fn get_authorized_watchtowers(
+    ) -> Result<BoundedVec<AccountId, MaxWatchtowersRuntime>, DispatchError> {
+        let nodes: Vec<AccountId> =
+            pallet_node_manager::NodeRegistry::<Runtime>::iter_keys().collect();
+        BoundedVec::try_from(nodes).map_err(|_| DispatchError::Other("TooManyWatchtowers"))
+    }
+
+    fn is_authorized_watchtower(who: &AccountId) -> bool {
+        pallet_node_manager::NodeRegistry::<Runtime>::contains_key(who)
+    }
+
+    fn get_node_signing_key(node: &AccountId) -> Option<NodeManagerKeyId> {
+        pallet_node_manager::NodeRegistry::<Runtime>::get(node)
+            .map(|node_info| node_info.signing_key)
     }
 }
