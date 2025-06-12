@@ -2,28 +2,19 @@ use crate::*;
 use prediction_market_primitives::math::fixed::FixedMulDiv;
 use sp_runtime::SaturatedConversion;
 impl<T: Config> Pallet<T> {
-    pub fn get_total_reward(
-        oldest_period: &RewardPeriodIndex,
-    ) -> Result<BalanceOf<T>, DispatchError> {
-        let total_reward = RewardPot::<T>::get(oldest_period)
-            .map(|reward_pot| reward_pot.total_reward)
-            .unwrap_or_else(|| RewardAmount::<T>::get());
-
-        Ok(total_reward)
-    }
-
     // Nodes should not be able to submit over the min uptime required.
     // but we still check it here to be sure.
     pub fn calculate_node_uptime(
         node_id: &NodeId<T>,
         actual_uptime: u64,
-        uptime_threshold: u64,
+        uptime_threshold: u32,
     ) -> u64 {
-        if actual_uptime >= uptime_threshold {
-            if actual_uptime > uptime_threshold {
-                log::warn!("✋ Node ({:?}) has been up for more than the minimum uptime. Actual: {:?}, Min: {:?}", node_id, actual_uptime, uptime_threshold);
+        let uptime_threshold_u64 = uptime_threshold as u64;
+        if actual_uptime >= uptime_threshold_u64 {
+            if actual_uptime > uptime_threshold_u64 {
+                log::warn!("✋ Node ({:?}) has been up for more than the expected uptime. Actual: {:?}, Expected: {:?}", node_id, actual_uptime, uptime_threshold);
             }
-            uptime_threshold
+            uptime_threshold_u64
         } else {
             actual_uptime
         }

@@ -38,9 +38,7 @@ impl<
     }
 
     /// New reward period
-    pub fn update(&self, now: B, heartbeat_period: u32, threshold: Perbill) -> Self {
-        let max_heartbeats = self.length.saturating_div(heartbeat_period);
-        let uptime_threshold = threshold * max_heartbeats;
+    pub fn update(&self, now: B, uptime_threshold: u32) -> Self {
         let current = self.current.saturating_add(1u64);
         let first = now;
         Self { current, first, length: self.length, uptime_threshold }
@@ -65,13 +63,13 @@ impl<
 pub struct RewardPotInfo<Balance> {
     /// The total reward to pay out
     pub total_reward: Balance,
-    /// The total uptime for the reward period
-    pub total_uptime: u64,
+    /// The minimum number of uptime reports required to earn full reward
+    pub uptime_threshold: u32,
 }
 
 impl<Balance: Copy> RewardPotInfo<Balance> {
-    pub fn new(total_reward: Balance, total_uptime: u64) -> RewardPotInfo<Balance> {
-        RewardPotInfo { total_reward, total_uptime }
+    pub fn new(total_reward: Balance, uptime_threshold: u32) -> RewardPotInfo<Balance> {
+        RewardPotInfo { total_reward, uptime_threshold }
     }
 }
 
