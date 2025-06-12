@@ -1,20 +1,20 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 //! Watchtower Pallet Benchmarks
-//! 
+//!
 //! These benchmarks require the runtime to be configured with appropriate mock implementations.
 //! The benchmarking runtime should use the same mock implementations as defined in mock.rs:
-//! - MockNodeManager for T::NodeManager 
+//! - MockNodeManager for T::NodeManager
 //! - MockSummaryServiceProvider for T::SummaryServiceProvider
-//! 
+//!
 //! Additionally, the benchmarking runtime should ensure that whitelisted accounts
 //! are properly configured as authorized watchtowers in the NodeManager mock.
 
 use super::*;
 use crate::Pallet as Watchtower;
+use frame_benchmarking::impl_benchmark_test_suite;
 use frame_benchmarking::{benchmarks, whitelist_account, whitelisted_caller};
 use frame_system::{Pallet as System, RawOrigin};
-use frame_benchmarking::impl_benchmark_test_suite;
 
 // Helper function to create a RootId for testing
 fn create_test_root_id<T: Config>(index: u32) -> WatchtowerRootId<BlockNumberFor<T>> {
@@ -64,11 +64,11 @@ benchmarks! {
         // Verify the vote was recorded
         let votes = IndividualWatchtowerVotes::<T>::get(summary_instance, root_id.clone());
         assert!(!votes.is_empty(), "Vote should be recorded");
-        
+
         // Verify voting period was initialized
-        assert!(VotingStartBlock::<T>::contains_key((summary_instance, root_id.clone())), 
+        assert!(VotingStartBlock::<T>::contains_key((summary_instance, root_id.clone())),
                "Voting period should be initialized");
-        
+
         // Check that events were emitted
         assert_events_emitted::<T>();
     }
@@ -76,7 +76,7 @@ benchmarks! {
     query_voting_info {
         let caller: T::AccountId = whitelisted_caller();
         whitelist_account!(caller);
-        
+
         let summary_instance = SummarySourceInstance::EthereumBridge;
         let root_id = create_test_root_id::<T>(1);
 

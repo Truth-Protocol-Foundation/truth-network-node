@@ -1,9 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::{IsType, IsSubType}};
-use frame_system::{
+use frame_support::{
+    dispatch::DispatchResult,
     pallet_prelude::*,
-    offchain::{SendTransactionTypes, SubmitTransaction},
+    traits::{IsSubType, IsType},
+};
+use frame_system::{
     ensure_none,
+    offchain::{SendTransactionTypes, SubmitTransaction},
+    pallet_prelude::*,
 };
 
 use sp_runtime::RuntimeAppPublic;
@@ -21,7 +25,9 @@ use hex;
 use log;
 
 use pallet_avn::{self as avn};
-use sp_avn_common::{RootId as PalletSummaryRootIdGeneric, SummaryStatus as PalletSummaryStatusGeneric,};
+use sp_avn_common::{
+    RootId as PalletSummaryRootIdGeneric, SummaryStatus as PalletSummaryStatusGeneric,
+};
 
 use sp_core::H256;
 use sp_runtime::{
@@ -77,10 +83,8 @@ pub trait SummaryServices<TSystemConfig: frame_system::Config> {
 pub trait NodeManagerInterface<AccountId, SignerId, MaxWatchtowers: Get<u32>> {
     fn get_authorized_watchtowers() -> Result<BoundedVec<AccountId, MaxWatchtowers>, DispatchError>;
 
-    fn is_authorized_watchtower(
-        who: &AccountId,
-    ) -> bool;
-    
+    fn is_authorized_watchtower(who: &AccountId) -> bool;
+
     fn get_node_signing_key(node: &AccountId) -> Option<SignerId>;
 }
 
@@ -96,9 +100,7 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config:
-        SendTransactionTypes<Call<Self>>
-        + frame_system::Config
-        + pallet_avn::Config
+        SendTransactionTypes<Call<Self>> + frame_system::Config + pallet_avn::Config
     {
         type RuntimeEvent: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>
@@ -114,24 +116,25 @@ pub mod pallet {
 
         type WeightInfo: WeightInfo;
 
-        type SignerId: Member
-            + Parameter
-            + sp_runtime::RuntimeAppPublic
-            + Ord
-            + MaxEncodedLen;
+        type SignerId: Member + Parameter + sp_runtime::RuntimeAppPublic + Ord + MaxEncodedLen;
 
         type SummaryServiceProvider: SummaryServices<Self>;
-        type NodeManager: NodeManagerInterface<Self::AccountId, Self::SignerId, Self::MaxWatchtowers>;
+        type NodeManager: NodeManagerInterface<
+            Self::AccountId,
+            Self::SignerId,
+            Self::MaxWatchtowers,
+        >;
         type MaxWatchtowers: Get<u32>;
-        
     }
 
     #[pallet::storage]
     #[pallet::getter(fn individual_votes)]
     pub type IndividualWatchtowerVotes<T: Config> = StorageDoubleMap<
         _,
-        Blake2_128Concat, SummarySourceInstance,
-        Blake2_128Concat, WatchtowerRootId<BlockNumberFor<T>>,
+        Blake2_128Concat,
+        SummarySourceInstance,
+        Blake2_128Concat,
+        WatchtowerRootId<BlockNumberFor<T>>,
         BoundedVec<(T::AccountId, bool), T::MaxWatchtowers>,
         ValueQuery,
     >;
@@ -140,7 +143,8 @@ pub mod pallet {
     #[pallet::getter(fn consensus_reached_flag)]
     pub type VoteConsensusReached<T: Config> = StorageMap<
         _,
-        Blake2_128Concat, (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        Blake2_128Concat,
+        (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
         bool,
         ValueQuery,
     >;
@@ -149,25 +153,23 @@ pub mod pallet {
     #[pallet::getter(fn voting_start_block)]
     pub type VotingStartBlock<T: Config> = StorageMap<
         _,
-        Blake2_128Concat, (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        Blake2_128Concat,
+        (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
         BlockNumberFor<T>,
         OptionQuery,
     >;
 
     #[pallet::storage]
     #[pallet::getter(fn voting_period)]
-    pub type VotingPeriod<T: Config> = StorageValue<
-        _,
-        BlockNumberFor<T>,
-        ValueQuery,
-        DefaultVotingPeriod<T>,
-    >;
+    pub type VotingPeriod<T: Config> =
+        StorageValue<_, BlockNumberFor<T>, ValueQuery, DefaultVotingPeriod<T>>;
 
     #[pallet::storage]
     #[pallet::getter(fn pending_validation_root_hash)]
     pub type PendingValidationRootHash<T: Config> = StorageMap<
         _,
-        Blake2_128Concat, (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        Blake2_128Concat,
+        (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
         WatchtowerOnChainHash,
         OptionQuery,
     >;
@@ -235,10 +237,9 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn offchain_worker(block_number: BlockNumberFor<T>)
-        {
+        fn offchain_worker(block_number: BlockNumberFor<T>) {
             log::debug!(target: "runtime::watchtower::ocw", "Watchtower OCW running for block {:?}", block_number);
-            
+
             Self::process_pending_validations();
         }
     }
@@ -287,25 +288,22 @@ pub mod pallet {
                 );
                 e
             })?;
-            
+
             log::debug!(
                 target: "runtime::watchtower::execute",
                 "[EXECUTE_VOTE] Origin check passed, verifying node authorization. Node: {:?}, Root: {:?}",
                 node, root_id
             );
 
-            ensure!(
-                T::NodeManager::is_authorized_watchtower(&node),
-                {
-                    log::error!(
-                        target: "runtime::watchtower::execute",
-                        "[EXECUTE_VOTE] FAILED (Authorization): Node {:?} is not an authorized watchtower. Root: {:?}",
-                        node, root_id
-                    );
-                    Error::<T>::NotAuthorizedWatchtower
-                }
-            );
-            
+            ensure!(T::NodeManager::is_authorized_watchtower(&node), {
+                log::error!(
+                    target: "runtime::watchtower::execute",
+                    "[EXECUTE_VOTE] FAILED (Authorization): Node {:?} is not an authorized watchtower. Root: {:?}",
+                    node, root_id
+                );
+                Error::<T>::NotAuthorizedWatchtower
+            });
+
             log::debug!(
                 target: "runtime::watchtower::execute",
                 "[EXECUTE_VOTE] Node authorization passed, calling internal_submit_vote. Node: {:?}, Root: {:?}",
@@ -340,18 +338,12 @@ pub mod pallet {
             ensure_root(origin)?;
 
             let min_period: BlockNumberFor<T> = 10u32.into();
-            ensure!(
-                new_period >= min_period,
-                Error::<T>::InvalidVotingPeriod
-            );
+            ensure!(new_period >= min_period, Error::<T>::InvalidVotingPeriod);
 
             let old_period = VotingPeriod::<T>::get();
             VotingPeriod::<T>::put(new_period);
 
-            Self::deposit_event(Event::VotingPeriodUpdated {
-                old_period,
-                new_period,
-            });
+            Self::deposit_event(Event::VotingPeriodUpdated { old_period, new_period });
 
             log::info!(
                 target: "runtime::watchtower::admin",
@@ -374,12 +366,12 @@ pub mod pallet {
             let consensus_key = (summary_instance, root_id.clone());
             let current_block = frame_system::Pallet::<T>::block_number();
             let voting_period = VotingPeriod::<T>::get();
-            
+
             if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
                 let deadline = start_block + voting_period;
                 let votes = IndividualWatchtowerVotes::<T>::get(summary_instance, root_id.clone());
                 let consensus_reached = VoteConsensusReached::<T>::get(&consensus_key);
-                
+
                 log::info!(
                     target: "runtime::watchtower::query",
                     "Voting info for {:?}: Start: {:?}, Current: {:?}, Deadline: {:?}, Votes: {}, Consensus: {}",
@@ -402,13 +394,14 @@ pub mod pallet {
         type Call = Call<T>;
 
         fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-            if let Call::offchain_submit_watchtower_vote { 
-                node, 
-                summary_instance, 
-                root_id, 
-                vote_is_valid, 
-                signature 
-            } = call {
+            if let Call::offchain_submit_watchtower_vote {
+                node,
+                summary_instance,
+                root_id,
+                vote_is_valid,
+                signature,
+            } = call
+            {
                 log::debug!(
                     target: "runtime::watchtower::validate",
                     "[VALIDATE_UNSIGNED] Validating watchtower vote: node={:?}, instance={:?}, root_id={:?}, vote={:?}, source={:?}",
@@ -416,13 +409,15 @@ pub mod pallet {
                 );
 
                 match source {
-                    TransactionSource::Local | TransactionSource::External | TransactionSource::InBlock => {
+                    TransactionSource::Local
+                    | TransactionSource::External
+                    | TransactionSource::InBlock => {
                         log::debug!(
                             target: "runtime::watchtower::validate",
                             "[VALIDATE_UNSIGNED] Source {:?} is acceptable.",
                             source
                         );
-                    }
+                    },
                 }
 
                 if !T::NodeManager::is_authorized_watchtower(node) {
@@ -459,18 +454,18 @@ pub mod pallet {
                         root_id.clone(),
                         *vote_is_valid,
                         current_block,
-                        source,                        
-                        signature.encode()[0..8].to_vec() 
+                        source,
+                        signature.encode()[0..8].to_vec(),
                     );
-                    
+
                     let provides_tag = unique_payload_for_provides.encode();
-                    
+
                     log::info!(
                         target: "runtime::watchtower::validate",
                         "[VALIDATE_UNSIGNED] ACCEPTED for node {:?} at block {:?}. Source: {:?}. Provides tag hash: {:?}. Vote: {:?}",
                         node, current_block, source, sp_io::hashing::blake2_256(&provides_tag), vote_is_valid
                     );
-                    
+
                     ValidTransaction::with_tag_prefix("WatchtowerOCW")
                         .priority(TransactionPriority::MAX)
                         .and_provides(vec![provides_tag])
@@ -507,9 +502,9 @@ pub mod pallet {
                 "Received notification: instance={:?}, root_id={:?}, hash={:?}",
                 instance, root_id, root_hash
             );
-            
+
             let consensus_key = (instance, root_id.clone());
-            
+
             if VoteConsensusReached::<T>::get(&consensus_key) {
                 log::warn!(
                     target: "runtime::watchtower::notification",
@@ -518,7 +513,7 @@ pub mod pallet {
                 );
                 return Ok(());
             }
-            
+
             if VotingStartBlock::<T>::get(&consensus_key).is_some() {
                 log::warn!(
                     target: "runtime::watchtower::notification",
@@ -527,7 +522,7 @@ pub mod pallet {
                 );
                 return Ok(());
             }
-            
+
             if root_hash == sp_core::H256::zero() {
                 log::warn!(
                     target: "runtime::watchtower::notification",
@@ -535,32 +530,35 @@ pub mod pallet {
                     consensus_key
                 );
             }
-            
-            VotingStartBlock::<T>::insert(&consensus_key, frame_system::Pallet::<T>::block_number());
+
+            VotingStartBlock::<T>::insert(
+                &consensus_key,
+                frame_system::Pallet::<T>::block_number(),
+            );
             PendingValidationRootHash::<T>::insert(&consensus_key, root_hash);
-                        
+
             log::info!(
                 target: "runtime::watchtower::notification",
                 "Started voting period for summary: instance={:?}, root_id={:?}, hash={:?}",
                 instance, root_id, root_hash
             );
-            
+
             Ok(())
         }
 
         fn process_pending_validations() {
             log::debug!(target: "runtime::watchtower::ocw", "Processing pending validations");
-            
+
             let current_block = frame_system::Pallet::<T>::block_number();
             let voting_period = VotingPeriod::<T>::get();
-            
+
             for (consensus_key, start_block) in VotingStartBlock::<T>::iter() {
                 let (instance, root_id) = consensus_key.clone();
-                
+
                 if VoteConsensusReached::<T>::get(&consensus_key) {
                     continue;
                 }
-                
+
                 if current_block > start_block + voting_period {
                     log::warn!(
                         target: "runtime::watchtower::ocw",
@@ -569,16 +567,16 @@ pub mod pallet {
                     );
                     continue;
                 }
-                
+
                 if let Some(root_hash) = PendingValidationRootHash::<T>::get(&consensus_key) {
                     log::info!(
                         target: "runtime::watchtower::ocw",
                         "Processing OCW validation for {:?}, root_hash: {:?}",
                         consensus_key, root_hash
                     );
-                    
+
                     Self::perform_ocw_recalculation(instance, root_id, root_hash);
-                    
+
                     PendingValidationRootHash::<T>::remove(&consensus_key);
                 } else {
                     log::warn!(
@@ -604,18 +602,25 @@ pub mod pallet {
                         "No registered node found for OCW operations"
                     );
                     return;
-                }
+                },
             };
 
-            match Self::try_ocw_process_recalculation(instance, root_id.clone(), onchain_root_hash) {
+            match Self::try_ocw_process_recalculation(instance, root_id.clone(), onchain_root_hash)
+            {
                 Ok(recalculated_hash_matches) => {
                     log::info!(
                         target: "runtime::watchtower::ocw",
                         "OCW recalculation for {:?} from instance {:?}: Onchain hash matches recalculated hash: {}.",
                         root_id, instance, recalculated_hash_matches
                     );
-                    
-                    if let Err(e) = Self::submit_ocw_vote(node, signing_key, instance, root_id, recalculated_hash_matches) {
+
+                    if let Err(e) = Self::submit_ocw_vote(
+                        node,
+                        signing_key,
+                        instance,
+                        root_id,
+                        recalculated_hash_matches,
+                    ) {
                         log::error!(
                             target: "runtime::watchtower::ocw",
                             "Failed to submit OCW vote for {:?} from instance {:?}: {:?}",
@@ -629,8 +634,12 @@ pub mod pallet {
                         "OCW recalculation processing error for {:?} from instance {:?}: {:?}",
                         root_id, instance, e
                     );
-                    Self::deposit_event(Event::VerificationProcessingError { summary_instance: instance, root_id, reason: e });
-                }
+                    Self::deposit_event(Event::VerificationProcessingError {
+                        summary_instance: instance,
+                        root_id,
+                        reason: e,
+                    });
+                },
             }
         }
 
@@ -668,9 +677,9 @@ pub mod pallet {
                                 reason: VerificationError::HttpCallFailed,
                             });
                             Err(VerificationError::HttpCallFailed)
-                        }
+                        },
                     }
-                }
+                },
                 Err(_lock_error) => {
                     log::warn!(target: "runtime::watchtower::ocw", "[{:?}] Failed to acquire lock for root: {:?}. Might be processed by another worker.", instance, root_id);
                     Self::deposit_event(Event::VerificationProcessingError {
@@ -679,7 +688,7 @@ pub mod pallet {
                         reason: VerificationError::LockAcquisitionFailed,
                     });
                     Err(VerificationError::LockAcquisitionFailed)
-                }
+                },
             };
             result
         }
@@ -712,12 +721,11 @@ pub mod pallet {
 
             log::debug!(target: "runtime::watchtower::ocw", "Fetching recalculated root hash using AVN service, path: {}", url_path);
 
-            let response = AVN::<T>::get_data_from_service(url_path)
-                .map_err(|dispatch_err| {
-                    let err_msg = format!("AVN service call failed: {:?}", dispatch_err);
-                    log::error!(target: "runtime::watchtower::ocw", "{}", err_msg);
-                    err_msg
-                })?;
+            let response = AVN::<T>::get_data_from_service(url_path).map_err(|dispatch_err| {
+                let err_msg = format!("AVN service call failed: {:?}", dispatch_err);
+                log::error!(target: "runtime::watchtower::ocw", "{}", err_msg);
+                err_msg
+            })?;
 
             Self::validate_response(response).map_err(|e| {
                 log::error!(target: "runtime::watchtower::ocw", "Error validating service response: {:?}", e);
@@ -725,7 +733,9 @@ pub mod pallet {
             })
         }
 
-        pub fn validate_response(response: Vec<u8>) -> Result<WatchtowerOnChainHash, DispatchError> {
+        pub fn validate_response(
+            response: Vec<u8>,
+        ) -> Result<WatchtowerOnChainHash, DispatchError> {
             if response.len() != 64 {
                 log::error!(
                     target: "runtime::watchtower::ocw",
@@ -735,22 +745,20 @@ pub mod pallet {
                 return Err(DispatchError::Other("InvalidRootHashLength"));
             }
 
-            let root_hash_str = core::str::from_utf8(&response)
-                .map_err(|_| {
-                    log::error!(target: "runtime::watchtower::ocw", "Invalid UTF8 bytes in response");
-                    DispatchError::Other("InvalidUTF8Bytes")
-                })?;
+            let root_hash_str = core::str::from_utf8(&response).map_err(|_| {
+                log::error!(target: "runtime::watchtower::ocw", "Invalid UTF8 bytes in response");
+                DispatchError::Other("InvalidUTF8Bytes")
+            })?;
 
             let mut data: [u8; 32] = [0; 32];
-            hex::decode_to_slice(root_hash_str.trim(), &mut data[..])
-                .map_err(|_| {
-                    log::error!(
-                        target: "runtime::watchtower::ocw",
-                        "Invalid hex string in response: '{}'",
-                        root_hash_str
-                    );
-                    DispatchError::Other("InvalidHexString")
-                })?;
+            hex::decode_to_slice(root_hash_str.trim(), &mut data[..]).map_err(|_| {
+                log::error!(
+                    target: "runtime::watchtower::ocw",
+                    "Invalid hex string in response: '{}'",
+                    root_hash_str
+                );
+                DispatchError::Other("InvalidHexString")
+            })?;
 
             Ok(H256::from_slice(&data))
         }
@@ -801,7 +809,7 @@ pub mod pallet {
                         root_id, node
                     );
                     return Err("Failed to sign vote data");
-                }
+                },
             };
 
             let call = Call::offchain_submit_watchtower_vote {
@@ -826,7 +834,7 @@ pub mod pallet {
                         root_id, vote_is_valid, node
                     );
                     Ok(())
-                }
+                },
                 Err(e) => {
                     log::error!(
                         target: "runtime::watchtower::ocw",
@@ -834,7 +842,7 @@ pub mod pallet {
                         root_id, node, e
                     );
                     Err("Failed to submit vote transaction to local pool")
-                }
+                },
             }
         }
 
@@ -870,7 +878,8 @@ pub mod pallet {
             let total_authorized_watchtowers = authorized_watchtowers.len() as u32;
             let required_for_consensus = (total_authorized_watchtowers * 2 + 2) / 3;
 
-            let current_votes = IndividualWatchtowerVotes::<T>::get(summary_instance, root_id.clone());
+            let current_votes =
+                IndividualWatchtowerVotes::<T>::get(summary_instance, root_id.clone());
 
             let mut valid_votes = Vec::new();
             for (voter, vote) in current_votes.iter() {
@@ -883,7 +892,7 @@ pub mod pallet {
                 summary_instance, root_id, total_authorized_watchtowers, required_for_consensus, valid_votes.len());
 
             let total_votes = valid_votes.len() as u32;
-            
+
             if total_votes == 0 {
                 log::debug!(target: "runtime::watchtower", "[{:?}] No votes yet for {:?}", summary_instance, root_id);
                 return Ok(());
@@ -912,39 +921,43 @@ pub mod pallet {
 
             if consensus_reached {
                 VoteConsensusReached::<T>::insert(&consensus_key, true);
-                
+
                 Self::deposit_event(Event::WatchtowerConsensusReached {
                     summary_instance,
                     root_id,
                     consensus_result: consensus_result.clone(),
                 });
-                
+
                 log::info!(
                     target: "runtime::watchtower",
                     "[{:?}] Consensus reached for {:?}, now updating summary status",
                     summary_instance, root_id
                 );
 
-                T::SummaryServiceProvider::update_summary_status(summary_instance, root_id.clone(), consensus_result.clone())
-                    .map_err(|e| {
-                        log::error!(
-                            target: "runtime::watchtower",
-                            "Failed to set summary status for {:?} in instance {:?}: {:?}",
-                            root_id, summary_instance, e
-                        );
-                        Error::<T>::SummaryUpdateFailed
-                    })?;
-                
+                T::SummaryServiceProvider::update_summary_status(
+                    summary_instance,
+                    root_id.clone(),
+                    consensus_result.clone(),
+                )
+                .map_err(|e| {
+                    log::error!(
+                        target: "runtime::watchtower",
+                        "Failed to set summary status for {:?} in instance {:?}: {:?}",
+                        root_id, summary_instance, e
+                    );
+                    Error::<T>::SummaryUpdateFailed
+                })?;
+
                 VotingStartBlock::<T>::remove(&consensus_key);
                 PendingValidationRootHash::<T>::remove(&consensus_key);
-                
+
                 log::info!(
                     target: "runtime::watchtower",
                     "[{:?}] Summary status updated successfully for {:?}",
                     summary_instance, root_id
                 );
             }
-            
+
             Ok(())
         }
 
@@ -962,24 +975,21 @@ pub mod pallet {
 
             let consensus_key = (summary_instance, root_id.clone());
             let current_block = frame_system::Pallet::<T>::block_number();
-            
+
             log::debug!(
                 target: "runtime::watchtower::vote",
                 "Checking if consensus already reached for key: {:?}",
                 consensus_key
             );
 
-            ensure!(
-                !VoteConsensusReached::<T>::get(&consensus_key),
-                {
-                    log::error!(
-                        target: "runtime::watchtower::vote",
-                        "FAILED: Consensus already reached for {:?}",
-                        consensus_key
-                    );
-                    Error::<T>::ConsensusAlreadyReached
-                }
-            );
+            ensure!(!VoteConsensusReached::<T>::get(&consensus_key), {
+                log::error!(
+                    target: "runtime::watchtower::vote",
+                    "FAILED: Consensus already reached for {:?}",
+                    consensus_key
+                );
+                Error::<T>::ConsensusAlreadyReached
+            });
 
             let voting_start_block = VotingStartBlock::<T>::get(&consensus_key);
             if let Some(start_block) = voting_start_block {
@@ -1029,25 +1039,24 @@ pub mod pallet {
                         );
                         return Err(Error::<T>::AlreadyVoted.into());
                     }
-                    
-                    votes.try_push((voter.clone(), vote_is_valid))
-                        .map_err(|_| {
-                            log::error!(
-                                target: "runtime::watchtower::vote",
-                                "FAILED: Too many votes, cannot add vote for {:?}",
-                                voter
-                            );
-                            Error::<T>::TooManyVotes
-                        })?;
+
+                    votes.try_push((voter.clone(), vote_is_valid)).map_err(|_| {
+                        log::error!(
+                            target: "runtime::watchtower::vote",
+                            "FAILED: Too many votes, cannot add vote for {:?}",
+                            voter
+                        );
+                        Error::<T>::TooManyVotes
+                    })?;
 
                     log::info!(
                         target: "runtime::watchtower::vote",
                         "Successfully added vote for {:?}. New votes: {:?}",
                         voter, votes
                     );
-                    
+
                     Ok(())
-                }
+                },
             )?;
 
             log::debug!(
@@ -1108,7 +1117,7 @@ pub mod pallet {
                         "Failed to get authorized watchtowers"
                     );
                     return None;
-                }
+                },
             };
 
             for local_key in local_keys.iter() {
@@ -1116,7 +1125,7 @@ pub mod pallet {
                     target: "runtime::watchtower::ocw",
                     "Checking local key against authorized watchtowers"
                 );
-                
+
                 for node in authorized_watchtowers.iter() {
                     if let Some(node_signing_key) = T::NodeManager::get_node_signing_key(node) {
                         log::debug!(
@@ -1148,7 +1157,7 @@ pub mod pallet {
                 local_keys.len(),
                 authorized_watchtowers.len()
             );
-            
+
             if !local_keys.is_empty() && !authorized_watchtowers.is_empty() {
                 log::warn!(
                     target: "runtime::watchtower::ocw",
@@ -1156,7 +1165,7 @@ pub mod pallet {
                      Consider checking if the node is properly registered with the correct signing key."
                 );
             }
-            
+
             None
         }
 
@@ -1181,12 +1190,12 @@ pub mod pallet {
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
         ) -> Option<(BlockNumberFor<T>, BlockNumberFor<T>, u32)> {
             let consensus_key = (instance, root_id.clone());
-            
+
             if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
                 let deadline = start_block + VotingPeriod::<T>::get();
                 let votes = IndividualWatchtowerVotes::<T>::get(instance, root_id);
                 let vote_count = votes.len() as u32;
-                
+
                 Some((start_block, deadline, vote_count))
             } else {
                 None
@@ -1202,11 +1211,11 @@ pub mod pallet {
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
         ) -> bool {
             let consensus_key = (instance, root_id.clone());
-            
+
             if VoteConsensusReached::<T>::get(&consensus_key) {
                 return false;
             }
-            
+
             if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
                 let current_block = frame_system::Pallet::<T>::block_number();
                 let deadline = start_block + VotingPeriod::<T>::get();
@@ -1222,7 +1231,7 @@ pub mod pallet {
         ) -> DispatchResult {
             let consensus_key = (instance, root_id.clone());
             let current_block = frame_system::Pallet::<T>::block_number();
-            
+
             if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
                 let voting_deadline = start_block + VotingPeriod::<T>::get();
                 if current_block > voting_deadline {
@@ -1231,13 +1240,13 @@ pub mod pallet {
                         "Cleaning up expired votes for {:?}. Current block: {:?}, deadline: {:?}",
                         consensus_key, current_block, voting_deadline
                     );
-                    
+
                     IndividualWatchtowerVotes::<T>::remove(instance, &root_id);
                     VotingStartBlock::<T>::remove(&consensus_key);
                     return Ok(());
                 }
             }
-            
+
             Err(Error::<T>::VotingNotStarted.into())
         }
     }

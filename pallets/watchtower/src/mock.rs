@@ -4,15 +4,12 @@
 
 use crate::{self as pallet_watchtower, *};
 use frame_support::{
-    parameter_types, 
-    traits::ConstU64,
-    BoundedVec,
-    derive_impl,
-    pallet_prelude::MaxEncodedLen,
+    derive_impl, pallet_prelude::MaxEncodedLen, parameter_types, traits::ConstU64, BoundedVec,
 };
 use frame_system as system;
-pub use parity_scale_codec::{alloc::sync::Arc, Encode, Decode};
+pub use parity_scale_codec::{alloc::sync::Arc, Decode, Encode};
 use parking_lot::RwLock;
+use sp_avn_common;
 pub use sp_core::{
     offchain::{
         testing::{
@@ -22,7 +19,6 @@ pub use sp_core::{
     },
     sr25519, H256,
 };
-use sp_avn_common;
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 pub use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
@@ -43,11 +39,11 @@ pub fn account_from_bytes(bytes: [u8; 32]) -> AccountId {
     AccountId::from(sr25519::Public::from_raw(bytes))
 }
 
-pub use sp_avn_common::{RootId,RootRange};
+pub use sp_avn_common::{RootId, RootRange};
 
 pub mod pallet_summary {
     use super::*;
-    
+
     pub use sp_avn_common::{RootId, RootRange};
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, scale_info::TypeInfo)]
@@ -59,9 +55,7 @@ pub mod pallet_summary {
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, scale_info::TypeInfo)]
     pub enum Event<T: frame_system::Config> {
-        SummaryReadyForValidation {
-            root_id: RootId<BlockNumberFor<T>>,
-        },
+        SummaryReadyForValidation { root_id: RootId<BlockNumberFor<T>> },
     }
 
     impl<T: frame_system::Config> Event<T> {
@@ -107,7 +101,8 @@ impl SummaryServices<TestRuntime> for MockSummaryServiceProvider {
 
 pub struct MockNodeManager;
 impl NodeManagerInterface<AccountId, UintAuthorityId, MaxWatchtowers> for MockNodeManager {
-    fn get_authorized_watchtowers() -> Result<BoundedVec<AccountId, MaxWatchtowers>, DispatchError> {
+    fn get_authorized_watchtowers() -> Result<BoundedVec<AccountId, MaxWatchtowers>, DispatchError>
+    {
         let watchtowers = AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().clone());
         BoundedVec::try_from(watchtowers).map_err(|_| DispatchError::Other("TooManyWatchtowers"))
     }
@@ -127,8 +122,8 @@ thread_local! {
         account_from_bytes([2u8; 32]),
         account_from_bytes([3u8; 32]),
     ]);
-    
-    pub static NODE_SIGNING_KEYS: RefCell<std::collections::HashMap<AccountId, UintAuthorityId>> = 
+
+    pub static NODE_SIGNING_KEYS: RefCell<std::collections::HashMap<AccountId, UintAuthorityId>> =
         RefCell::new({
             let mut keys = std::collections::HashMap::new();
             keys.insert(account_from_bytes([1u8; 32]), UintAuthorityId(1));
@@ -207,13 +202,7 @@ pub fn unauthorized_account() -> AccountId {
 }
 
 pub fn get_test_root_id() -> WatchtowerRootId<BlockNumber> {
-    RootId {
-        range: RootRange {
-            from_block: 1,
-            to_block: 10,
-        },
-        ingress_counter: 0,
-    }
+    RootId { range: RootRange { from_block: 1, to_block: 10 }, ingress_counter: 0 }
 }
 
 pub fn get_test_onchain_hash() -> WatchtowerOnChainHash {
@@ -274,7 +263,7 @@ impl ExtBuilder {
 
         let mut ext = sp_io::TestExternalities::from(self.storage);
         ext.register_extension(KeystoreExt(Arc::new(keystore)));
-        
+
         ext.execute_with(|| {
             frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into());
         });
@@ -286,27 +275,31 @@ impl ExtBuilder {
     ) -> (sp_io::TestExternalities, Arc<RwLock<PoolState>>, Arc<RwLock<OffchainState>>) {
         assert!(self.offchain_registered);
         let keystore = MemoryKeystore::new();
-        
+
         let mut ext = sp_io::TestExternalities::from(self.storage);
         ext.register_extension(KeystoreExt(Arc::new(keystore)));
         ext.register_extension(OffchainDbExt::new(self.offchain_extension.clone().unwrap()));
         ext.register_extension(OffchainWorkerExt::new(self.offchain_extension.unwrap()));
         ext.register_extension(TransactionPoolExt::new(self.txpool_extension.unwrap()));
-        
+
         assert!(self.pool_state.is_some());
         assert!(self.offchain_state.is_some());
-        
+
         ext.execute_with(|| {
             Timestamp::set_timestamp(1);
             frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into());
         });
-        
+
         (ext, self.pool_state.unwrap(), self.offchain_state.unwrap())
     }
 
     pub fn build_and_execute_with_state<R>(
-        self, 
-        execute: impl FnOnce(&mut sp_io::TestExternalities, &Arc<RwLock<PoolState>>, &Arc<RwLock<OffchainState>>) -> R
+        self,
+        execute: impl FnOnce(
+            &mut sp_io::TestExternalities,
+            &Arc<RwLock<PoolState>>,
+            &Arc<RwLock<OffchainState>>,
+        ) -> R,
     ) -> R {
         let (mut ext, pool_state, offchain_state) = self.as_externality_with_state();
         execute(&mut ext, &pool_state, &offchain_state)
@@ -317,14 +310,14 @@ impl ExtBuilder {
         {
             use frame_benchmarking::whitelisted_caller;
             let benchmark_caller: AccountId = whitelisted_caller();
-            
+
             AUTHORIZED_WATCHTOWERS.with(|w| {
                 let mut watchtowers = w.borrow_mut();
                 if !watchtowers.contains(&benchmark_caller) {
                     watchtowers.push(benchmark_caller.clone());
                 }
             });
-            
+
             NODE_SIGNING_KEYS.with(|keys| {
                 let mut key_map = keys.borrow_mut();
                 if !key_map.contains_key(&benchmark_caller) {
@@ -333,7 +326,7 @@ impl ExtBuilder {
                 }
             });
         }
-        
+
         self
     }
 }
@@ -354,9 +347,14 @@ pub(crate) fn roll_one_block() -> u64 {
     System::block_number()
 }
 
-pub fn mock_avn_service_response(state: &mut OffchainState, from_block: u32, to_block: u32, response: &Option<Vec<u8>>) {
+pub fn mock_avn_service_response(
+    state: &mut OffchainState,
+    from_block: u32,
+    to_block: u32,
+    response: &Option<Vec<u8>>,
+) {
     let url = format!("http://127.0.0.1:2020/roothash/{}/{}", from_block, to_block);
-    
+
     state.expect_request(PendingRequest {
         method: "GET".into(),
         uri: url.into(),
@@ -374,48 +372,51 @@ pub fn mock_invalid_root_hash_response() -> Vec<u8> {
     "invalid_hex_response".into()
 }
 
-pub fn create_mock_summary_ready_event() -> (SummarySourceInstance, WatchtowerRootId<BlockNumber>, WatchtowerOnChainHash) {
-    (
-        SummarySourceInstance::EthereumBridge,
-        get_test_root_id(),
-        get_test_onchain_hash(),
-    )
+pub fn create_mock_summary_ready_event(
+) -> (SummarySourceInstance, WatchtowerRootId<BlockNumber>, WatchtowerOnChainHash) {
+    (SummarySourceInstance::EthereumBridge, get_test_root_id(), get_test_onchain_hash())
 }
 
 pub fn assert_watchtower_vote_event_emitted(
     voter: &AccountId,
-    instance: SummarySourceInstance, 
+    instance: SummarySourceInstance,
     root_id: &WatchtowerRootId<BlockNumber>,
-    vote: bool
+    vote: bool,
 ) {
     let events = System::events();
-    assert!(events.iter().any(|record| {
-        matches!(
-            record.event,
-            RuntimeEvent::Watchtower(crate::Event::WatchtowerVoteSubmitted {
-                voter: ref v,
-                summary_instance: i,
-                root_id: ref r,
-                vote_is_valid: vote_val
-            }) if v == voter && i == instance && r == root_id && vote_val == vote
-        )
-    }), "Expected WatchtowerVoteSubmitted event not found");
+    assert!(
+        events.iter().any(|record| {
+            matches!(
+                record.event,
+                RuntimeEvent::Watchtower(crate::Event::WatchtowerVoteSubmitted {
+                    voter: ref v,
+                    summary_instance: i,
+                    root_id: ref r,
+                    vote_is_valid: vote_val
+                }) if v == voter && i == instance && r == root_id && vote_val == vote
+            )
+        }),
+        "Expected WatchtowerVoteSubmitted event not found"
+    );
 }
 
 pub fn assert_consensus_reached_event_emitted(
     instance: SummarySourceInstance,
     root_id: &WatchtowerRootId<BlockNumber>,
-    result: WatchtowerSummaryStatus
+    result: WatchtowerSummaryStatus,
 ) {
     let events = System::events();
-    assert!(events.iter().any(|record| {
-        matches!(
-            record.event,
-            RuntimeEvent::Watchtower(crate::Event::WatchtowerConsensusReached {
-                summary_instance: i,
-                root_id: ref r,
-                consensus_result: ref res
-            }) if i == instance && r == root_id && *res == result
-        )
-    }), "Expected WatchtowerConsensusReached event not found");
+    assert!(
+        events.iter().any(|record| {
+            matches!(
+                record.event,
+                RuntimeEvent::Watchtower(crate::Event::WatchtowerConsensusReached {
+                    summary_instance: i,
+                    root_id: ref r,
+                    consensus_result: ref res
+                }) if i == instance && r == root_id && *res == result
+            )
+        }),
+        "Expected WatchtowerConsensusReached event not found"
+    );
 }
