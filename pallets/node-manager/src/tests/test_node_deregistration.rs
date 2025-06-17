@@ -2,9 +2,8 @@
 
 #![cfg(test)]
 
-use crate::{mock::*, offchain::OCW_ID, *};
+use crate::{mock::*, *};
 use frame_support::{assert_noop, assert_ok};
-use frame_system::RawOrigin;
 use prediction_market_primitives::{test_helper::TestAccount, types::SignatureTest};
 use sp_avn_common::Proof;
 use sp_core::Pair;

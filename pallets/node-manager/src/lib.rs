@@ -700,7 +700,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(5)]
-        #[pallet::weight(0)]
+        #[pallet::weight(<T as Config>::WeightInfo::deregister_nodes(*number_of_nodes_to_deregister))]
         //#[pallet::weight(<T as Config>::WeightInfo::deregister_nodes())]
         pub fn deregister_nodes(
             origin: OriginFor<T>,
@@ -724,8 +724,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(6)]
-        #[pallet::weight(0)]
-        //#[pallet::weight(<T as Config>::WeightInfo::deregister_nodes())]
+        #[pallet::weight(<T as Config>::WeightInfo::signed_deregister_nodes(*number_of_nodes_to_deregister))]
         pub fn signed_deregister_nodes(
             origin: OriginFor<T>,
             proof: Proof<T::Signature, T::AccountId>,
