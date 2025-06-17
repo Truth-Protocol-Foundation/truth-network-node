@@ -701,7 +701,6 @@ pub mod pallet {
 
         #[pallet::call_index(5)]
         #[pallet::weight(<T as Config>::WeightInfo::deregister_nodes(*number_of_nodes_to_deregister))]
-        //#[pallet::weight(<T as Config>::WeightInfo::deregister_nodes())]
         pub fn deregister_nodes(
             origin: OriginFor<T>,
             owner: T::AccountId,
