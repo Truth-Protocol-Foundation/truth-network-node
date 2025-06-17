@@ -48,6 +48,9 @@ mod test_admin;
 #[path = "tests/test_heartbeat.rs"]
 mod test_heartbeat;
 #[cfg(test)]
+#[path = "tests/test_node_deregistration.rs"]
+mod test_node_deregistration;
+#[cfg(test)]
 #[path = "tests/test_node_registration.rs"]
 mod test_node_registration;
 #[cfg(test)]
@@ -70,9 +73,9 @@ use sp_std::prelude::*;
 const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
-
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
 pub const SIGNED_DEREGISTER_NODE_CONTEXT: &[u8] = b"deregister_node";
+pub const MAX_NODES_TO_DEREGISTER: u32 = 64;
 
 // Error codes returned by validate unsigned methods
 /// Invalid signature for `paying` transaction
@@ -95,7 +98,7 @@ pub(crate) type RewardPeriodIndex = u64;
 /// A type alias for a unique identifier of a node
 pub(crate) type NodeId<T> = <T as frame_system::Config>::AccountId;
 /// The max number of nodes that can be deregistered in a single call
-pub type MaxNodesToDeregister = ConstU32<64>;
+pub type MaxNodesToDeregister = ConstU32<MAX_NODES_TO_DEREGISTER>;
 
 #[frame_support::pallet]
 pub mod pallet {

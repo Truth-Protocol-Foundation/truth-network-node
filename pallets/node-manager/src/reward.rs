@@ -38,7 +38,7 @@ impl<T: Config> Pallet<T> {
         let node_owner = match <NodeRegistry<T>>::get(&node) {
             Some(info) => info.owner,
             None => {
-                log::error!("💔 Error paying reward. Node not found in registry. Reward period: {:?}, Node {:?}, Amount: {:?}",
+                log::warn!("⚠️ Error paying reward. Node not found in registry. Reward period: {:?}, Node {:?}, Amount: {:?}",
                   period, node, amount
                 );
 
