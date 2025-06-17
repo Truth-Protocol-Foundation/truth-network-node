@@ -46,7 +46,7 @@ impl<T: Config> Pallet<T> {
                     reward_period: *period,
                     node: node.clone(),
                     amount,
-                    error: Error::<T>::NodeOwnerNotFound.into(),
+                    error: Error::<T>::NodeNotRegistered.into(),
                 });
                 // We skip paying rewards for this node and continue without erroring
                 return Ok(());
