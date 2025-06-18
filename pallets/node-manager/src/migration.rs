@@ -30,7 +30,6 @@ mod v1 {
 
 mod v2 {
     use super::*;
-    use frame_support::storage_alias;
 
     #[derive(Copy, Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
     pub struct OldRewardPotInfo<T: crate::Config> {

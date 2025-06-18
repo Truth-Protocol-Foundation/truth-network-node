@@ -86,12 +86,15 @@ fn create_nodes_and_hearbeat<T: Config>(
     owner: T::AccountId,
     reward_period_index: RewardPeriodIndex,
     node_to_create: u32,
-) {
+) -> Vec<NodeId<T>> {
+    let mut registered_nodes = vec![];
     for i in 1..=node_to_create {
         let node: NodeId<T> = account("node", i, i);
         let _ = register_new_node::<T>(node.clone(), owner.clone());
         create_heartbeat::<T>(node.clone(), reward_period_index);
+        registered_nodes.push(node);
     }
+    registered_nodes
 }
 
 fn set_max_batch_size<T: Config>(batch_size: u32) {
@@ -273,7 +276,7 @@ benchmarks! {
         let owner: T::AccountId = account("owner", 0, 0);
         let author = create_author::<T>();
 
-        create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, registered_nodes);
+        let _ = create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, registered_nodes);
 
         // Move forward to the next reward period
         <frame_system::Pallet<T>>::set_block_number((reward_period.length + 1).into());
@@ -323,7 +326,7 @@ benchmarks! {
         let owner: T::AccountId = account("owner", 0, 0);
         let author = create_author::<T>();
 
-        create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, n);
+        let _ = create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, n);
 
         // Move forward to the next reward period
         <frame_system::Pallet<T>>::set_block_number((reward_period.length + 1).into());
@@ -369,6 +372,83 @@ benchmarks! {
         assert!(<OwnedNodes<T>>::contains_key(owner.clone(), node.clone()));
         assert!(<NodeRegistry<T>>::contains_key(node.clone()));
         assert_last_event::<T>(Event::NodeRegistered{owner, node}.into());
+    }
+
+    deregister_nodes {
+        let b in 1 .. MAX_NODES_TO_DEREGISTER;
+        let registrar: T::AccountId = account("registrar", 0, 0);
+        set_registrar::<T>(registrar.clone());
+
+        enable_rewards::<T>();
+        fund_reward_pot::<T>();
+
+        let reward_period = <RewardPeriod<T>>::get();
+        let reward_period_index = reward_period.current;
+        let owner: T::AccountId = account("owner", 0, 0);
+
+        let nodes_to_deregister = create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, b);
+
+        // Show that the nodes are registered
+        assert!(<OwnedNodes<T>>::contains_key(owner.clone(), nodes_to_deregister[0].clone()));
+        assert!(<NodeRegistry<T>>::contains_key(nodes_to_deregister[0].clone()));
+
+    }: deregister_nodes(
+        RawOrigin::Signed(registrar.clone()),
+        owner.clone(),
+        BoundedVec::truncate_from(nodes_to_deregister.clone()))
+    verify {
+        for node in &nodes_to_deregister {
+            assert!(!<OwnedNodes<T>>::contains_key(owner.clone(), node));
+            assert!(!<NodeRegistry<T>>::contains_key(node));
+        }
+        assert_last_event::<T>(Event::NodeDeregistered{
+            owner,
+            node: nodes_to_deregister[nodes_to_deregister.len() - 1].clone()}.into());
+    }
+
+    signed_deregister_nodes {
+        let b in 1 .. MAX_NODES_TO_DEREGISTER;
+        let registrar_key = crate::sr25519::app_sr25519::Public::generate_pair(None);
+        let registrar: T::AccountId =
+            T::AccountId::decode(&mut Encode::encode(&registrar_key).as_slice()).expect("valid account id");
+
+        set_registrar::<T>(registrar.clone());
+        enable_rewards::<T>();
+        fund_reward_pot::<T>();
+
+        let reward_period = <RewardPeriod<T>>::get();
+        let reward_period_index = reward_period.current;
+        let owner: T::AccountId = account("owner", 0, 0);
+
+        let nodes_to_deregister = create_nodes_and_hearbeat::<T>(owner.clone(), reward_period_index, b);
+
+        // Show that at least some of the nodes are registered
+        assert!(<OwnedNodes<T>>::contains_key(owner.clone(), nodes_to_deregister[0].clone()));
+        assert!(<NodeRegistry<T>>::contains_key(nodes_to_deregister[0].clone()));
+
+        let relayer: T::AccountId = account("relayer", 11, 11);
+        let now = frame_system::Pallet::<T>::block_number();
+
+        let bounded_nodes_to_deregister = BoundedVec::truncate_from(nodes_to_deregister.clone());
+        let signed_payload = encode_signed_deregister_node_params::<T>(
+            &relayer.clone(),
+            &owner,
+            &bounded_nodes_to_deregister,
+            &(nodes_to_deregister.len() as u32),
+            &now.clone(),
+        );
+
+        let signature = registrar_key.sign(&signed_payload).ok_or("Error signing proof")?;
+        let proof = get_proof::<T>(&relayer.clone(), &registrar, signature.into());
+    }: signed_deregister_nodes(RawOrigin::Signed(registrar.clone()), proof, owner.clone(), bounded_nodes_to_deregister, now)
+    verify {
+        for node in &nodes_to_deregister {
+            assert!(!<OwnedNodes<T>>::contains_key(owner.clone(), node));
+            assert!(!<NodeRegistry<T>>::contains_key(node));
+        }
+        assert_last_event::<T>(Event::NodeDeregistered{
+            owner,
+            node: nodes_to_deregister[nodes_to_deregister.len() - 1].clone()}.into());
     }
 }
 

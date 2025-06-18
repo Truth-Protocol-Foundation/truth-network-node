@@ -38,7 +38,7 @@ impl<T: Config> Pallet<T> {
         let node_owner = match <NodeRegistry<T>>::get(&node) {
             Some(info) => info.owner,
             None => {
-                log::error!("💔 Error paying reward. Node not found in registry. Reward period: {:?}, Node {:?}, Amount: {:?}",
+                log::warn!("⚠️ Error paying reward. Node not found in registry. Reward period: {:?}, Node {:?}, Amount: {:?}",
                   period, node, amount
                 );
 
@@ -46,7 +46,7 @@ impl<T: Config> Pallet<T> {
                     reward_period: *period,
                     node: node.clone(),
                     amount,
-                    error: Error::<T>::NodeOwnerNotFound.into(),
+                    error: Error::<T>::NodeNotRegistered.into(),
                 });
                 // We skip paying rewards for this node and continue without erroring
                 return Ok(());
