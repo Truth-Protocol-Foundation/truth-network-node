@@ -177,7 +177,6 @@ impl ProvableProxy<RuntimeCall, Signature, AccountId> for AvnProxyConfig {
                 owner: _,
                 nodes_to_deregister: _,
                 block_number: _,
-                number_of_nodes_to_deregister: _,
             }) => return Some(proof.clone()),
             _ => None,
         }
