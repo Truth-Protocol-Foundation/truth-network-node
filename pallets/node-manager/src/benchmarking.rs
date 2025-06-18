@@ -395,7 +395,7 @@ benchmarks! {
     }: deregister_nodes(
         RawOrigin::Signed(registrar.clone()),
         owner.clone(),
-        BoundedVec::truncate_from(nodes_to_deregister.clone()), b as u32)
+        BoundedVec::truncate_from(nodes_to_deregister.clone()))
     verify {
         for node in &nodes_to_deregister {
             assert!(!<OwnedNodes<T>>::contains_key(owner.clone(), node));
@@ -440,7 +440,7 @@ benchmarks! {
 
         let signature = registrar_key.sign(&signed_payload).ok_or("Error signing proof")?;
         let proof = get_proof::<T>(&relayer.clone(), &registrar, signature.into());
-    }: signed_deregister_nodes(RawOrigin::Signed(registrar.clone()), proof, owner.clone(), bounded_nodes_to_deregister, now, b as u32)
+    }: signed_deregister_nodes(RawOrigin::Signed(registrar.clone()), proof, owner.clone(), bounded_nodes_to_deregister, now)
     verify {
         for node in &nodes_to_deregister {
             assert!(!<OwnedNodes<T>>::contains_key(owner.clone(), node));

@@ -354,8 +354,6 @@ pub mod pallet {
         HeartbeatThresholdReached,
         /// The minimum uptime threshold is 0
         UptimeThresholdZero,
-        /// The number of nodes to deregister is not the same as the number of nodes provided
-        InvalidNumberOfNodes,
         /// The specified node is not owned by the owner
         NodeNotOwnedByOwner,
     }
@@ -700,19 +698,13 @@ pub mod pallet {
         }
 
         #[pallet::call_index(5)]
-        #[pallet::weight(<T as Config>::WeightInfo::deregister_nodes(*number_of_nodes_to_deregister))]
+        #[pallet::weight(<T as Config>::WeightInfo::deregister_nodes(nodes_to_deregister.len() as u32))]
         pub fn deregister_nodes(
             origin: OriginFor<T>,
             owner: T::AccountId,
             nodes_to_deregister: BoundedVec<NodeId<T>, MaxNodesToDeregister>,
-            // This is needed for benchmarks
-            number_of_nodes_to_deregister: u32,
         ) -> DispatchResult {
             let sender = ensure_signed(origin)?;
-            ensure!(
-                number_of_nodes_to_deregister == nodes_to_deregister.len() as u32,
-                Error::<T>::InvalidNumberOfNodes
-            );
 
             let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
             ensure!(registrar == sender, Error::<T>::OriginNotRegistrar);
@@ -723,22 +715,16 @@ pub mod pallet {
         }
 
         #[pallet::call_index(6)]
-        #[pallet::weight(<T as Config>::WeightInfo::signed_deregister_nodes(*number_of_nodes_to_deregister))]
+        #[pallet::weight(<T as Config>::WeightInfo::signed_deregister_nodes(nodes_to_deregister.len() as u32))]
         pub fn signed_deregister_nodes(
             origin: OriginFor<T>,
             proof: Proof<T::Signature, T::AccountId>,
             owner: T::AccountId,
             nodes_to_deregister: BoundedVec<NodeId<T>, MaxNodesToDeregister>,
             block_number: BlockNumberFor<T>,
-            // This is needed for benchmarks
-            number_of_nodes_to_deregister: u32,
         ) -> DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
-            ensure!(
-                number_of_nodes_to_deregister == nodes_to_deregister.len() as u32,
-                Error::<T>::InvalidNumberOfNodes
-            );
 
             let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
             ensure!(registrar == sender, Error::<T>::OriginNotRegistrar);
@@ -753,7 +739,7 @@ pub mod pallet {
                 &proof.relayer,
                 &owner,
                 &nodes_to_deregister,
-                &number_of_nodes_to_deregister,
+                &(nodes_to_deregister.len() as u32),
                 &block_number,
             );
 
@@ -996,13 +982,12 @@ pub mod pallet {
                     ref owner,
                     ref nodes_to_deregister,
                     ref block_number,
-                    ref number_of_nodes_to_deregister,
                 } => {
                     let encoded_data = encode_signed_deregister_node_params::<T>(
                         &proof.relayer,
                         owner,
                         nodes_to_deregister,
-                        number_of_nodes_to_deregister,
+                        &(nodes_to_deregister.len() as u32),
                         block_number,
                     );
 

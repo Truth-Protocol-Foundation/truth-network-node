@@ -161,7 +161,6 @@ fn deregistration_succeeds() {
             RuntimeOrigin::signed(context.registrar),
             context.owner,
             BoundedVec::truncate_from(context.registered_nodes.clone()),
-            num_nodes_to_deregister as u32,
         ));
 
         for node in &context.registered_nodes {
@@ -211,7 +210,6 @@ fn signed_deregistration_succeeds() {
             context.owner,
             BoundedVec::truncate_from(context.registered_nodes.clone()),
             block_number,
-            num_nodes_to_deregister as u32,
         ));
 
         for node in &context.registered_nodes {
@@ -244,7 +242,6 @@ fn payment_works_all_nodes_deregistered() {
             RuntimeOrigin::signed(context.registrar),
             context.owner,
             BoundedVec::truncate_from(context.registered_nodes.clone()),
-            num_nodes_to_deregister as u32,
         ));
 
         for node in &context.registered_nodes {
@@ -326,7 +323,6 @@ fn payment_works_some_nodes_deregistered() {
             RuntimeOrigin::signed(context.registrar),
             context.owner,
             BoundedVec::truncate_from(nodes_to_deregister),
-            num_nodes_to_deregister,
         ));
 
         let reward_period = <RewardPeriod<TestRuntime>>::get();
@@ -400,7 +396,6 @@ mod fails_when {
         ext.execute_with(|| {
             let node_count = <MaxBatchSize<TestRuntime>>::get();
             let context = Context::new(node_count as u8);
-            let num_nodes_to_deregister = context.registered_nodes.len();
 
             let bad_origin = RuntimeOrigin::signed(context.owner);
             assert_noop!(
@@ -408,7 +403,6 @@ mod fails_when {
                     bad_origin,
                     context.owner,
                     BoundedVec::truncate_from(context.registered_nodes.clone()),
-                    num_nodes_to_deregister as u32,
                 ),
                 Error::<TestRuntime>::OriginNotRegistrar
             );
@@ -424,7 +418,6 @@ mod fails_when {
         ext.execute_with(|| {
             let node_count = <MaxBatchSize<TestRuntime>>::get();
             let context = Context::new(node_count as u8);
-            let num_nodes_to_deregister = 2u32;
 
             let bad_node = context.owner;
             assert_noop!(
@@ -432,7 +425,6 @@ mod fails_when {
                     RuntimeOrigin::signed(context.registrar),
                     context.owner,
                     BoundedVec::truncate_from(vec![bad_node, context.registered_nodes[0].clone()]),
-                    num_nodes_to_deregister,
                 ),
                 Error::<TestRuntime>::NodeNotOwnedByOwner
             );
@@ -448,7 +440,6 @@ mod fails_when {
         ext.execute_with(|| {
             let node_count = <MaxBatchSize<TestRuntime>>::get();
             let context = Context::new(node_count as u8);
-            let num_nodes_to_deregister = context.registered_nodes.len();
 
             let bad_owner = context.registrar;
             assert_noop!(
@@ -456,32 +447,8 @@ mod fails_when {
                     RuntimeOrigin::signed(context.registrar),
                     bad_owner,
                     BoundedVec::truncate_from(context.registered_nodes.clone()),
-                    num_nodes_to_deregister as u32,
                 ),
                 Error::<TestRuntime>::NodeNotOwnedByOwner
-            );
-        });
-    }
-
-    #[test]
-    fn number_of_nodes_is_incorrect() {
-        let (mut ext, _, _) = ExtBuilder::build_default()
-            .with_genesis_config()
-            .for_offchain_worker()
-            .as_externality_with_state();
-        ext.execute_with(|| {
-            let node_count = <MaxBatchSize<TestRuntime>>::get();
-            let context = Context::new(node_count as u8);
-
-            let bad_number_to_deregister = 1u32;
-            assert_noop!(
-                NodeManager::deregister_nodes(
-                    RuntimeOrigin::signed(context.registrar),
-                    context.owner,
-                    BoundedVec::truncate_from(context.registered_nodes.clone()),
-                    bad_number_to_deregister,
-                ),
-                Error::<TestRuntime>::InvalidNumberOfNodes
             );
         });
     }
