@@ -48,6 +48,9 @@ mod test_admin;
 #[path = "tests/test_heartbeat.rs"]
 mod test_heartbeat;
 #[cfg(test)]
+#[path = "tests/test_node_deregistration.rs"]
+mod test_node_deregistration;
+#[cfg(test)]
 #[path = "tests/test_node_registration.rs"]
 mod test_node_registration;
 #[cfg(test)]
@@ -70,8 +73,9 @@ use sp_std::prelude::*;
 const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
-
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
+pub const SIGNED_DEREGISTER_NODE_CONTEXT: &[u8] = b"deregister_node";
+pub const MAX_NODES_TO_DEREGISTER: u32 = 64;
 
 // Error codes returned by validate unsigned methods
 /// Invalid signature for `paying` transaction
@@ -93,6 +97,8 @@ pub(crate) type BalanceOf<T> =
 pub(crate) type RewardPeriodIndex = u64;
 /// A type alias for a unique identifier of a node
 pub(crate) type NodeId<T> = <T as frame_system::Config>::AccountId;
+/// The max number of nodes that can be deregistered in a single call
+pub type MaxNodesToDeregister = ConstU32<MAX_NODES_TO_DEREGISTER>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -291,6 +297,8 @@ pub mod pallet {
         RewardToggled { enabled: bool },
         /// A new minimum uptime threshold has been set
         MinUptimeThresholdSet { threshold: Perbill },
+        /// A node has been deregistered
+        NodeDeregistered { owner: T::AccountId, node: NodeId<T> },
     }
 
     // Pallet Errors
@@ -346,6 +354,8 @@ pub mod pallet {
         HeartbeatThresholdReached,
         /// The minimum uptime threshold is 0
         UptimeThresholdZero,
+        /// The specified node is not owned by the owner
+        NodeNotOwnedByOwner,
     }
 
     #[pallet::config]
@@ -686,6 +696,62 @@ pub mod pallet {
 
             Ok(())
         }
+
+        #[pallet::call_index(5)]
+        #[pallet::weight(<T as Config>::WeightInfo::deregister_nodes(nodes_to_deregister.len() as u32))]
+        pub fn deregister_nodes(
+            origin: OriginFor<T>,
+            owner: T::AccountId,
+            nodes_to_deregister: BoundedVec<NodeId<T>, MaxNodesToDeregister>,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
+            ensure!(registrar == sender, Error::<T>::OriginNotRegistrar);
+
+            Self::do_deregister_nodes(&owner, &nodes_to_deregister)?;
+
+            Ok(())
+        }
+
+        #[pallet::call_index(6)]
+        #[pallet::weight(<T as Config>::WeightInfo::signed_deregister_nodes(nodes_to_deregister.len() as u32))]
+        pub fn signed_deregister_nodes(
+            origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+            owner: T::AccountId,
+            nodes_to_deregister: BoundedVec<NodeId<T>, MaxNodesToDeregister>,
+            block_number: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+            ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
+
+            let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
+            ensure!(registrar == sender, Error::<T>::OriginNotRegistrar);
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
+
+            // Create and verify the signed payload
+            let signed_payload = encode_signed_deregister_node_params::<T>(
+                &proof.relayer,
+                &owner,
+                &nodes_to_deregister,
+                &(nodes_to_deregister.len() as u32),
+                &block_number,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            Self::do_deregister_nodes(&owner, &nodes_to_deregister)?;
+
+            Ok(())
+        }
     }
 
     #[pallet::hooks]
@@ -818,6 +884,28 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        fn do_deregister_nodes(
+            owner: &T::AccountId,
+            nodes: &BoundedVec<NodeId<T>, MaxNodesToDeregister>,
+        ) -> DispatchResult {
+            for node in nodes {
+                ensure!(
+                    <OwnedNodes<T>>::contains_key(owner, node),
+                    Error::<T>::NodeNotOwnedByOwner
+                );
+
+                <NodeRegistry<T>>::remove(node);
+                <OwnedNodes<T>>::remove(owner, node);
+                <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_sub(1));
+
+                Self::deposit_event(Event::NodeDeregistered {
+                    owner: owner.clone(),
+                    node: node.clone(),
+                });
+            }
+            Ok(())
+        }
+
         pub(crate) fn calculate_uptime_threshold(reward_period_length: u32) -> u32 {
             let heartbeat_period = HeartbeatPeriod::<T>::get();
             let threshold = MinUptimeThreshold::<T>::get().unwrap_or(Self::get_default_threshold());
@@ -889,6 +977,22 @@ pub mod pallet {
 
                     Some((proof, encoded_data))
                 },
+                Call::signed_deregister_nodes {
+                    ref proof,
+                    ref owner,
+                    ref nodes_to_deregister,
+                    ref block_number,
+                } => {
+                    let encoded_data = encode_signed_deregister_node_params::<T>(
+                        &proof.relayer,
+                        owner,
+                        nodes_to_deregister,
+                        &(nodes_to_deregister.len() as u32),
+                        block_number,
+                    );
+
+                    Some((proof, encoded_data))
+                },
                 _ => None,
             }
         }
@@ -923,4 +1027,22 @@ pub fn encode_signed_register_node_params<T: Config>(
     block_number: &BlockNumberFor<T>,
 ) -> Vec<u8> {
     (SIGNED_REGISTER_NODE_CONTEXT, relayer.clone(), node, owner, signing_key, block_number).encode()
+}
+
+pub fn encode_signed_deregister_node_params<T: Config>(
+    relayer: &T::AccountId,
+    owner: &T::AccountId,
+    nodes_to_deregister: &BoundedVec<NodeId<T>, MaxNodesToDeregister>,
+    number_of_nodes_to_deregister: &u32,
+    block_number: &BlockNumberFor<T>,
+) -> Vec<u8> {
+    (
+        SIGNED_DEREGISTER_NODE_CONTEXT,
+        relayer.clone(),
+        owner,
+        nodes_to_deregister,
+        number_of_nodes_to_deregister,
+        block_number,
+    )
+        .encode()
 }
