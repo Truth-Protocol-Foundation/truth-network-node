@@ -917,6 +917,7 @@ impl pallet_watchtower::Config for Runtime {
     type NodeManager = RuntimeNodeManager;
     type MaxWatchtowers = MaxWatchtowersRuntime;
     type SignerId = NodeManagerKeyId;
+    type ChallengeResolutionOrigin = EnsureAdminOrRoot;
 }
 
 impl pallet_utility::Config for Runtime {
