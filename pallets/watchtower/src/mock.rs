@@ -155,6 +155,7 @@ impl Config for TestRuntime {
     type VoteStatusNotifier = MockVoteStatusNotifier;
     type NodeManager = MockNodeManager;
     type MinVotingPeriod = ConstU64<10>;
+    type ChallengeResolutionOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 impl<LocalCall> system::offchain::SendTransactionTypes<LocalCall> for TestRuntime
@@ -428,5 +429,94 @@ pub fn assert_consensus_reached_event_emitted(
             )
         }),
         "Expected WatchtowerConsensusReached event not found"
+    );
+}
+
+pub fn assert_challenge_submitted_event_emitted(
+    challenger: &AccountId,
+    instance: SummarySourceInstance,
+    root_id: &WatchtowerRootId<BlockNumber>,
+    incorrect_root_id: &WatchtowerOnChainHash,
+    correct_root_hash: &WatchtowerOnChainHash,
+    challenge_count: u32,
+) {
+    let events = System::events();
+    assert!(
+        events.iter().any(|record| {
+            matches!(
+                record.event,
+                RuntimeEvent::Watchtower(crate::Event::ChallengeSubmitted {
+                    summary_instance: i,
+                    root_id: ref r,
+                    incorrect_root_id: ref inc,
+                    correct_root_hash: ref cor,
+                    challenger: ref c,
+                    challenge_count: count
+                }) if i == instance && r == root_id && inc == incorrect_root_id &&
+                     cor == correct_root_hash && c == challenger && count == challenge_count
+            )
+        }),
+        "Expected ChallengeSubmitted event not found"
+    );
+}
+
+pub fn assert_first_challenge_alert_event_emitted(
+    instance: SummarySourceInstance,
+    root_id: &WatchtowerRootId<BlockNumber>,
+) {
+    let events = System::events();
+    assert!(
+        events.iter().any(|record| {
+            matches!(
+                record.event,
+                RuntimeEvent::Watchtower(crate::Event::FirstChallengeAlert {
+                    summary_instance: i,
+                    root_id: ref r
+                }) if i == instance && r == root_id
+            )
+        }),
+        "Expected FirstChallengeAlert event not found"
+    );
+}
+
+pub fn assert_challenge_accepted_event_emitted(
+    instance: SummarySourceInstance,
+    root_id: &WatchtowerRootId<BlockNumber>,
+) {
+    let events = System::events();
+    assert!(
+        events.iter().any(|record| {
+            matches!(
+                record.event,
+                RuntimeEvent::Watchtower(crate::Event::ChallengeAccepted {
+                    summary_instance: i,
+                    root_id: ref r,
+                    challengers: ref _c
+                }) if i == instance && r == root_id
+            )
+        }),
+        "Expected ChallengeAccepted event not found"
+    );
+}
+
+pub fn assert_challenge_resolved_event_emitted(
+    instance: SummarySourceInstance,
+    root_id: &WatchtowerRootId<BlockNumber>,
+    resolution: crate::ChallengeResolution,
+) {
+    let events = System::events();
+    assert!(
+        events.iter().any(|record| {
+            matches!(
+                record.event,
+                RuntimeEvent::Watchtower(crate::Event::ChallengeResolved {
+                    summary_instance: i,
+                    root_id: ref r,
+                    resolution: res,
+                    challengers: ref _c
+                }) if i == instance && r == root_id && res == resolution
+            )
+        }),
+        "Expected ChallengeResolved event not found"
     );
 }
