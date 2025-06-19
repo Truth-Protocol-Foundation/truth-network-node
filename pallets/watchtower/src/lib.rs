@@ -540,7 +540,7 @@ pub mod pallet {
 
                     ValidTransaction::with_tag_prefix("WatchtowerOCW")
                         .priority(TransactionPriority::MAX)
-                        .and_provides(vec![provides_tag])
+                        .and_provides(WATCHTOWER_VOTE_PROVIDE_TAG)
                         .longevity(64_u64)
                         .propagate(true)
                         .build()
@@ -1353,7 +1353,6 @@ pub mod pallet {
     }
 }
 
-pub struct ExternalNotifier<T>(sp_std::marker::PhantomData<T>);
 
 pub type SummarySourceId = u8;
 
