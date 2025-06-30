@@ -83,16 +83,16 @@ frame_support::construct_runtime!(
     }
 );
 
-pub struct MockSummaryServiceProvider;
-impl SummaryServices<TestRuntime> for MockSummaryServiceProvider {
-    fn update_summary_status(
+pub struct MockVoteStatusNotifier;
+impl VoteStatusNotifier<TestRuntime> for MockVoteStatusNotifier {
+    fn on_voting_completed(
         instance: SummarySourceInstance,
         root_id: WatchtowerRootId<BlockNumber>,
         status: WatchtowerSummaryStatus,
     ) -> DispatchResult {
         log::debug!(
             target: "watchtower::mock",
-            "MockSummaryServiceProvider::update_summary_status called with instance: {:?}, root_id: {:?}, status: {:?}",
+            "MockVoteStatusNotifier::on_voting_completed called with instance: {:?}, root_id: {:?}, status: {:?}",
             instance, root_id, status
         );
         Ok(())
@@ -142,9 +142,10 @@ impl Config for TestRuntime {
     type RuntimeCall = RuntimeCall;
     type WeightInfo = ();
     type SignerId = UintAuthorityId;
-    type SummaryServiceProvider = MockSummaryServiceProvider;
+    type VoteStatusNotifier = MockVoteStatusNotifier;
     type NodeManager = MockNodeManager;
     type MaxWatchtowers = MaxWatchtowers;
+    type MinVotingPeriod = ConstU64<10>;
 }
 
 impl<LocalCall> system::offchain::SendTransactionTypes<LocalCall> for TestRuntime

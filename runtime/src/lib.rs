@@ -894,8 +894,8 @@ impl pallet_node_manager::Config for Runtime {
     type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
 }
 
-impl pallet_watchtower::SummaryServices<Runtime> for Runtime {
-    fn update_summary_status(
+impl pallet_watchtower::VoteStatusNotifier<Runtime> for Runtime {
+    fn on_voting_completed(
         instance: pallet_watchtower::SummarySourceInstance,
         root_id: pallet_watchtower::WatchtowerRootId<BlockNumber>,
         status: pallet_watchtower::WatchtowerSummaryStatus,
@@ -913,10 +913,11 @@ impl pallet_watchtower::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type WeightInfo = pallet_watchtower::default_weights::SubstrateWeight<Runtime>;
-    type SummaryServiceProvider = Self;
+    type VoteStatusNotifier = Self;
     type NodeManager = RuntimeNodeManager;
     type MaxWatchtowers = MaxWatchtowersRuntime;
     type SignerId = NodeManagerKeyId;
+    type MinVotingPeriod = MinVotingPeriod;
 }
 
 impl pallet_utility::Config for Runtime {
@@ -942,6 +943,7 @@ parameter_types! {
     pub const AdvisoryCommitteeMaxProposals: u32 = 255;
     pub const AdvisoryCommitteeMotionDuration: BlockNumber = 3 * BLOCKS_PER_DAY;
     pub MaxProposalWeight: Weight = Perbill::from_percent(50) * RuntimeBlockWeights::get().max_block;
+    pub const MinVotingPeriod: BlockNumber = 10u32;
 }
 
 impl pallet_collective::Config<AdvisoryCommitteeInstance> for Runtime {

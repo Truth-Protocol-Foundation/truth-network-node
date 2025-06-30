@@ -517,16 +517,61 @@ fn voting_status_query_works() {
             let status = Watchtower::get_voting_status(instance, root_id.clone());
             assert!(status.is_some());
 
-            let (start_block, deadline, vote_count) = status.unwrap();
+            let (start_block, deadline, yes_votes, no_votes) = status.unwrap();
             assert_eq!(start_block, 1); // Started at block 1
             assert_eq!(deadline, 1 + Watchtower::get_voting_period());
-            assert_eq!(vote_count, 1);
+            assert_eq!(yes_votes, 1);
+            assert_eq!(no_votes, 0);
         });
 }
 
-// ================================
-// BOUNDARY CONDITION TESTS
-// ================================
+#[test]
+fn vote_counters_work_correctly() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySourceInstance::EthereumBridge;
+
+            let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
+            assert_eq!(yes_votes, 0);
+            assert_eq!(no_votes, 0);
+
+            assert_ok!(Watchtower::submit_watchtower_vote(
+                RuntimeOrigin::signed(watchtower_account_1()),
+                instance,
+                root_id.clone(),
+                true
+            ));
+
+            let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
+            assert_eq!(yes_votes, 1);
+            assert_eq!(no_votes, 0);
+
+            assert_ok!(Watchtower::submit_watchtower_vote(
+                RuntimeOrigin::signed(watchtower_account_2()),
+                instance,
+                root_id.clone(),
+                false
+            ));
+
+            let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
+            assert_eq!(yes_votes, 1);
+            assert_eq!(no_votes, 1);
+
+            assert_ok!(Watchtower::submit_watchtower_vote(
+                RuntimeOrigin::signed(watchtower_account_3()),
+                instance,
+                root_id.clone(),
+                true
+            ));
+
+            let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
+            assert_eq!(yes_votes, 0);
+            assert_eq!(no_votes, 0);
+        });
+}
 
 #[test]
 fn exact_consensus_threshold_works() {
@@ -537,8 +582,8 @@ fn exact_consensus_threshold_works() {
             let root_id = get_test_root_id();
             let instance = SummarySourceInstance::EthereumBridge;
 
-            // With 3 watchtowers, need 2 for consensus (⌈(2*3+2)/3⌉ = ⌈8/3⌉ = 3, but actually uses
-            // 2/3+1) First vote - no consensus yet
+            // With 3 watchtowers, need 2 for consensus (⌈(2*3)/3⌉ = ⌈8/3⌉ = 3, but actually uses
+            // 2/3) First vote - no consensus yet
             assert_ok!(Watchtower::submit_watchtower_vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,

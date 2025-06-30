@@ -5,7 +5,7 @@
 //! These benchmarks require the runtime to be configured with appropriate mock implementations.
 //! The benchmarking runtime should use the same mock implementations as defined in mock.rs:
 //! - MockNodeManager for T::NodeManager
-//! - MockSummaryServiceProvider for T::SummaryServiceProvider
+//! - MockVoteStatusNotifier for T::VoteStatusNotifier
 //!
 //! Additionally, the benchmarking runtime should ensure that whitelisted accounts
 //! are properly configured as authorized watchtowers in the NodeManager mock.
@@ -62,13 +62,54 @@ benchmarks! {
 
     }: _(RawOrigin::Signed(voter.clone()), summary_instance, root_id.clone(), vote_is_valid)
     verify {
-        // Verify the vote was recorded
-        let votes = IndividualWatchtowerVotes::<T>::get(summary_instance, root_id.clone());
-        assert!(!votes.is_empty(), "Vote should be recorded");
+        // Verify the vote was recorded in counters
+        let (yes_votes, no_votes) = VoteCounters::<T>::get(summary_instance, root_id.clone());
+        assert!(yes_votes > 0 || no_votes > 0, "Vote should be recorded in counters");
+
+        // Verify voter history was recorded
+        let consensus_key = (summary_instance, root_id.clone());
+        assert!(VoterHistory::<T>::contains_key(&consensus_key, &voter),
+               "Voter history should be recorded");
 
         // Verify voting period was initialized
         assert!(VotingStartBlock::<T>::contains_key((summary_instance, root_id.clone())),
                "Voting period should be initialized");
+
+        // Check that events were emitted
+        assert_events_emitted::<T>();
+    }
+
+    offchain_submit_watchtower_vote {
+        // Setup: Get a valid watchtower account and signing key
+        let node: T::AccountId = whitelisted_caller();
+        whitelist_account!(node);
+
+        let summary_instance = SummarySourceInstance::EthereumBridge;
+        let root_id = create_test_root_id::<T>(1);
+        let vote_is_valid = true;
+
+        // Get the signing key for the node (mock should provide this)
+        let signing_key = T::SignerId::generate_pair(None);
+
+        // Create a dummy signature (in real usage this would be properly signed)
+        let data = (
+            crate::WATCHTOWER_OCW_CONTEXT,
+            &summary_instance,
+            &root_id,
+            vote_is_valid,
+        );
+        let signature = signing_key.sign(&data.encode()).unwrap();
+
+    }: _(RawOrigin::None, node.clone(), signing_key, summary_instance, root_id.clone(), vote_is_valid, signature)
+    verify {
+        // Verify the vote was recorded in counters
+        let (yes_votes, no_votes) = VoteCounters::<T>::get(summary_instance, root_id.clone());
+        assert!(yes_votes > 0 || no_votes > 0, "Vote should be recorded in counters");
+
+        // Verify voter history was recorded
+        let consensus_key = (summary_instance, root_id.clone());
+        assert!(VoterHistory::<T>::contains_key(&consensus_key, &node),
+               "Voter history should be recorded");
 
         // Check that events were emitted
         assert_events_emitted::<T>();
