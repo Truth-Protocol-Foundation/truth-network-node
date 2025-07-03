@@ -26,8 +26,9 @@ use log;
 
 use pallet_avn::{self as avn};
 use sp_avn_common::{
-    RootId as PalletSummaryRootIdGeneric, SummaryStatus as PalletSummaryStatusGeneric,
+    RootId as PalletSummaryRootIdGeneric,
 };
+use common_primitives::types::VotingStatus;
 
 use sp_core::H256;
 use sp_runtime::{
@@ -70,22 +71,24 @@ pub enum SummarySourceInstance {
 
 pub type WatchtowerRootId<BlockNumber> = PalletSummaryRootIdGeneric<BlockNumber>;
 pub type WatchtowerOnChainHash = H256;
-pub type WatchtowerSummaryStatus = PalletSummaryStatusGeneric;
 
 pub trait VoteStatusNotifier<TSystemConfig: frame_system::Config> {
     fn on_voting_completed(
         instance: SummarySourceInstance,
         root_id: WatchtowerRootId<BlockNumberFor<TSystemConfig>>,
-        status: WatchtowerSummaryStatus,
+        status: VotingStatus,
     ) -> DispatchResult;
 }
 
-pub trait NodeManagerInterface<AccountId, SignerId, MaxWatchtowers: Get<u32>> {
-    fn get_authorized_watchtowers() -> Result<BoundedVec<AccountId, MaxWatchtowers>, DispatchError>;
-
+pub trait NodeManagerInterface<AccountId, SignerId> {
     fn is_authorized_watchtower(who: &AccountId) -> bool;
 
     fn get_node_signing_key(node: &AccountId) -> Option<SignerId>;
+    
+    fn get_node_from_local_signing_keys() -> Option<(AccountId, SignerId)>;
+
+    /// Get the count of authorized watchtowers without fetching the full list
+    fn get_authorized_watchtowers_count() -> u32;
 }
 
 pub use pallet::*;
@@ -119,12 +122,7 @@ pub mod pallet {
         type SignerId: Member + Parameter + sp_runtime::RuntimeAppPublic + Ord + MaxEncodedLen;
 
         type VoteStatusNotifier: VoteStatusNotifier<Self>;
-        type NodeManager: NodeManagerInterface<
-            Self::AccountId,
-            Self::SignerId,
-            Self::MaxWatchtowers,
-        >;
-        type MaxWatchtowers: Get<u32>;
+        type NodeManager: NodeManagerInterface<Self::AccountId, Self::SignerId>;
 
         /// Minimum allowed voting period in blocks
         #[pallet::constant]
@@ -208,16 +206,6 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        VerificationResultSubmitted {
-            summary_instance: SummarySourceInstance,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
-            result: WatchtowerSummaryStatus,
-        },
-        VerificationProcessingError {
-            summary_instance: SummarySourceInstance,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
-            reason: VerificationError,
-        },
         WatchtowerVoteSubmitted {
             voter: T::AccountId,
             summary_instance: SummarySourceInstance,
@@ -227,22 +215,12 @@ pub mod pallet {
         WatchtowerConsensusReached {
             summary_instance: SummarySourceInstance,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
-            consensus_result: WatchtowerSummaryStatus,
+            consensus_result: VotingStatus,
         },
         VotingPeriodUpdated {
             old_period: BlockNumberFor<T>,
             new_period: BlockNumberFor<T>,
         },
-    }
-
-    #[derive(Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq, Clone, Debug)]
-    pub enum VerificationError {
-        LockAcquisitionFailed,
-        HttpCallFailed,
-        SubmitTxFailed,
-        SummaryNotReadyForWatchtower,
-        DataConversionError,
-        RecalculationResponseError,
     }
 
     #[pallet::error]
@@ -257,10 +235,6 @@ pub mod pallet {
         AlreadyVoted,
         /// Consensus has already been reached for this verification, no more votes needed.
         ConsensusAlreadyReached,
-        /// Failed to retrieve the list of authorized watchtowers from storage.
-        FailedToGetAuthorizedWatchtowers,
-        /// There are too few watchtowers available to form a valid consensus.
-        TooFewWatchtowersToFormConsensus,
         /// The voting period has expired and no more votes can be submitted.
         VotingPeriodExpired,
         /// Voting has not started yet for this verification.
@@ -289,8 +263,8 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         #[pallet::call_index(0)]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::submit_watchtower_vote())]
-        pub fn submit_watchtower_vote(
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::vote())]
+        pub fn vote(
             origin: OriginFor<T>,
             summary_instance: SummarySourceInstance,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
@@ -307,8 +281,8 @@ pub mod pallet {
         }
 
         #[pallet::call_index(1)]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::offchain_submit_watchtower_vote())]
-        pub fn offchain_submit_watchtower_vote(
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::ocw_vote())]
+        pub fn ocw_vote(
             origin: OriginFor<T>,
             node: T::AccountId,
             _signing_key: T::SignerId,
@@ -317,7 +291,7 @@ pub mod pallet {
             vote_is_valid: bool,
             _signature: <T::SignerId as sp_runtime::RuntimeAppPublic>::Signature,
         ) -> DispatchResult {
-            ensure_none(origin).map_err(|e| e)?;
+            ensure_none(origin)?;
 
             ensure!(T::NodeManager::is_authorized_watchtower(&node), {
                 Error::<T>::NotAuthorizedWatchtower
@@ -329,9 +303,6 @@ pub mod pallet {
                 root_id.clone(),
                 vote_is_valid,
             )
-            .map_err(|e| e)?;
-
-            Ok(())
         }
 
         #[pallet::call_index(2)]
@@ -359,7 +330,7 @@ pub mod pallet {
         type Call = Call<T>;
 
         fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-            if let Call::offchain_submit_watchtower_vote {
+            if let Call::ocw_vote {
                 node,
                 signing_key,
                 summary_instance,
@@ -428,9 +399,7 @@ pub mod pallet {
             }
 
             // Calculate and store consensus threshold once when voting starts
-            let authorized_watchtowers = T::NodeManager::get_authorized_watchtowers()
-                .map_err(|_| Error::<T>::FailedToGetAuthorizedWatchtowers)?;
-            let total_authorized_watchtowers = authorized_watchtowers.len() as u32;
+            let total_authorized_watchtowers = T::NodeManager::get_authorized_watchtowers_count();
             // Fixed threshold calculation: (n * 2 + 2) / 3 for proper 2/3 majority
             let required_for_consensus = (total_authorized_watchtowers * 2) / 3;
 
@@ -607,7 +576,7 @@ pub mod pallet {
                 },
             };
 
-            let call = Call::offchain_submit_watchtower_vote {
+            let call = Call::ocw_vote {
                 node: node.clone(),
                 signing_key: signing_key.clone(),
                 summary_instance: instance,
@@ -652,10 +621,10 @@ pub mod pallet {
             let consensus_result;
             let consensus_reached;
             if yes_votes >= required_for_consensus {
-                consensus_result = WatchtowerSummaryStatus::Accepted;
+                consensus_result = VotingStatus::Accepted;
                 consensus_reached = true;
             } else if no_votes >= required_for_consensus {
-                consensus_result = WatchtowerSummaryStatus::Rejected;
+                consensus_result = VotingStatus::Rejected;
                 consensus_reached = true;
             } else {
                 return Ok(());
@@ -720,9 +689,7 @@ pub mod pallet {
                     return Err(Error::<T>::VotingPeriodExpired.into());
                 }
             } else {
-                let authorized_watchtowers = T::NodeManager::get_authorized_watchtowers()
-                    .map_err(|_| Error::<T>::FailedToGetAuthorizedWatchtowers)?;
-                let total_authorized_watchtowers = authorized_watchtowers.len() as u32;
+                let total_authorized_watchtowers = T::NodeManager::get_authorized_watchtowers_count();
                 let required_for_consensus = (total_authorized_watchtowers * 2) / 3;
 
                 VotingStartBlock::<T>::insert(&consensus_key, current_block);
@@ -763,62 +730,10 @@ pub mod pallet {
         }
 
         fn get_node_from_signing_key() -> Option<(T::AccountId, T::SignerId)> {
-            let local_keys: Vec<T::SignerId> = T::SignerId::all();
-            log::debug!(
-                target: "runtime::watchtower::ocw",
-                "Local signing keys available: {}",
-                local_keys.len()
-            );
-
-            let authorized_watchtowers = match T::NodeManager::get_authorized_watchtowers() {
-                Ok(watchtowers) => {
-                    log::debug!(
-                        target: "runtime::watchtower::ocw",
-                        "Found {} authorized watchtowers",
-                        watchtowers.len()
-                    );
-                    watchtowers
-                },
-                Err(_) => {
-                    log::error!(
-                        target: "runtime::watchtower::ocw",
-                        "Failed to get authorized watchtowers"
-                    );
-                    return None;
-                },
-            };
-
-            for local_key in local_keys.iter() {
-                log::debug!(
-                    target: "runtime::watchtower::ocw",
-                    "Checking local key against authorized watchtowers"
-                );
-
-                for node in authorized_watchtowers.iter() {
-                    if let Some(node_signing_key) = T::NodeManager::get_node_signing_key(node) {
-                        log::debug!(
-                            target: "runtime::watchtower::ocw",
-                            "Comparing local key with watchtower node signing key"
-                        );
-                        if *local_key == node_signing_key {
-                            log::info!(
-                                target: "runtime::watchtower::ocw",
-                                "Found matching watchtower node for OCW operations"
-                            );
-                            return Some((node.clone(), node_signing_key));
-                        }
-                    } else {
-                        log::debug!(
-                            target: "runtime::watchtower::ocw",
-                            "No signing key found for watchtower node"
-                        );
-                    }
-                }
+            match T::NodeManager::get_node_from_local_signing_keys() {
+                Some((node, signing_key)) => Some((node, signing_key)),
+                None => None,
             }
-
-            if !local_keys.is_empty() && !authorized_watchtowers.is_empty() {}
-
-            None
         }
 
         pub fn offchain_signature_is_valid<D: Encode>(

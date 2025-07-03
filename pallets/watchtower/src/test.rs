@@ -3,8 +3,8 @@
 use super::mock::*;
 use crate::{
     Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySourceInstance,
-    WatchtowerSummaryStatus,
 };
+use common_primitives::types::VotingStatus;
 use frame_support::{assert_noop, assert_ok};
 use sp_runtime::RuntimeAppPublic;
 
@@ -23,20 +23,25 @@ fn mock_setup_works() {
             assert!(MockNodeManager::is_authorized_watchtower(&watchtower_account_3()));
             assert!(!MockNodeManager::is_authorized_watchtower(&unauthorized_account()));
 
-            // Test that authorized watchtowers list works
-            let watchtowers = MockNodeManager::get_authorized_watchtowers().unwrap();
-            assert_eq!(watchtowers.len(), 3);
+            // Test that authorized watchtowers count works
+            let watchtower_count = MockNodeManager::get_authorized_watchtowers_count();
+            assert_eq!(watchtower_count, 3);
 
             // Test that signing keys are available
             assert!(MockNodeManager::get_node_signing_key(&watchtower_account_1()).is_some());
             assert!(MockNodeManager::get_node_signing_key(&watchtower_account_2()).is_some());
             assert!(MockNodeManager::get_node_signing_key(&watchtower_account_3()).is_some());
             assert!(MockNodeManager::get_node_signing_key(&unauthorized_account()).is_none());
+
+            // Test that the new efficient node lookup works
+            if let Some((node, _signing_key)) = MockNodeManager::get_node_from_local_signing_keys() {
+                assert!(MockNodeManager::is_authorized_watchtower(&node));
+            }
         });
 }
 
 #[test]
-fn submit_watchtower_vote_works() {
+fn vote_works() {
     ExtBuilder::build_default()
         .with_watchtowers()
         .as_externality()
@@ -44,7 +49,7 @@ fn submit_watchtower_vote_works() {
             let root_id = get_test_root_id();
             let instance = SummarySourceInstance::EthereumBridge;
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
@@ -67,14 +72,14 @@ fn voting_consensus_acceptance_works() {
             let instance = SummarySourceInstance::EthereumBridge;
 
             // Submit votes from 2 watchtowers (2/3 = majority for acceptance)
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
                 true
             ));
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
@@ -84,7 +89,7 @@ fn voting_consensus_acceptance_works() {
             assert_consensus_reached_event_emitted(
                 instance,
                 &root_id,
-                WatchtowerSummaryStatus::Accepted,
+                VotingStatus::Accepted,
             );
 
             assert!(!Watchtower::is_voting_active(instance, root_id));
@@ -101,14 +106,14 @@ fn voting_consensus_rejection_works() {
             let instance = SummarySourceInstance::EthereumBridge;
 
             // Submit votes from 2 watchtowers (2/3 = majority for rejection)
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
                 false
             ));
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
@@ -118,7 +123,7 @@ fn voting_consensus_rejection_works() {
             assert_consensus_reached_event_emitted(
                 instance,
                 &root_id,
-                WatchtowerSummaryStatus::Rejected,
+                VotingStatus::Rejected,
             );
         });
 }
@@ -158,28 +163,28 @@ fn multiple_summary_instances_work_independently() {
             let ethereum_instance = SummarySourceInstance::EthereumBridge;
             let anchor_instance = SummarySourceInstance::AnchorStorage;
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 ethereum_instance,
                 root_id.clone(),
                 true
             ));
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 ethereum_instance,
                 root_id.clone(),
                 true
             ));
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 anchor_instance,
                 root_id.clone(),
                 false
             ));
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 anchor_instance,
                 root_id.clone(),
@@ -189,19 +194,19 @@ fn multiple_summary_instances_work_independently() {
             assert_consensus_reached_event_emitted(
                 ethereum_instance,
                 &root_id,
-                WatchtowerSummaryStatus::Accepted,
+                VotingStatus::Accepted,
             );
 
             assert_consensus_reached_event_emitted(
                 anchor_instance,
                 &root_id,
-                WatchtowerSummaryStatus::Rejected,
+                VotingStatus::Rejected,
             );
         });
 }
 
 #[test]
-fn submit_watchtower_vote_unauthorized_fails() {
+fn vote_unauthorized_fails() {
     ExtBuilder::build_default()
         .with_watchtowers()
         .as_externality()
@@ -211,7 +216,7 @@ fn submit_watchtower_vote_unauthorized_fails() {
 
             // Try to submit a vote from an unauthorized account
             assert_noop!(
-                Watchtower::submit_watchtower_vote(
+                Watchtower::vote(
                     RuntimeOrigin::signed(unauthorized_account()),
                     instance,
                     root_id,
@@ -232,7 +237,7 @@ fn double_voting_fails() {
             let instance = SummarySourceInstance::EthereumBridge;
 
             // First vote should succeed
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
@@ -241,7 +246,7 @@ fn double_voting_fails() {
 
             // Second vote from same watchtower should fail
             assert_noop!(
-                Watchtower::submit_watchtower_vote(
+                Watchtower::vote(
                     RuntimeOrigin::signed(watchtower_account_1()),
                     instance,
                     root_id,
@@ -262,14 +267,14 @@ fn voting_after_consensus_fails() {
             let instance = SummarySourceInstance::EthereumBridge;
 
             // Reach consensus with 2 votes
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
                 true
             ));
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
@@ -280,12 +285,12 @@ fn voting_after_consensus_fails() {
             assert_consensus_reached_event_emitted(
                 instance,
                 &root_id,
-                WatchtowerSummaryStatus::Accepted,
+                VotingStatus::Accepted,
             );
 
             // Third vote should fail as consensus already reached
             assert_noop!(
-                Watchtower::submit_watchtower_vote(
+                Watchtower::vote(
                     RuntimeOrigin::signed(watchtower_account_3()),
                     instance,
                     root_id,
@@ -307,7 +312,7 @@ fn voting_period_expiry_works() {
             let voting_period = Watchtower::get_voting_period();
 
             // Submit initial vote
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
@@ -319,7 +324,7 @@ fn voting_period_expiry_works() {
 
             // Try to vote after period expiry should fail
             assert_noop!(
-                Watchtower::submit_watchtower_vote(
+                Watchtower::vote(
                     RuntimeOrigin::signed(watchtower_account_2()),
                     instance,
                     root_id,
@@ -340,14 +345,14 @@ fn split_vote_no_consensus() {
             let instance = SummarySourceInstance::EthereumBridge;
 
             // Submit split votes (no consensus possible with current setup)
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
                 true
             ));
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
@@ -355,7 +360,7 @@ fn split_vote_no_consensus() {
             ));
 
             // Third vote determines consensus
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_3()),
                 instance,
                 root_id.clone(),
@@ -366,7 +371,7 @@ fn split_vote_no_consensus() {
             assert_consensus_reached_event_emitted(
                 instance,
                 &root_id,
-                WatchtowerSummaryStatus::Accepted,
+                VotingStatus::Accepted,
             );
         });
 }
@@ -410,7 +415,7 @@ fn cleanup_expired_votes_works() {
             let voting_period = Watchtower::get_voting_period();
 
             // Submit initial vote
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
@@ -506,7 +511,7 @@ fn voting_status_query_works() {
             assert!(status.is_none());
 
             // Submit a vote
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
@@ -538,7 +543,7 @@ fn vote_counters_work_correctly() {
             assert_eq!(yes_votes, 0);
             assert_eq!(no_votes, 0);
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
@@ -549,7 +554,7 @@ fn vote_counters_work_correctly() {
             assert_eq!(yes_votes, 1);
             assert_eq!(no_votes, 0);
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
@@ -560,7 +565,7 @@ fn vote_counters_work_correctly() {
             assert_eq!(yes_votes, 1);
             assert_eq!(no_votes, 1);
 
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_3()),
                 instance,
                 root_id.clone(),
@@ -584,7 +589,7 @@ fn exact_consensus_threshold_works() {
 
             // With 3 watchtowers, need 2 for consensus (⌈(2*3)/3⌉ = ⌈8/3⌉ = 3, but actually uses
             // 2/3) First vote - no consensus yet
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
@@ -601,7 +606,7 @@ fn exact_consensus_threshold_works() {
             }));
 
             // Second vote - should trigger consensus
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
@@ -612,7 +617,7 @@ fn exact_consensus_threshold_works() {
             assert_consensus_reached_event_emitted(
                 instance,
                 &root_id,
-                WatchtowerSummaryStatus::Accepted,
+                VotingStatus::Accepted,
             );
         });
 }
@@ -628,7 +633,7 @@ fn voting_deadline_boundary_test() {
             let voting_period = Watchtower::get_voting_period();
 
             // Submit initial vote at block 1
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
@@ -640,7 +645,7 @@ fn voting_deadline_boundary_test() {
 
             // Vote should still be possible at the deadline block - use split vote to avoid
             // consensus
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
@@ -652,7 +657,7 @@ fn voting_deadline_boundary_test() {
 
             // Now voting should fail
             assert_noop!(
-                Watchtower::submit_watchtower_vote(
+                Watchtower::vote(
                     RuntimeOrigin::signed(watchtower_account_3()),
                     instance,
                     root_id,
@@ -676,7 +681,7 @@ fn different_root_ids_independent_voting() {
             let instance = SummarySourceInstance::EthereumBridge;
 
             // Vote on first root_id
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id_1.clone(),
@@ -684,7 +689,7 @@ fn different_root_ids_independent_voting() {
             ));
 
             // Same watchtower can vote on different root_id
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id_2.clone(),
@@ -692,7 +697,7 @@ fn different_root_ids_independent_voting() {
             ));
 
             // Complete consensus on first root_id
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id_1.clone(),
@@ -703,14 +708,14 @@ fn different_root_ids_independent_voting() {
             assert_consensus_reached_event_emitted(
                 instance,
                 &root_id_1,
-                WatchtowerSummaryStatus::Accepted,
+                VotingStatus::Accepted,
             );
 
             // Second root_id voting should still be active
             assert!(Watchtower::is_voting_active(instance, root_id_2.clone()));
 
             // Can still vote on second root_id
-            assert_ok!(Watchtower::submit_watchtower_vote(
+            assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id_2,

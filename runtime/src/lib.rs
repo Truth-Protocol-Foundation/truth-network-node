@@ -810,7 +810,7 @@ parameter_types! {
     pub const EthAutoSubmitSummaries: bool = true;
     pub const AvnAutoSubmitSummaries: bool = false;
     pub const AvnInstanceId: u8 = 2u8;
-    pub const MaxWatchtowersRuntime: u32 = 100000;
+
 }
 
 pub struct RuntimeWatchtowerNotifier;
@@ -898,13 +898,19 @@ impl pallet_watchtower::VoteStatusNotifier<Runtime> for Runtime {
     fn on_voting_completed(
         instance: pallet_watchtower::SummarySourceInstance,
         root_id: pallet_watchtower::WatchtowerRootId<BlockNumber>,
-        status: pallet_watchtower::WatchtowerSummaryStatus,
+        status: common_primitives::types::VotingStatus,
     ) -> DispatchResult {
+        // Map the generic VotingStatus to summary-specific status
+        let summary_status = match status {
+            common_primitives::types::VotingStatus::Accepted => sp_avn_common::SummaryStatus::Accepted,
+            common_primitives::types::VotingStatus::Rejected => sp_avn_common::SummaryStatus::Rejected,
+        };
+
         match instance {
             pallet_watchtower::SummarySourceInstance::EthereumBridge =>
-                Summary::set_summary_status_and_process(root_id, status),
+                Summary::set_summary_status_and_process(root_id, summary_status),
             pallet_watchtower::SummarySourceInstance::AnchorStorage =>
-                AnchorSummary::set_summary_status_and_process(root_id, status),
+                AnchorSummary::set_summary_status_and_process(root_id, summary_status),
         }
     }
 }
@@ -915,7 +921,6 @@ impl pallet_watchtower::Config for Runtime {
     type WeightInfo = pallet_watchtower::default_weights::SubstrateWeight<Runtime>;
     type VoteStatusNotifier = Self;
     type NodeManager = RuntimeNodeManager;
-    type MaxWatchtowers = MaxWatchtowersRuntime;
     type SignerId = NodeManagerKeyId;
     type MinVotingPeriod = MinVotingPeriod;
 }
@@ -1797,16 +1802,8 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 }
 
 pub struct RuntimeNodeManager;
-impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId, MaxWatchtowersRuntime>
-    for RuntimeNodeManager
+impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager
 {
-    fn get_authorized_watchtowers(
-    ) -> Result<BoundedVec<AccountId, MaxWatchtowersRuntime>, DispatchError> {
-        let nodes: Vec<AccountId> =
-            pallet_node_manager::NodeRegistry::<Runtime>::iter_keys().collect();
-        BoundedVec::try_from(nodes).map_err(|_| DispatchError::Other("TooManyWatchtowers"))
-    }
-
     fn is_authorized_watchtower(who: &AccountId) -> bool {
         pallet_node_manager::NodeRegistry::<Runtime>::contains_key(who)
     }
@@ -1814,5 +1811,27 @@ impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId, MaxWat
     fn get_node_signing_key(node: &AccountId) -> Option<NodeManagerKeyId> {
         pallet_node_manager::NodeRegistry::<Runtime>::get(node)
             .map(|node_info| node_info.signing_key)
+    }
+
+    fn get_node_from_local_signing_keys() -> Option<(AccountId, NodeManagerKeyId)> {
+        use sp_runtime::RuntimeAppPublic;
+        
+        let mut local_keys: Vec<NodeManagerKeyId> = NodeManagerKeyId::all();
+        local_keys.sort();
+
+        // Efficiently search registered nodes by matching signing keys
+        // This avoids fetching all watchtowers and iterating through them
+        pallet_node_manager::NodeRegistry::<Runtime>::iter()
+            .filter_map(|(node_id, info)| {
+                local_keys
+                    .binary_search(&info.signing_key)
+                    .ok()
+                    .map(|_| (node_id, info.signing_key))
+            })
+            .next()
+    }
+
+    fn get_authorized_watchtowers_count() -> u32 {
+        pallet_node_manager::TotalRegisteredNodes::<Runtime>::get()
     }
 }

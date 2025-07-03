@@ -6198,6 +6198,7 @@ dependencies = [
 name = "pallet-watchtower"
 version = "1.15.0"
 dependencies = [
+ "common-primitives",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

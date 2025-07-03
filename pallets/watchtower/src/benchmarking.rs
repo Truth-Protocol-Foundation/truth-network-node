@@ -48,7 +48,7 @@ benchmarks! {
         assert_events_emitted::<T>();
     }
 
-    submit_watchtower_vote {
+    vote {
         // Setup: Get a valid watchtower account
         let voter: T::AccountId = whitelisted_caller();
         whitelist_account!(voter);
@@ -79,7 +79,7 @@ benchmarks! {
         assert_events_emitted::<T>();
     }
 
-    offchain_submit_watchtower_vote {
+    ocw_vote {
         // Setup: Get a valid watchtower account and signing key
         let node: T::AccountId = whitelisted_caller();
         whitelist_account!(node);

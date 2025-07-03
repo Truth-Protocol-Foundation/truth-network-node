@@ -88,7 +88,7 @@ impl VoteStatusNotifier<TestRuntime> for MockVoteStatusNotifier {
     fn on_voting_completed(
         instance: SummarySourceInstance,
         root_id: WatchtowerRootId<BlockNumber>,
-        status: WatchtowerSummaryStatus,
+        status: common_primitives::types::VotingStatus,
     ) -> DispatchResult {
         log::debug!(
             target: "watchtower::mock",
@@ -100,19 +100,36 @@ impl VoteStatusNotifier<TestRuntime> for MockVoteStatusNotifier {
 }
 
 pub struct MockNodeManager;
-impl NodeManagerInterface<AccountId, UintAuthorityId, MaxWatchtowers> for MockNodeManager {
-    fn get_authorized_watchtowers() -> Result<BoundedVec<AccountId, MaxWatchtowers>, DispatchError>
-    {
-        let watchtowers = AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().clone());
-        BoundedVec::try_from(watchtowers).map_err(|_| DispatchError::Other("TooManyWatchtowers"))
-    }
-
+impl NodeManagerInterface<AccountId, UintAuthorityId> for MockNodeManager {
     fn is_authorized_watchtower(who: &AccountId) -> bool {
         AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().contains(who))
     }
 
     fn get_node_signing_key(node: &AccountId) -> Option<UintAuthorityId> {
         NODE_SIGNING_KEYS.with(|keys| keys.borrow().get(node).cloned())
+    }
+
+    fn get_node_from_local_signing_keys() -> Option<(AccountId, UintAuthorityId)> {
+        use sp_runtime::RuntimeAppPublic;
+        
+        let local_keys: Vec<UintAuthorityId> = UintAuthorityId::all();
+        let authorized_watchtowers = AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().clone());
+
+        // Find the first match between local keys and authorized watchtowers
+        for local_key in local_keys.iter() {
+            for node in authorized_watchtowers.iter() {
+                if let Some(node_signing_key) = Self::get_node_signing_key(node) {
+                    if *local_key == node_signing_key {
+                        return Some((node.clone(), node_signing_key));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn get_authorized_watchtowers_count() -> u32 {
+        AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().len() as u32)
     }
 }
 
@@ -133,9 +150,7 @@ thread_local! {
         });
 }
 
-parameter_types! {
-    pub const MaxWatchtowers: u32 = 10;
-}
+
 
 impl Config for TestRuntime {
     type RuntimeEvent = RuntimeEvent;
@@ -144,7 +159,6 @@ impl Config for TestRuntime {
     type SignerId = UintAuthorityId;
     type VoteStatusNotifier = MockVoteStatusNotifier;
     type NodeManager = MockNodeManager;
-    type MaxWatchtowers = MaxWatchtowers;
     type MinVotingPeriod = ConstU64<10>;
 }
 
@@ -404,7 +418,7 @@ pub fn assert_watchtower_vote_event_emitted(
 pub fn assert_consensus_reached_event_emitted(
     instance: SummarySourceInstance,
     root_id: &WatchtowerRootId<BlockNumber>,
-    result: WatchtowerSummaryStatus,
+    result: VotingStatus,
 ) {
     let events = System::events();
     assert!(
