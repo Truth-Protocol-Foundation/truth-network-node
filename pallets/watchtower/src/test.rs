@@ -1,9 +1,7 @@
 #![cfg(test)]
 
 use super::mock::*;
-use crate::{
-    Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySourceInstance,
-};
+use crate::{Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySourceInstance};
 use common_primitives::types::VotingStatus;
 use frame_support::{assert_noop, assert_ok};
 use sp_runtime::RuntimeAppPublic;
@@ -34,7 +32,8 @@ fn mock_setup_works() {
             assert!(MockNodeManager::get_node_signing_key(&unauthorized_account()).is_none());
 
             // Test that the new efficient node lookup works
-            if let Some((node, _signing_key)) = MockNodeManager::get_node_from_local_signing_keys() {
+            if let Some((node, _signing_key)) = MockNodeManager::get_node_from_local_signing_keys()
+            {
                 assert!(MockNodeManager::is_authorized_watchtower(&node));
             }
         });
@@ -86,11 +85,7 @@ fn voting_consensus_acceptance_works() {
                 true
             ));
 
-            assert_consensus_reached_event_emitted(
-                instance,
-                &root_id,
-                VotingStatus::Accepted,
-            );
+            assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Accepted);
 
             assert!(!Watchtower::is_voting_active(instance, root_id));
         });
@@ -120,11 +115,7 @@ fn voting_consensus_rejection_works() {
                 false
             ));
 
-            assert_consensus_reached_event_emitted(
-                instance,
-                &root_id,
-                VotingStatus::Rejected,
-            );
+            assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Rejected);
         });
 }
 
@@ -282,11 +273,7 @@ fn voting_after_consensus_fails() {
             ));
 
             // Verify consensus reached
-            assert_consensus_reached_event_emitted(
-                instance,
-                &root_id,
-                VotingStatus::Accepted,
-            );
+            assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Accepted);
 
             // Third vote should fail as consensus already reached
             assert_noop!(
@@ -368,11 +355,7 @@ fn split_vote_no_consensus() {
             ));
 
             // Should reach consensus on acceptance (2 true vs 1 false)
-            assert_consensus_reached_event_emitted(
-                instance,
-                &root_id,
-                VotingStatus::Accepted,
-            );
+            assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Accepted);
         });
 }
 
@@ -614,11 +597,7 @@ fn exact_consensus_threshold_works() {
             ));
 
             // Now consensus should be reached
-            assert_consensus_reached_event_emitted(
-                instance,
-                &root_id,
-                VotingStatus::Accepted,
-            );
+            assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Accepted);
         });
 }
 
@@ -705,11 +684,7 @@ fn different_root_ids_independent_voting() {
             ));
 
             // Verify consensus only affects first root_id
-            assert_consensus_reached_event_emitted(
-                instance,
-                &root_id_1,
-                VotingStatus::Accepted,
-            );
+            assert_consensus_reached_event_emitted(instance, &root_id_1, VotingStatus::Accepted);
 
             // Second root_id voting should still be active
             assert!(Watchtower::is_voting_active(instance, root_id_2.clone()));

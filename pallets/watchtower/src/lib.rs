@@ -24,11 +24,9 @@ use alloc::{
 use hex;
 use log;
 
-use pallet_avn::{self as avn};
-use sp_avn_common::{
-    RootId as PalletSummaryRootIdGeneric,
-};
 use common_primitives::types::VotingStatus;
+use pallet_avn::{self as avn};
+use sp_avn_common::RootId as PalletSummaryRootIdGeneric;
 
 use sp_core::H256;
 use sp_runtime::{
@@ -84,7 +82,7 @@ pub trait NodeManagerInterface<AccountId, SignerId> {
     fn is_authorized_watchtower(who: &AccountId) -> bool;
 
     fn get_node_signing_key(node: &AccountId) -> Option<SignerId>;
-    
+
     fn get_node_from_local_signing_keys() -> Option<(AccountId, SignerId)>;
 
     /// Get the count of authorized watchtowers without fetching the full list
@@ -689,7 +687,8 @@ pub mod pallet {
                     return Err(Error::<T>::VotingPeriodExpired.into());
                 }
             } else {
-                let total_authorized_watchtowers = T::NodeManager::get_authorized_watchtowers_count();
+                let total_authorized_watchtowers =
+                    T::NodeManager::get_authorized_watchtowers_count();
                 let required_for_consensus = (total_authorized_watchtowers * 2) / 3;
 
                 VotingStartBlock::<T>::insert(&consensus_key, current_block);

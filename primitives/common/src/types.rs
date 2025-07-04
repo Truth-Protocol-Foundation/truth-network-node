@@ -1,10 +1,9 @@
-use sp_runtime::{
-    traits::{IdentifyAccount, Verify},
-    MultiSignature,
-};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{
+    traits::{IdentifyAccount, Verify},
+    MultiSignature, RuntimeDebug,
+};
 
 // Some way of identifying an account on the chain. We intentionally make it equivalent
 /// to the public key of our transaction signing scheme.

@@ -902,8 +902,10 @@ impl pallet_watchtower::VoteStatusNotifier<Runtime> for Runtime {
     ) -> DispatchResult {
         // Map the generic VotingStatus to summary-specific status
         let summary_status = match status {
-            common_primitives::types::VotingStatus::Accepted => sp_avn_common::SummaryStatus::Accepted,
-            common_primitives::types::VotingStatus::Rejected => sp_avn_common::SummaryStatus::Rejected,
+            common_primitives::types::VotingStatus::Accepted =>
+                sp_avn_common::SummaryStatus::Accepted,
+            common_primitives::types::VotingStatus::Rejected =>
+                sp_avn_common::SummaryStatus::Rejected,
         };
 
         match instance {
@@ -1802,8 +1804,7 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 }
 
 pub struct RuntimeNodeManager;
-impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager
-{
+impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager {
     fn is_authorized_watchtower(who: &AccountId) -> bool {
         pallet_node_manager::NodeRegistry::<Runtime>::contains_key(who)
     }
@@ -1815,7 +1816,7 @@ impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for Ru
 
     fn get_node_from_local_signing_keys() -> Option<(AccountId, NodeManagerKeyId)> {
         use sp_runtime::RuntimeAppPublic;
-        
+
         let mut local_keys: Vec<NodeManagerKeyId> = NodeManagerKeyId::all();
         local_keys.sort();
 

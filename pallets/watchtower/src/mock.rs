@@ -111,7 +111,7 @@ impl NodeManagerInterface<AccountId, UintAuthorityId> for MockNodeManager {
 
     fn get_node_from_local_signing_keys() -> Option<(AccountId, UintAuthorityId)> {
         use sp_runtime::RuntimeAppPublic;
-        
+
         let local_keys: Vec<UintAuthorityId> = UintAuthorityId::all();
         let authorized_watchtowers = AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().clone());
 
@@ -149,8 +149,6 @@ thread_local! {
             keys
         });
 }
-
-
 
 impl Config for TestRuntime {
     type RuntimeEvent = RuntimeEvent;
