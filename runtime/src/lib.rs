@@ -820,12 +820,12 @@ impl sp_avn_common::WatchtowerNotification<BlockNumber> for RuntimeWatchtowerNot
         root_id: sp_avn_common::RootId<BlockNumber>,
         root_hash: sp_core::H256,
     ) -> DispatchResult {
-        use pallet_watchtower::SummarySourceInstance;
+        use pallet_watchtower::SummarySource;
 
         // Map instance ID to summary source instance
         let summary_instance = match instance_id {
-            1 => SummarySourceInstance::EthereumBridge, // EthereumInstanceId
-            2 => SummarySourceInstance::AnchorStorage,  // AvnInstanceId
+            1 => SummarySource::EthereumBridge, // EthereumInstanceId
+            2 => SummarySource::AnchorStorage,  // AvnInstanceId
             _ => {
                 return Err(DispatchError::Other("UnknownSummaryInstance"));
             },
@@ -896,7 +896,7 @@ impl pallet_node_manager::Config for Runtime {
 
 impl pallet_watchtower::VoteStatusNotifier<Runtime> for Runtime {
     fn on_voting_completed(
-        instance: pallet_watchtower::SummarySourceInstance,
+        instance: pallet_watchtower::SummarySource,
         root_id: pallet_watchtower::WatchtowerRootId<BlockNumber>,
         status: common_primitives::types::VotingStatus,
     ) -> DispatchResult {
@@ -909,9 +909,9 @@ impl pallet_watchtower::VoteStatusNotifier<Runtime> for Runtime {
         };
 
         match instance {
-            pallet_watchtower::SummarySourceInstance::EthereumBridge =>
+            pallet_watchtower::SummarySource::EthereumBridge =>
                 Summary::set_summary_status_and_process(root_id, summary_status),
-            pallet_watchtower::SummarySourceInstance::AnchorStorage =>
+            pallet_watchtower::SummarySource::AnchorStorage =>
                 AnchorSummary::set_summary_status_and_process(root_id, summary_status),
         }
     }
@@ -1815,21 +1815,7 @@ impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for Ru
     }
 
     fn get_node_from_local_signing_keys() -> Option<(AccountId, NodeManagerKeyId)> {
-        use sp_runtime::RuntimeAppPublic;
-
-        let mut local_keys: Vec<NodeManagerKeyId> = NodeManagerKeyId::all();
-        local_keys.sort();
-
-        // Efficiently search registered nodes by matching signing keys
-        // This avoids fetching all watchtowers and iterating through them
-        pallet_node_manager::NodeRegistry::<Runtime>::iter()
-            .filter_map(|(node_id, info)| {
-                local_keys
-                    .binary_search(&info.signing_key)
-                    .ok()
-                    .map(|_| (node_id, info.signing_key))
-            })
-            .next()
+        pallet_node_manager::Pallet::<Runtime>::get_node_from_signing_key()
     }
 
     fn get_authorized_watchtowers_count() -> u32 {

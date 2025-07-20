@@ -53,7 +53,6 @@ pub use crate::default_weights::WeightInfo;
 
 pub const OCW_LOCK_PREFIX: &[u8] = b"pallet-watchtower::lock::";
 pub const OCW_LOCK_TIMEOUT_MS: u64 = 10000;
-pub const HTTP_TIMEOUT_MS: u64 = 5000;
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub const WATCHTOWER_OCW_CONTEXT: &[u8] = b"watchtower_ocw_vote";
 pub const WATCHTOWER_VOTE_PROVIDE_TAG: &[u8] = b"WatchtowerVoteProvideTag";
@@ -62,7 +61,7 @@ pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 pub type AVN<T> = avn::Pallet<T>;
 
 #[derive(Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq, Clone, Copy, RuntimeDebug)]
-pub enum SummarySourceInstance {
+pub enum SummarySource {
     EthereumBridge,
     AnchorStorage,
 }
@@ -72,7 +71,7 @@ pub type WatchtowerOnChainHash = H256;
 
 pub trait VoteStatusNotifier<TSystemConfig: frame_system::Config> {
     fn on_voting_completed(
-        instance: SummarySourceInstance,
+        instance: SummarySource,
         root_id: WatchtowerRootId<BlockNumberFor<TSystemConfig>>,
         status: VotingStatus,
     ) -> DispatchResult;
@@ -120,6 +119,7 @@ pub mod pallet {
         type SignerId: Member + Parameter + sp_runtime::RuntimeAppPublic + Ord + MaxEncodedLen;
 
         type VoteStatusNotifier: VoteStatusNotifier<Self>;
+
         type NodeManager: NodeManagerInterface<Self::AccountId, Self::SignerId>;
 
         /// Minimum allowed voting period in blocks
@@ -132,7 +132,7 @@ pub mod pallet {
     pub type VoteCounters<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
-        SummarySourceInstance,
+        SummarySource,
         Blake2_128Concat,
         WatchtowerRootId<BlockNumberFor<T>>,
         (u32, u32), // (yes_votes, no_votes)
@@ -144,7 +144,7 @@ pub mod pallet {
     pub type VoterHistory<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
-        (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
         Blake2_128Concat,
         T::AccountId,
         (),
@@ -156,7 +156,7 @@ pub mod pallet {
     pub type VoteConsensusReached<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
-        (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
         bool,
         ValueQuery,
     >;
@@ -166,7 +166,7 @@ pub mod pallet {
     pub type VotingStartBlock<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
-        (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
         BlockNumberFor<T>,
         OptionQuery,
     >;
@@ -181,7 +181,7 @@ pub mod pallet {
     pub type PendingValidationRootHash<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
-        (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
         WatchtowerOnChainHash,
         OptionQuery,
     >;
@@ -191,7 +191,7 @@ pub mod pallet {
     pub type ConsensusThreshold<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
-        (SummarySourceInstance, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
         u32,
         OptionQuery,
     >;
@@ -206,12 +206,12 @@ pub mod pallet {
     pub enum Event<T: Config> {
         WatchtowerVoteSubmitted {
             voter: T::AccountId,
-            summary_instance: SummarySourceInstance,
+            summary_instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
         },
         WatchtowerConsensusReached {
-            summary_instance: SummarySourceInstance,
+            summary_instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             consensus_result: VotingStatus,
         },
@@ -264,7 +264,7 @@ pub mod pallet {
         #[pallet::weight(<T as pallet::Config>::WeightInfo::vote())]
         pub fn vote(
             origin: OriginFor<T>,
-            summary_instance: SummarySourceInstance,
+            summary_instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
         ) -> DispatchResult {
@@ -284,7 +284,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             node: T::AccountId,
             _signing_key: T::SignerId,
-            summary_instance: SummarySourceInstance,
+            summary_instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
             _signature: <T::SignerId as sp_runtime::RuntimeAppPublic>::Signature,
@@ -377,7 +377,7 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         pub fn notify_summary_ready_for_validation(
-            instance: SummarySourceInstance,
+            instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             root_hash: WatchtowerOnChainHash,
         ) -> DispatchResult {
@@ -446,7 +446,7 @@ pub mod pallet {
         fn perform_ocw_recalculation(
             node: T::AccountId,
             signing_key: T::SignerId,
-            instance: SummarySourceInstance,
+            instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             onchain_root_hash: WatchtowerOnChainHash,
         ) {
@@ -472,7 +472,7 @@ pub mod pallet {
         }
 
         fn try_ocw_process_recalculation(
-            instance: SummarySourceInstance,
+            instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             on_chain_hash: WatchtowerOnChainHash,
         ) -> Result<bool, String> {
@@ -549,7 +549,7 @@ pub mod pallet {
         fn submit_ocw_vote(
             node: T::AccountId,
             signing_key: T::SignerId,
-            instance: SummarySourceInstance,
+            instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
         ) -> Result<(), &'static str> {
@@ -590,7 +590,7 @@ pub mod pallet {
         }
 
         fn try_reach_consensus(
-            summary_instance: SummarySourceInstance,
+            summary_instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
         ) -> DispatchResult {
             let consensus_key = (summary_instance, root_id.clone());
@@ -656,7 +656,7 @@ pub mod pallet {
 
         fn internal_submit_vote(
             voter: T::AccountId,
-            summary_instance: SummarySourceInstance,
+            summary_instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
         ) -> DispatchResult {
@@ -747,7 +747,7 @@ pub mod pallet {
         }
 
         pub fn get_voting_status(
-            instance: SummarySourceInstance,
+            instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
         ) -> Option<(BlockNumberFor<T>, BlockNumberFor<T>, u32, u32)> {
             let consensus_key = (instance, root_id.clone());
@@ -767,7 +767,7 @@ pub mod pallet {
         }
 
         pub fn is_voting_active(
-            instance: SummarySourceInstance,
+            instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
         ) -> bool {
             let consensus_key = (instance, root_id.clone());
@@ -786,7 +786,7 @@ pub mod pallet {
         }
 
         pub fn cleanup_expired_votes(
-            instance: SummarySourceInstance,
+            instance: SummarySource,
             root_id: WatchtowerRootId<BlockNumberFor<T>>,
         ) -> DispatchResult {
             let consensus_key = (instance, root_id.clone());

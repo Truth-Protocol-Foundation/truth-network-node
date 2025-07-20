@@ -53,7 +53,7 @@ benchmarks! {
         let voter: T::AccountId = whitelisted_caller();
         whitelist_account!(voter);
 
-        let summary_instance = SummarySourceInstance::EthereumBridge;
+        let summary_instance = SummarySource::EthereumBridge;
         let root_id = create_test_root_id::<T>(0);
         let vote_is_valid = true;
 
@@ -84,7 +84,7 @@ benchmarks! {
         let node: T::AccountId = whitelisted_caller();
         whitelist_account!(node);
 
-        let summary_instance = SummarySourceInstance::EthereumBridge;
+        let summary_instance = SummarySource::EthereumBridge;
         let root_id = create_test_root_id::<T>(1);
         let vote_is_valid = true;
 

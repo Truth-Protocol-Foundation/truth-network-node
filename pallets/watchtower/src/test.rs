@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::mock::*;
-use crate::{Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySourceInstance};
+use crate::{Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySource};
 use common_primitives::types::VotingStatus;
 use frame_support::{assert_noop, assert_ok};
 use sp_runtime::RuntimeAppPublic;
@@ -46,7 +46,7 @@ fn vote_works() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
@@ -68,7 +68,7 @@ fn voting_consensus_acceptance_works() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // Submit votes from 2 watchtowers (2/3 = majority for acceptance)
             assert_ok!(Watchtower::vote(
@@ -98,7 +98,7 @@ fn voting_consensus_rejection_works() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // Submit votes from 2 watchtowers (2/3 = majority for rejection)
             assert_ok!(Watchtower::vote(
@@ -151,8 +151,8 @@ fn multiple_summary_instances_work_independently() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let ethereum_instance = SummarySourceInstance::EthereumBridge;
-            let anchor_instance = SummarySourceInstance::AnchorStorage;
+            let ethereum_instance = SummarySource::EthereumBridge;
+            let anchor_instance = SummarySource::AnchorStorage;
 
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
@@ -203,7 +203,7 @@ fn vote_unauthorized_fails() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // Try to submit a vote from an unauthorized account
             assert_noop!(
@@ -225,7 +225,7 @@ fn double_voting_fails() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // First vote should succeed
             assert_ok!(Watchtower::vote(
@@ -255,7 +255,7 @@ fn voting_after_consensus_fails() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // Reach consensus with 2 votes
             assert_ok!(Watchtower::vote(
@@ -295,7 +295,7 @@ fn voting_period_expiry_works() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
             let voting_period = Watchtower::get_voting_period();
 
             // Submit initial vote
@@ -329,7 +329,7 @@ fn split_vote_no_consensus() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // Submit split votes (no consensus possible with current setup)
             assert_ok!(Watchtower::vote(
@@ -394,7 +394,7 @@ fn cleanup_expired_votes_works() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
             let voting_period = Watchtower::get_voting_period();
 
             // Submit initial vote
@@ -427,7 +427,7 @@ fn ocw_signature_validation_works() {
         .build_and_execute_with_state(|ext, _pool_state, _offchain_state| {
             ext.execute_with(|| {
                 let root_id = get_test_root_id();
-                let instance = SummarySourceInstance::EthereumBridge;
+                let instance = SummarySource::EthereumBridge;
                 let vote_is_valid = true;
 
                 // Get signing key for watchtower 1
@@ -487,7 +487,7 @@ fn voting_status_query_works() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // Check status before voting starts
             let status = Watchtower::get_voting_status(instance, root_id.clone());
@@ -520,7 +520,7 @@ fn vote_counters_work_correctly() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
             assert_eq!(yes_votes, 0);
@@ -568,7 +568,7 @@ fn exact_consensus_threshold_works() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // With 3 watchtowers, need 2 for consensus (⌈(2*3)/3⌉ = ⌈8/3⌉ = 3, but actually uses
             // 2/3) First vote - no consensus yet
@@ -608,7 +608,7 @@ fn voting_deadline_boundary_test() {
         .as_externality()
         .execute_with(|| {
             let root_id = get_test_root_id();
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
             let voting_period = Watchtower::get_voting_period();
 
             // Submit initial vote at block 1
@@ -657,7 +657,7 @@ fn different_root_ids_independent_voting() {
             let mut root_id_2 = get_test_root_id();
             root_id_2.ingress_counter = 1; // Make it different
 
-            let instance = SummarySourceInstance::EthereumBridge;
+            let instance = SummarySource::EthereumBridge;
 
             // Vote on first root_id
             assert_ok!(Watchtower::vote(

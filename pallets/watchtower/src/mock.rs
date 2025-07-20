@@ -86,7 +86,7 @@ frame_support::construct_runtime!(
 pub struct MockVoteStatusNotifier;
 impl VoteStatusNotifier<TestRuntime> for MockVoteStatusNotifier {
     fn on_voting_completed(
-        instance: SummarySourceInstance,
+        instance: SummarySource,
         root_id: WatchtowerRootId<BlockNumber>,
         status: common_primitives::types::VotingStatus,
     ) -> DispatchResult {
@@ -386,13 +386,13 @@ pub fn mock_invalid_root_hash_response() -> Vec<u8> {
 }
 
 pub fn create_mock_summary_ready_event(
-) -> (SummarySourceInstance, WatchtowerRootId<BlockNumber>, WatchtowerOnChainHash) {
-    (SummarySourceInstance::EthereumBridge, get_test_root_id(), get_test_onchain_hash())
+) -> (SummarySource, WatchtowerRootId<BlockNumber>, WatchtowerOnChainHash) {
+    (SummarySource::EthereumBridge, get_test_root_id(), get_test_onchain_hash())
 }
 
 pub fn assert_watchtower_vote_event_emitted(
     voter: &AccountId,
-    instance: SummarySourceInstance,
+    instance: SummarySource,
     root_id: &WatchtowerRootId<BlockNumber>,
     vote: bool,
 ) {
@@ -414,7 +414,7 @@ pub fn assert_watchtower_vote_event_emitted(
 }
 
 pub fn assert_consensus_reached_event_emitted(
-    instance: SummarySourceInstance,
+    instance: SummarySource,
     root_id: &WatchtowerRootId<BlockNumber>,
     result: VotingStatus,
 ) {
