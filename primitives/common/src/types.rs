@@ -26,13 +26,3 @@ pub type Moment = u64;
 
 /// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
 pub type Signature = MultiSignature;
-
-/// Generic voting status that can be used by any pallet requiring voting functionality.
-/// This provides a standard set of voting outcomes without coupling to specific pallet types.
-#[derive(Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq, Clone, Copy, RuntimeDebug)]
-pub enum VotingStatus {
-    /// The vote/proposal was accepted by consensus
-    Accepted,
-    /// The vote/proposal was rejected by consensus  
-    Rejected,
-}

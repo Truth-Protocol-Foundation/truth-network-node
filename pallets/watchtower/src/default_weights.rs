@@ -10,6 +10,7 @@ pub trait WeightInfo {
     fn vote() -> Weight;
     fn set_voting_period() -> Weight;
     fn ocw_vote() -> Weight;
+    fn cleanup_expired_votes() -> Weight;
 }
 
 pub struct SubstrateWeight<T>(PhantomData<T>);
@@ -23,6 +24,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     fn ocw_vote() -> Weight {
         Weight::from_parts(1000, 0)
     }
+    fn cleanup_expired_votes() -> Weight {
+        Weight::from_parts(1000, 0)
+    }
 }
 
 impl WeightInfo for () {
@@ -33,6 +37,9 @@ impl WeightInfo for () {
         Weight::from_parts(1000, 0)
     }
     fn ocw_vote() -> Weight {
+        Weight::from_parts(1000, 0)
+    }
+    fn cleanup_expired_votes() -> Weight {
         Weight::from_parts(1000, 0)
     }
 }

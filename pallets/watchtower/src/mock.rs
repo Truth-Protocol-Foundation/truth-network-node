@@ -4,7 +4,7 @@
 
 use crate::{self as pallet_watchtower, *};
 use frame_support::{
-    derive_impl, pallet_prelude::MaxEncodedLen, parameter_types, traits::ConstU64, BoundedVec,
+    derive_impl, pallet_prelude::MaxEncodedLen, traits::ConstU64,
 };
 use frame_system as system;
 pub use parity_scale_codec::{alloc::sync::Arc, Decode, Encode};
@@ -84,16 +84,15 @@ frame_support::construct_runtime!(
 );
 
 pub struct MockVoteStatusNotifier;
-impl VoteStatusNotifier<TestRuntime> for MockVoteStatusNotifier {
+impl VoteStatusNotifier<BlockNumber> for MockVoteStatusNotifier {
     fn on_voting_completed(
-        instance: SummarySource,
-        root_id: WatchtowerRootId<BlockNumber>,
-        status: common_primitives::types::VotingStatus,
+        root_id: RootId<BlockNumber>,
+        status: sp_avn_common::VotingStatus,
     ) -> DispatchResult {
         log::debug!(
             target: "watchtower::mock",
-            "MockVoteStatusNotifier::on_voting_completed called with instance: {:?}, root_id: {:?}, status: {:?}",
-            instance, root_id, status
+            "MockVoteStatusNotifier::on_voting_completed called with root_id: {:?}, status: {:?}",
+            root_id, status
         );
         Ok(())
     }
@@ -214,7 +213,7 @@ pub fn unauthorized_account() -> AccountId {
     account_from_bytes([99u8; 32])
 }
 
-pub fn get_test_root_id() -> WatchtowerRootId<BlockNumber> {
+pub fn get_test_root_id() -> RootId<BlockNumber> {
     RootId { range: RootRange { from_block: 1, to_block: 10 }, ingress_counter: 0 }
 }
 
@@ -386,14 +385,14 @@ pub fn mock_invalid_root_hash_response() -> Vec<u8> {
 }
 
 pub fn create_mock_summary_ready_event(
-) -> (SummarySource, WatchtowerRootId<BlockNumber>, WatchtowerOnChainHash) {
+) -> (SummarySource, RootId<BlockNumber>, WatchtowerOnChainHash) {
     (SummarySource::EthereumBridge, get_test_root_id(), get_test_onchain_hash())
 }
 
 pub fn assert_watchtower_vote_event_emitted(
     voter: &AccountId,
     instance: SummarySource,
-    root_id: &WatchtowerRootId<BlockNumber>,
+    root_id: &RootId<BlockNumber>,
     vote: bool,
 ) {
     let events = System::events();
@@ -415,7 +414,7 @@ pub fn assert_watchtower_vote_event_emitted(
 
 pub fn assert_consensus_reached_event_emitted(
     instance: SummarySource,
-    root_id: &WatchtowerRootId<BlockNumber>,
+    root_id: &RootId<BlockNumber>,
     result: VotingStatus,
 ) {
     let events = System::events();

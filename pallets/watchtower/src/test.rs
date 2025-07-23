@@ -1,10 +1,12 @@
 #![cfg(test)]
 
 use super::mock::*;
-use crate::{Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySource};
-use common_primitives::types::VotingStatus;
+use crate::{Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySource, VotingStartBlock};
+
 use frame_support::{assert_noop, assert_ok};
-use sp_runtime::RuntimeAppPublic;
+use sp_avn_common::VotingStatus;
+use sp_runtime::{testing::UintAuthorityId, RuntimeAppPublic};
+
 
 #[test]
 fn mock_setup_works() {
@@ -32,8 +34,13 @@ fn mock_setup_works() {
             assert!(MockNodeManager::get_node_signing_key(&unauthorized_account()).is_none());
 
             // Test that the new efficient node lookup works
-            if let Some((node, _signing_key)) = MockNodeManager::get_node_from_local_signing_keys()
-            {
+            assert_eq!(MockNodeManager::get_node_from_local_signing_keys(), None);
+            
+            UintAuthorityId::set_all_keys(vec![UintAuthorityId(1), UintAuthorityId(2), UintAuthorityId(3)]);
+            let lookup_result = MockNodeManager::get_node_from_local_signing_keys();
+            assert!(lookup_result.is_some(), "Should find a node when keystore is set up");
+            
+            if let Some((node, _signing_key)) = lookup_result {
                 assert!(MockNodeManager::is_authorized_watchtower(&node));
             }
         });
@@ -387,37 +394,7 @@ fn non_root_voting_period_update_fails() {
         });
 }
 
-#[test]
-fn cleanup_expired_votes_works() {
-    ExtBuilder::build_default()
-        .with_watchtowers()
-        .as_externality()
-        .execute_with(|| {
-            let root_id = get_test_root_id();
-            let instance = SummarySource::EthereumBridge;
-            let voting_period = Watchtower::get_voting_period();
 
-            // Submit initial vote
-            assert_ok!(Watchtower::vote(
-                RuntimeOrigin::signed(watchtower_account_1()),
-                instance,
-                root_id.clone(),
-                true
-            ));
-
-            // Verify voting is active
-            assert!(Watchtower::is_voting_active(instance, root_id.clone()));
-
-            // Advance blocks past voting period
-            roll_forward(voting_period + 1);
-
-            // Cleanup expired votes
-            assert_ok!(Watchtower::cleanup_expired_votes(instance, root_id.clone()));
-
-            // Verify voting is no longer active
-            assert!(!Watchtower::is_voting_active(instance, root_id));
-        });
-}
 
 #[test]
 fn ocw_signature_validation_works() {
@@ -647,6 +624,58 @@ fn voting_deadline_boundary_test() {
         });
 }
 
+
+#[test]
+fn lazy_cleanup_on_access_works() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let voting_period = Watchtower::get_voting_period();
+
+            assert_ok!(Watchtower::vote(
+                RuntimeOrigin::signed(watchtower_account_1()),
+                instance,
+                root_id.clone(),
+                true
+            ));
+
+            assert!(Watchtower::is_voting_active(instance, root_id.clone()));
+            let status = Watchtower::get_voting_status(instance, root_id.clone());
+            assert!(status.is_some());
+
+            roll_forward(voting_period + 1);
+
+            assert!(VotingStartBlock::<TestRuntime>::contains_key((instance, root_id.clone())));
+
+            assert!(!Watchtower::is_voting_active(instance, root_id.clone()));
+
+            assert!(!VotingStartBlock::<TestRuntime>::contains_key((instance, root_id.clone())), "Expired session should be cleaned up");
+
+            let root_id_2 = RootId { 
+                range: RootRange { from_block: 20, to_block: 30 }, 
+                ingress_counter: 1 
+            };
+            
+            assert_ok!(Watchtower::vote(
+                RuntimeOrigin::signed(watchtower_account_1()),
+                instance,
+                root_id_2.clone(),
+                true
+            ));
+
+            roll_forward(voting_period + 1);
+
+            let status = Watchtower::get_voting_status(instance, root_id_2.clone());
+            assert!(status.is_none(), "Should return None for expired session");
+            assert!(!VotingStartBlock::<TestRuntime>::contains_key((instance, root_id_2)), "Should be cleaned up");
+        });
+}
+
+
+
 #[test]
 fn different_root_ids_independent_voting() {
     ExtBuilder::build_default()
@@ -659,7 +688,6 @@ fn different_root_ids_independent_voting() {
 
             let instance = SummarySource::EthereumBridge;
 
-            // Vote on first root_id
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -667,7 +695,6 @@ fn different_root_ids_independent_voting() {
                 true
             ));
 
-            // Same watchtower can vote on different root_id
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -675,7 +702,6 @@ fn different_root_ids_independent_voting() {
                 false
             ));
 
-            // Complete consensus on first root_id
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
@@ -683,13 +709,10 @@ fn different_root_ids_independent_voting() {
                 true
             ));
 
-            // Verify consensus only affects first root_id
             assert_consensus_reached_event_emitted(instance, &root_id_1, VotingStatus::Accepted);
 
-            // Second root_id voting should still be active
             assert!(Watchtower::is_voting_active(instance, root_id_2.clone()));
 
-            // Can still vote on second root_id
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,

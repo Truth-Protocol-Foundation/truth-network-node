@@ -13,6 +13,7 @@ use asset_registry::CustomAssetProcessor;
 use frame_support::pallet_prelude::DispatchResult;
 
 use codec::{Decode, Encode, MaxEncodedLen};
+use frame_system::pallet_prelude::BlockNumberFor;
 use core::cmp::Ordering;
 use orml_traits::parameter_type_with_key;
 use pallet_avn::sr25519::AuthorityId as AvnId;
@@ -813,33 +814,6 @@ parameter_types! {
 
 }
 
-pub struct RuntimeWatchtowerNotifier;
-impl sp_avn_common::WatchtowerNotification<BlockNumber> for RuntimeWatchtowerNotifier {
-    fn notify_summary_ready_for_validation(
-        instance_id: u8,
-        root_id: sp_avn_common::RootId<BlockNumber>,
-        root_hash: sp_core::H256,
-    ) -> DispatchResult {
-        use pallet_watchtower::SummarySource;
-
-        // Map instance ID to summary source instance
-        let summary_instance = match instance_id {
-            1 => SummarySource::EthereumBridge, // EthereumInstanceId
-            2 => SummarySource::AnchorStorage,  // AvnInstanceId
-            _ => {
-                return Err(DispatchError::Other("UnknownSummaryInstance"));
-            },
-        };
-
-        // Call the watchtower's notification method directly
-        pallet_watchtower::Pallet::<Runtime>::notify_summary_ready_for_validation(
-            summary_instance,
-            root_id,
-            root_hash,
-        )
-    }
-}
-
 pub type EthSummary = pallet_summary::Instance1;
 impl pallet_summary::Config<EthSummary> for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -851,8 +825,8 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
-    type RequireWatchtowerValidation = RequireWatchtowerValidation;
-    type WatchtowerNotifier = RuntimeWatchtowerNotifier;
+    type RequireExternalValidation = RequireWatchtowerValidation;
+    type ExternalNotifier = pallet_watchtower::ExternalNotifier<Runtime>;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -866,8 +840,8 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
-    type RequireWatchtowerValidation = RequireWatchtowerValidation;
-    type WatchtowerNotifier = RuntimeWatchtowerNotifier;
+    type RequireExternalValidation = RequireWatchtowerValidation;
+    type ExternalNotifier = pallet_watchtower::ExternalNotifier<Runtime>;
 }
 
 impl pallet_authors_manager::Config for Runtime {
@@ -894,34 +868,12 @@ impl pallet_node_manager::Config for Runtime {
     type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
 }
 
-impl pallet_watchtower::VoteStatusNotifier<Runtime> for Runtime {
-    fn on_voting_completed(
-        instance: pallet_watchtower::SummarySource,
-        root_id: pallet_watchtower::WatchtowerRootId<BlockNumber>,
-        status: common_primitives::types::VotingStatus,
-    ) -> DispatchResult {
-        // Map the generic VotingStatus to summary-specific status
-        let summary_status = match status {
-            common_primitives::types::VotingStatus::Accepted =>
-                sp_avn_common::SummaryStatus::Accepted,
-            common_primitives::types::VotingStatus::Rejected =>
-                sp_avn_common::SummaryStatus::Rejected,
-        };
-
-        match instance {
-            pallet_watchtower::SummarySource::EthereumBridge =>
-                Summary::set_summary_status_and_process(root_id, summary_status),
-            pallet_watchtower::SummarySource::AnchorStorage =>
-                AnchorSummary::set_summary_status_and_process(root_id, summary_status),
-        }
-    }
-}
 
 impl pallet_watchtower::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type WeightInfo = pallet_watchtower::default_weights::SubstrateWeight<Runtime>;
-    type VoteStatusNotifier = Self;
+    type VoteStatusNotifier = pallet_summary::RuntimeVoteStatusNotifier<Runtime>;
     type NodeManager = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type MinVotingPeriod = MinVotingPeriod;

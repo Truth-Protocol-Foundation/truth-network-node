@@ -24,9 +24,8 @@ use alloc::{
 use hex;
 use log;
 
-use common_primitives::types::VotingStatus;
 use pallet_avn::{self as avn};
-use sp_avn_common::RootId as PalletSummaryRootIdGeneric;
+use sp_avn_common::{RootId, SummarySourceInstance as SummarySource, VoteStatusNotifier, VotingStatus};
 
 use sp_core::H256;
 use sp_runtime::{
@@ -60,22 +59,8 @@ pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 
 pub type AVN<T> = avn::Pallet<T>;
 
-#[derive(Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq, Clone, Copy, RuntimeDebug)]
-pub enum SummarySource {
-    EthereumBridge,
-    AnchorStorage,
-}
-
-pub type WatchtowerRootId<BlockNumber> = PalletSummaryRootIdGeneric<BlockNumber>;
 pub type WatchtowerOnChainHash = H256;
 
-pub trait VoteStatusNotifier<TSystemConfig: frame_system::Config> {
-    fn on_voting_completed(
-        instance: SummarySource,
-        root_id: WatchtowerRootId<BlockNumberFor<TSystemConfig>>,
-        status: VotingStatus,
-    ) -> DispatchResult;
-}
 
 pub trait NodeManagerInterface<AccountId, SignerId> {
     fn is_authorized_watchtower(who: &AccountId) -> bool;
@@ -118,8 +103,7 @@ pub mod pallet {
 
         type SignerId: Member + Parameter + sp_runtime::RuntimeAppPublic + Ord + MaxEncodedLen;
 
-        type VoteStatusNotifier: VoteStatusNotifier<Self>;
-
+        type VoteStatusNotifier: VoteStatusNotifier<BlockNumberFor<Self>>;
         type NodeManager: NodeManagerInterface<Self::AccountId, Self::SignerId>;
 
         /// Minimum allowed voting period in blocks
@@ -134,7 +118,7 @@ pub mod pallet {
         Blake2_128Concat,
         SummarySource,
         Blake2_128Concat,
-        WatchtowerRootId<BlockNumberFor<T>>,
+        RootId<BlockNumberFor<T>>,
         (u32, u32), // (yes_votes, no_votes)
         ValueQuery,
     >;
@@ -144,7 +128,7 @@ pub mod pallet {
     pub type VoterHistory<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
-        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, RootId<BlockNumberFor<T>>),
         Blake2_128Concat,
         T::AccountId,
         (),
@@ -156,7 +140,7 @@ pub mod pallet {
     pub type VoteConsensusReached<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
-        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, RootId<BlockNumberFor<T>>),
         bool,
         ValueQuery,
     >;
@@ -166,7 +150,7 @@ pub mod pallet {
     pub type VotingStartBlock<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
-        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, RootId<BlockNumberFor<T>>),
         BlockNumberFor<T>,
         OptionQuery,
     >;
@@ -181,7 +165,7 @@ pub mod pallet {
     pub type PendingValidationRootHash<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
-        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, RootId<BlockNumberFor<T>>),
         WatchtowerOnChainHash,
         OptionQuery,
     >;
@@ -191,7 +175,7 @@ pub mod pallet {
     pub type ConsensusThreshold<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
-        (SummarySource, WatchtowerRootId<BlockNumberFor<T>>),
+        (SummarySource, RootId<BlockNumberFor<T>>),
         u32,
         OptionQuery,
     >;
@@ -207,17 +191,21 @@ pub mod pallet {
         WatchtowerVoteSubmitted {
             voter: T::AccountId,
             summary_instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
         },
         WatchtowerConsensusReached {
             summary_instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             consensus_result: VotingStatus,
         },
         VotingPeriodUpdated {
             old_period: BlockNumberFor<T>,
             new_period: BlockNumberFor<T>,
+        },
+        ExpiredVotingSessionCleaned {
+            summary_instance: SummarySource,
+            root_id: RootId<BlockNumberFor<T>>,
         },
     }
 
@@ -239,6 +227,8 @@ pub mod pallet {
         VotingNotStarted,
         /// The specified voting period configuration is invalid.
         InvalidVotingPeriod,
+        /// The cleanup operation failed or was not needed.
+        CleanupFailed,
     }
 
     #[pallet::hooks]
@@ -265,7 +255,7 @@ pub mod pallet {
         pub fn vote(
             origin: OriginFor<T>,
             summary_instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
         ) -> DispatchResult {
             let voter = ensure_signed(origin)?;
@@ -285,7 +275,7 @@ pub mod pallet {
             node: T::AccountId,
             _signing_key: T::SignerId,
             summary_instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
             _signature: <T::SignerId as sp_runtime::RuntimeAppPublic>::Signature,
         ) -> DispatchResult {
@@ -321,6 +311,8 @@ pub mod pallet {
 
             Ok(())
         }
+
+
     }
 
     #[pallet::validate_unsigned]
@@ -378,7 +370,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         pub fn notify_summary_ready_for_validation(
             instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             root_hash: WatchtowerOnChainHash,
         ) -> DispatchResult {
             let consensus_key = (instance, root_id.clone());
@@ -418,17 +410,12 @@ pub mod pallet {
             for (consensus_key, start_block) in VotingStartBlock::<T>::iter() {
                 let (instance, root_id) = consensus_key.clone();
 
-                // Check if voting period has expired and clean up if so
+                // Skip expired sessions - they'll be cleaned up by on_idle or lazy cleanup
                 if current_block > start_block + voting_period {
-                    // Clean up expired voting session
-                    VoteCounters::<T>::remove(instance, &root_id);
-                    let _ = VoterHistory::<T>::clear_prefix(&consensus_key, u32::MAX, None);
-                    VotingStartBlock::<T>::remove(&consensus_key);
-                    PendingValidationRootHash::<T>::remove(&consensus_key);
-                    ConsensusThreshold::<T>::remove(&consensus_key);
                     continue;
                 }
 
+                // Only process active voting sessions for validation
                 if let Some(root_hash) = PendingValidationRootHash::<T>::get(&consensus_key) {
                     Self::perform_ocw_recalculation(
                         node.clone(),
@@ -437,17 +424,44 @@ pub mod pallet {
                         root_id,
                         root_hash,
                     );
-
-                    PendingValidationRootHash::<T>::remove(&consensus_key);
                 }
             }
+        }
+
+        fn internal_cleanup_expired_votes(
+            instance: SummarySource,
+            root_id: RootId<BlockNumberFor<T>>,
+        ) -> DispatchResult {
+            let consensus_key = (instance, root_id.clone());
+            let current_block = frame_system::Pallet::<T>::block_number();
+
+            if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
+                let voting_deadline = start_block + VotingPeriod::<T>::get();
+                if current_block > voting_deadline {
+                    // Clean up expired voting session
+                    VoteCounters::<T>::remove(instance, &root_id);
+                    let _ = VoterHistory::<T>::clear_prefix(&consensus_key, u32::MAX, None);
+                    VotingStartBlock::<T>::remove(&consensus_key);
+                    PendingValidationRootHash::<T>::remove(&consensus_key);
+                    ConsensusThreshold::<T>::remove(&consensus_key);
+
+                    Self::deposit_event(Event::ExpiredVotingSessionCleaned {
+                        summary_instance: instance,
+                        root_id,
+                    });
+
+                    return Ok(());
+                }
+            }
+
+            Err(Error::<T>::CleanupFailed.into())
         }
 
         fn perform_ocw_recalculation(
             node: T::AccountId,
             signing_key: T::SignerId,
             instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             onchain_root_hash: WatchtowerOnChainHash,
         ) {
             match Self::try_ocw_process_recalculation(instance, root_id.clone(), onchain_root_hash)
@@ -473,7 +487,7 @@ pub mod pallet {
 
         fn try_ocw_process_recalculation(
             instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             on_chain_hash: WatchtowerOnChainHash,
         ) -> Result<bool, String> {
             let mut lock_identifier_vec = OCW_LOCK_PREFIX.to_vec();
@@ -550,7 +564,7 @@ pub mod pallet {
             node: T::AccountId,
             signing_key: T::SignerId,
             instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
         ) -> Result<(), &'static str> {
             let consensus_key = (instance, root_id.clone());
@@ -591,7 +605,7 @@ pub mod pallet {
 
         fn try_reach_consensus(
             summary_instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
         ) -> DispatchResult {
             let consensus_key = (summary_instance, root_id.clone());
             if VoteConsensusReached::<T>::get(&consensus_key) {
@@ -638,7 +652,6 @@ pub mod pallet {
                 });
 
                 T::VoteStatusNotifier::on_voting_completed(
-                    summary_instance,
                     root_id.clone(),
                     consensus_result.clone(),
                 )
@@ -657,7 +670,7 @@ pub mod pallet {
         fn internal_submit_vote(
             voter: T::AccountId,
             summary_instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
             vote_is_valid: bool,
         ) -> DispatchResult {
             let consensus_key = (summary_instance, root_id.clone());
@@ -748,14 +761,20 @@ pub mod pallet {
 
         pub fn get_voting_status(
             instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
         ) -> Option<(BlockNumberFor<T>, BlockNumberFor<T>, u32, u32)> {
             let consensus_key = (instance, root_id.clone());
 
             if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
+                let current_block = frame_system::Pallet::<T>::block_number();
                 let deadline = start_block + VotingPeriod::<T>::get();
+                
+                if current_block > deadline {
+                    Self::cleanup_voting_session(instance, root_id);
+                    return None;
+                }
+                
                 let (yes_votes, no_votes) = VoteCounters::<T>::get(instance, root_id);
-
                 Some((start_block, deadline, yes_votes, no_votes))
             } else {
                 None
@@ -768,7 +787,7 @@ pub mod pallet {
 
         pub fn is_voting_active(
             instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
         ) -> bool {
             let consensus_key = (instance, root_id.clone());
 
@@ -779,7 +798,13 @@ pub mod pallet {
             if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
                 let current_block = frame_system::Pallet::<T>::block_number();
                 let deadline = start_block + VotingPeriod::<T>::get();
-                current_block <= deadline
+                
+                if current_block <= deadline {
+                    true
+                } else {
+                    Self::cleanup_voting_session(instance, root_id);
+                    false
+                }
             } else {
                 false
             }
@@ -787,24 +812,56 @@ pub mod pallet {
 
         pub fn cleanup_expired_votes(
             instance: SummarySource,
-            root_id: WatchtowerRootId<BlockNumberFor<T>>,
+            root_id: RootId<BlockNumberFor<T>>,
         ) -> DispatchResult {
+            Self::internal_cleanup_expired_votes(instance, root_id)
+        }
+
+        /// Helper to clean up a single voting session without dispatch overhead
+        fn cleanup_voting_session(
+            instance: SummarySource,
+            root_id: RootId<BlockNumberFor<T>>,
+        ) {
             let consensus_key = (instance, root_id.clone());
-            let current_block = frame_system::Pallet::<T>::block_number();
+            
+            // Clean up all related storage
+            VoteCounters::<T>::remove(instance, &root_id);
+            let _ = VoterHistory::<T>::clear_prefix(&consensus_key, u32::MAX, None);
+            VotingStartBlock::<T>::remove(&consensus_key);
+            PendingValidationRootHash::<T>::remove(&consensus_key);
+            ConsensusThreshold::<T>::remove(&consensus_key);
 
-            if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
-                let voting_deadline = start_block + VotingPeriod::<T>::get();
-                if current_block > voting_deadline {
-                    VoteCounters::<T>::remove(instance, &root_id);
-                    let _ = VoterHistory::<T>::clear_prefix(&consensus_key, u32::MAX, None);
-                    VotingStartBlock::<T>::remove(&consensus_key);
-                    PendingValidationRootHash::<T>::remove(&consensus_key);
-                    ConsensusThreshold::<T>::remove(&consensus_key);
-                    return Ok(());
-                }
-            }
-
-            Err(Error::<T>::VotingNotStarted.into())
+            Self::deposit_event(Event::ExpiredVotingSessionCleaned {
+                summary_instance: instance,
+                root_id,
+            });
         }
     }
 }
+
+pub struct ExternalNotifier<T>(sp_std::marker::PhantomData<T>);
+
+impl<T: Config> sp_avn_common::ExternalNotification<BlockNumberFor<T>> for ExternalNotifier<T> {
+    fn on_summary_ready_for_validation(
+        instance_id: u8,
+        root_id: sp_avn_common::RootId<BlockNumberFor<T>>,
+        root_hash: sp_core::H256,
+    ) -> DispatchResult {
+        // Map instance ID to summary source instance
+        let summary_instance = match instance_id {
+            1 => SummarySource::EthereumBridge, // EthereumInstanceId
+            2 => SummarySource::AnchorStorage,  // AvnInstanceId
+            _ => {
+                return Err(DispatchError::Other("UnknownSummaryInstance"));
+            },
+        };
+
+        // Call the watchtower's notification method directly
+        Pallet::<T>::notify_summary_ready_for_validation(
+            summary_instance,
+            root_id,
+            root_hash,
+        )
+    }
+}
+
