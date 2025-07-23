@@ -27,14 +27,21 @@ concurrency:
 jobs:
   set-up-job:
     runs-on: ubuntu-latest
+    outputs:
+      RELEASE: ${{ steps.set.outputs.RELEASE }}
+      GIT_TAG: ${{ steps.set.outputs.GIT_TAG }}
+      TEST_CODE: ${{ steps.set.outputs.TEST_CODE }}
     steps:
-      - name: echo inputs
+      - name: Set outputs from workflow inputs
+        id: set
         run: |
           echo "Release: ${{ github.event.inputs.RELEASE }}"
           echo "Git tag: ${{ github.event.inputs.GIT_TAG }}"
           echo "Test code: ${{ github.event.inputs.TEST_CODE }}"
 
-          echo "RELEASE=${{ github.event.inputs.RELEASE }}">> "$GITHUB_OUTPUT"
+          echo "RELEASE=${{ github.event.inputs.RELEASE }}" >> "$GITHUB_OUTPUT"
+          echo "GIT_TAG=${{ github.event.inputs.GIT_TAG }}" >> "$GITHUB_OUTPUT"
+          echo "TEST_CODE=${{ github.event.inputs.TEST_CODE }}" >> "$GITHUB_OUTPUT"
 
       - name: verify GIT TAG
         run: |
@@ -48,7 +55,7 @@ jobs:
 
   test-code:
     needs: [set-up-job]
-    if: ${{ github.event.inputs.TEST_CODE == 'true' }}
+    if: ${{ needs.set-up-job.outputs.TEST_CODE == 'true' }}
     uses: ./.github/workflows/cargo-test.yml
 
   build-code:
@@ -62,8 +69,11 @@ jobs:
     needs: [ set-up-job, build-code, test-code ]
     if: |
       always() &&
-      (needs.build-code.result == 'success') &&
-      (needs.test-code.result == 'success' || needs.test-code.result == 'skipped')
+      needs.build-code.result == 'success' &&
+      (
+        needs.set-up-job.outputs.TEST_CODE == 'false' ||
+        needs.test-code.result == 'success'
+      )
     uses: ./.github/workflows/docker-build.yml
     with:
       release: ${{ needs.set-up-job.outputs.RELEASE }}
@@ -72,32 +82,23 @@ jobs:
     secrets: inherit
 
   release:
-    needs: [ set-up-job, build-docker ]
-    if: ${{ github.event.inputs.RELEASE == 'true' }}
+    needs: [ set-up-job, build-code, build-docker ]
+    if: |
+      always() &&
+      (needs.set-up-job.outputs.RELEASE == 'true') &&
+      (needs.build-code.result == 'success') &&
+      (needs.build-docker.result == 'success')
     uses: ./.github/workflows/gh-release.yml
     with:
-      repo_tag: ${{ github.event.inputs.GIT_TAG }}
+      repo_tag: ${{ needs.set-up-job.outputs.GIT_TAG }}
       hotfix: true
     secrets: inherit
 
   upload-assets-internal-tools:
-    needs: [ set-up-job, build-docker ]
-    if: ${{ github.event.inputs.RELEASE == 'true' }}
+    needs: [ set-up-job, build-code ]
+    if: ${{ needs.set-up-job.outputs.RELEASE == 'true' }}
     uses: ./.github/workflows/s3-upload.yml
     with:
-      bucket_name: "s3://aventus-internal-artefact/tnf-chain-node-artefacts"
+      bucket_name: "s3://truth-network-internal-artefact/truth-network-chain-node-artefacts"
       repo_tag: ${{ github.event.inputs.GIT_TAG }}
     secrets: inherit
-
-  cleanup-artifacts:
-    runs-on: ubuntu-latest
-    needs:  [ set-up-job, build-code, build-docker, release, upload-assets-internal-tools ]
-    if: always()
-    steps:
-      - uses: geekyeggo/delete-artifact@v5
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        with:
-          name: |
-            tnf-node
-            tnf-node-runtime
-          failOnError: false
