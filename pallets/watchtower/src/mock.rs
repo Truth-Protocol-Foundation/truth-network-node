@@ -3,9 +3,7 @@
 #![cfg(test)]
 
 use crate::{self as pallet_watchtower, *};
-use frame_support::{
-    derive_impl, pallet_prelude::MaxEncodedLen, traits::ConstU64,
-};
+use frame_support::{derive_impl, pallet_prelude::MaxEncodedLen, traits::ConstU64};
 use frame_system as system;
 pub use parity_scale_codec::{alloc::sync::Arc, Decode, Encode};
 use parking_lot::RwLock;

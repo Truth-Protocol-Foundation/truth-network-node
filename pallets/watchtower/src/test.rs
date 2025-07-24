@@ -1,12 +1,13 @@
 #![cfg(test)]
 
 use super::mock::*;
-use crate::{Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySource, VotingStartBlock};
+use crate::{
+    Error, Event as WatchtowerEvent, NodeManagerInterface, SummarySource, VotingStartBlock,
+};
 
 use frame_support::{assert_noop, assert_ok};
 use sp_avn_common::VotingStatus;
 use sp_runtime::{testing::UintAuthorityId, RuntimeAppPublic};
-
 
 #[test]
 fn mock_setup_works() {
@@ -35,11 +36,15 @@ fn mock_setup_works() {
 
             // Test that the new efficient node lookup works
             assert_eq!(MockNodeManager::get_node_from_local_signing_keys(), None);
-            
-            UintAuthorityId::set_all_keys(vec![UintAuthorityId(1), UintAuthorityId(2), UintAuthorityId(3)]);
+
+            UintAuthorityId::set_all_keys(vec![
+                UintAuthorityId(1),
+                UintAuthorityId(2),
+                UintAuthorityId(3),
+            ]);
             let lookup_result = MockNodeManager::get_node_from_local_signing_keys();
             assert!(lookup_result.is_some(), "Should find a node when keystore is set up");
-            
+
             if let Some((node, _signing_key)) = lookup_result {
                 assert!(MockNodeManager::is_authorized_watchtower(&node));
             }
@@ -394,8 +399,6 @@ fn non_root_voting_period_update_fails() {
         });
 }
 
-
-
 #[test]
 fn ocw_signature_validation_works() {
     ExtBuilder::build_default()
@@ -624,7 +627,6 @@ fn voting_deadline_boundary_test() {
         });
 }
 
-
 #[test]
 fn lazy_cleanup_on_access_works() {
     ExtBuilder::build_default()
@@ -652,13 +654,14 @@ fn lazy_cleanup_on_access_works() {
 
             assert!(!Watchtower::is_voting_active(instance, root_id.clone()));
 
-            assert!(!VotingStartBlock::<TestRuntime>::contains_key((instance, root_id.clone())), "Expired session should be cleaned up");
+            assert!(
+                !VotingStartBlock::<TestRuntime>::contains_key((instance, root_id.clone())),
+                "Expired session should be cleaned up"
+            );
 
-            let root_id_2 = RootId { 
-                range: RootRange { from_block: 20, to_block: 30 }, 
-                ingress_counter: 1 
-            };
-            
+            let root_id_2 =
+                RootId { range: RootRange { from_block: 20, to_block: 30 }, ingress_counter: 1 };
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -670,11 +673,12 @@ fn lazy_cleanup_on_access_works() {
 
             let status = Watchtower::get_voting_status(instance, root_id_2.clone());
             assert!(status.is_none(), "Should return None for expired session");
-            assert!(!VotingStartBlock::<TestRuntime>::contains_key((instance, root_id_2)), "Should be cleaned up");
+            assert!(
+                !VotingStartBlock::<TestRuntime>::contains_key((instance, root_id_2)),
+                "Should be cleaned up"
+            );
         });
 }
-
-
 
 #[test]
 fn different_root_ids_independent_voting() {

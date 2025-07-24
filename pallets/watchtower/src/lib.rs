@@ -25,7 +25,9 @@ use hex;
 use log;
 
 use pallet_avn::{self as avn};
-use sp_avn_common::{RootId, SummarySourceInstance as SummarySource, VoteStatusNotifier, VotingStatus};
+use sp_avn_common::{
+    RootId, SummarySourceInstance as SummarySource, VoteStatusNotifier, VotingStatus,
+};
 
 use sp_core::H256;
 use sp_runtime::{
@@ -60,7 +62,6 @@ pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 pub type AVN<T> = avn::Pallet<T>;
 
 pub type WatchtowerOnChainHash = H256;
-
 
 pub trait NodeManagerInterface<AccountId, SignerId> {
     fn is_authorized_watchtower(who: &AccountId) -> bool;
@@ -311,8 +312,6 @@ pub mod pallet {
 
             Ok(())
         }
-
-
     }
 
     #[pallet::validate_unsigned]
@@ -768,12 +767,12 @@ pub mod pallet {
             if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
                 let current_block = frame_system::Pallet::<T>::block_number();
                 let deadline = start_block + VotingPeriod::<T>::get();
-                
+
                 if current_block > deadline {
                     Self::cleanup_voting_session(instance, root_id);
                     return None;
                 }
-                
+
                 let (yes_votes, no_votes) = VoteCounters::<T>::get(instance, root_id);
                 Some((start_block, deadline, yes_votes, no_votes))
             } else {
@@ -798,7 +797,7 @@ pub mod pallet {
             if let Some(start_block) = VotingStartBlock::<T>::get(&consensus_key) {
                 let current_block = frame_system::Pallet::<T>::block_number();
                 let deadline = start_block + VotingPeriod::<T>::get();
-                
+
                 if current_block <= deadline {
                     true
                 } else {
@@ -817,14 +816,9 @@ pub mod pallet {
             Self::internal_cleanup_expired_votes(instance, root_id)
         }
 
-        /// Helper to clean up a single voting session without dispatch overhead
-        fn cleanup_voting_session(
-            instance: SummarySource,
-            root_id: RootId<BlockNumberFor<T>>,
-        ) {
+        fn cleanup_voting_session(instance: SummarySource, root_id: RootId<BlockNumberFor<T>>) {
             let consensus_key = (instance, root_id.clone());
-            
-            // Clean up all related storage
+
             VoteCounters::<T>::remove(instance, &root_id);
             let _ = VoterHistory::<T>::clear_prefix(&consensus_key, u32::MAX, None);
             VotingStartBlock::<T>::remove(&consensus_key);
@@ -841,13 +835,14 @@ pub mod pallet {
 
 pub struct ExternalNotifier<T>(sp_std::marker::PhantomData<T>);
 
+pub type SummarySourceId = u8;
+
 impl<T: Config> sp_avn_common::ExternalNotification<BlockNumberFor<T>> for ExternalNotifier<T> {
     fn on_summary_ready_for_validation(
-        instance_id: u8,
+        instance_id: SummarySourceId,
         root_id: sp_avn_common::RootId<BlockNumberFor<T>>,
         root_hash: sp_core::H256,
     ) -> DispatchResult {
-        // Map instance ID to summary source instance
         let summary_instance = match instance_id {
             1 => SummarySource::EthereumBridge, // EthereumInstanceId
             2 => SummarySource::AnchorStorage,  // AvnInstanceId
@@ -856,12 +851,6 @@ impl<T: Config> sp_avn_common::ExternalNotification<BlockNumberFor<T>> for Exter
             },
         };
 
-        // Call the watchtower's notification method directly
-        Pallet::<T>::notify_summary_ready_for_validation(
-            summary_instance,
-            root_id,
-            root_hash,
-        )
+        Pallet::<T>::notify_summary_ready_for_validation(summary_instance, root_id, root_hash)
     }
 }
-
