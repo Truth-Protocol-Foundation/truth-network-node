@@ -503,40 +503,99 @@ pub mod pallet {
     impl<T: Config> ValidateUnsigned for Pallet<T> {
         type Call = Call<T>;
 
-        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-            if let Call::submit_watchtower_vote {
-                node,
-                signing_key,
-                summary_instance,
-                root_id,
-                vote_is_valid,
-                signature,
-            } = call
-            {
-                if !T::NodeManager::is_authorized_watchtower(node) {
-                    return InvalidTransaction::Call.into();
-                }
-
-                if Self::offchain_signature_is_valid(
-                    &(WATCHTOWER_OCW_CONTEXT, summary_instance, root_id, vote_is_valid),
+        fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            match call {
+                Call::ocw_vote {
+                    node,
                     signing_key,
+                    summary_instance,
+                    root_id,
+                    vote_is_valid,
                     signature,
-                ) {
+                } => {
                     if !T::NodeManager::is_authorized_watchtower(node) {
                         return InvalidTransaction::Call.into();
                     }
 
+                    if !Self::offchain_signature_is_valid(
+                        &(WATCHTOWER_OCW_CONTEXT, summary_instance, root_id, *vote_is_valid),
+                        signing_key,
+                        signature,
+                    ) {
+                        return InvalidTransaction::BadSigner.into();
+                    }
+
+                    let current_block = frame_system::Pallet::<T>::block_number();
+                    let unique_payload_for_provides = (
+                        WATCHTOWER_VOTE_PROVIDE_TAG,
+                        node.clone(),
+                        *summary_instance,
+                        root_id.clone(),
+                        *vote_is_valid,
+                        current_block,
+                        source,
+                        signature.encode()[0..8].to_vec(),
+                    );
+                    let provides_tag = unique_payload_for_provides.encode();
+
                     ValidTransaction::with_tag_prefix("WatchtowerOCW")
                         .priority(TransactionPriority::MAX)
-                        .and_provides(WATCHTOWER_VOTE_PROVIDE_TAG)
+                        .and_provides(vec![provides_tag])
                         .longevity(64_u64)
                         .propagate(true)
                         .build()
-                } else {
-                    InvalidTransaction::BadSigner.into()
-                }
-            } else {
-                InvalidTransaction::Call.into()
+                },
+                Call::submit_challenge {
+                    challenger,
+                    summary_instance,
+                    root_id,
+                    incorrect_root_id,
+                    correct_root_hash,
+                    signature,
+                } => {
+                    if !T::NodeManager::is_authorized_watchtower(challenger) {
+                        return InvalidTransaction::Call.into();
+                    }
+
+                    let signing_key = match T::NodeManager::get_node_signing_key(challenger) {
+                        Some(key) => key,
+                        None => return InvalidTransaction::BadSigner.into(),
+                    };
+
+                    if !Self::offchain_signature_is_valid(
+                        &(
+                            WATCHTOWER_CHALLENGE_CONTEXT,
+                            summary_instance,
+                            root_id,
+                            incorrect_root_id,
+                            correct_root_hash,
+                        ),
+                        &signing_key,
+                        signature,
+                    ) {
+                        return InvalidTransaction::BadSigner.into();
+                    }
+
+                    let current_block = frame_system::Pallet::<T>::block_number();
+                    let unique_payload_for_provides = (
+                        WATCHTOWER_CHALLENGE_PROVIDE_TAG,
+                        challenger.clone(),
+                        *summary_instance,
+                        root_id.clone(),
+                        current_block,
+                        source,
+                        signature.encode()[0..8].to_vec(),
+                    );
+                    let provides_tag = unique_payload_for_provides.encode();
+
+                    ValidTransaction::with_tag_prefix("WatchtowerChallenge")
+                        .priority(TransactionPriority::MAX)
+                        .and_provides(vec![provides_tag])
+                        .longevity(64_u64)
+                        .propagate(true)
+                        .build()
+                },
+                _ => InvalidTransaction::Call.into(),
             }
         }
     }
@@ -776,54 +835,6 @@ pub mod pallet {
             }
         }
 
-        // fn submit_ocw_challenge(
-        //     node: T::AccountId,
-        //     signing_key: T::SignerId,
-        //     instance: SummarySourceInstance,
-        //     root_id: WatchtowerRootId<BlockNumberFor<T>>,
-        //     incorrect_root_id: WatchtowerOnChainHash,
-        //     correct_root_hash: WatchtowerOnChainHash,
-        // ) -> Result<(), &'static str> {
-        //     let challenge_key = (instance, root_id.clone());
-        //     if let Some(existing_challenge) = Challenges::<T>::get(&challenge_key) {
-        //         if existing_challenge.challengers.iter().any(|c| c == &node) {
-        //             return Ok(());
-        //         }
-
-        //         if existing_challenge.status != ChallengeStatus::Pending {
-        //             return Ok(());
-        //         }
-        //     }
-
-        //     let data_to_sign = (
-        //         WATCHTOWER_CHALLENGE_CONTEXT,
-        //         &instance,
-        //         &root_id,
-        //         &incorrect_root_id,
-        //         &correct_root_hash,
-        //     );
-        //     let signature = match signing_key.sign(&data_to_sign.encode()) {
-        //         Some(sig) => sig,
-        //         None => {
-        //             return Err("Failed to sign challenge data");
-        //         },
-        //     };
-
-        //     let call = Call::submit_challenge {
-        //         challenger: node.clone(),
-        //         summary_instance: instance,
-        //         root_id: root_id.clone(),
-        //         incorrect_root_id,
-        //         correct_root_hash,
-        //         signature,
-        //     };
-
-        //     match SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()) {
-        //         Ok(()) => Ok(()),
-        //         Err(_e) => Err("Failed to submit challenge transaction to local pool"),
-        //     }
-        // }
-
         pub fn try_reach_consensus(
             summary_instance: SummarySource,
             root_id: RootId<BlockNumberFor<T>>,
@@ -1032,16 +1043,13 @@ pub mod pallet {
             let challenge_key = (summary_instance, root_id.clone());
             let consensus_key = (summary_instance, root_id.clone());
             let current_block = frame_system::Pallet::<T>::block_number();
-            let current_block_u32 = current_block.saturated_into();
+            let current_block_u32 = current_block.saturated_into::<u32>();
 
-            // Mark consensus as reached to prevent further voting
             VoteConsensusReached::<T>::insert(&consensus_key, true);
 
-            // Get the root hash for the challenge
             let incorrect_root_hash = PendingValidationRootHash::<T>::get(&consensus_key)
                 .unwrap_or(sp_core::H256::zero());
 
-            // Create an automatic challenge indicating negative consensus
             let challenge_info = crate::ChallengeInfo {
                 incorrect_root_id: incorrect_root_hash,
                 correct_root_hash: sp_core::H256::zero(), // Unknown at this point
@@ -1052,7 +1060,7 @@ pub mod pallet {
                 original_consensus: Some(VotingStatus::Rejected),
             };
 
-            Challenges::<T>::insert(&challenge_key, challenge_info);
+            Challenges::<T>::insert(&challenge_key, challenge_info.clone());
 
             Self::deposit_event(Event::ChallengesPresentedToAdmin {
                 summary_instance: summary_instance.clone(),
@@ -1061,14 +1069,8 @@ pub mod pallet {
                 trigger: ChallengeAdminTrigger::VotingPeriodExpired,
             });
 
-            // Self::deposit_event(Event::WatchtowerConsensusReached {
-            //     summary_instance: summary_instance.clone(),
-            //     root_id: root_id.clone(),
-            //     consensus_result: implied_consensus.clone(),
-            // });
 
             T::VoteStatusNotifier::on_voting_completed(
-                summary_instance,
                 root_id.clone(),
                 VotingStatus::PendingChallengeResolution,
             )
@@ -1080,7 +1082,6 @@ pub mod pallet {
                 consensus_result: VotingStatus::PendingChallengeResolution,
             });
 
-            // Notify admin that automatic challenge was created
             Self::deposit_event(Event::ChallengesPresentedToAdmin {
                 summary_instance,
                 root_id: root_id.clone(),
@@ -1088,7 +1089,6 @@ pub mod pallet {
                 trigger: ChallengeAdminTrigger::ConsensusReached,
             });
 
-            // Clean up voting data
             VoteCounters::<T>::remove(summary_instance, &root_id);
             let _ = VoterHistory::<T>::clear_prefix(&consensus_key, u32::MAX, None);
             VotingStartBlock::<T>::remove(&consensus_key);
@@ -1104,17 +1104,13 @@ pub mod pallet {
         ) -> DispatchResult {
             let (yes_votes, no_votes) = VoteCounters::<T>::get(summary_instance, root_id.clone());
 
-            // Check if we have more 'no' votes than 'yes' votes
             if no_votes > yes_votes {
-                // Create automatic challenge
                 Self::create_automatic_challenge(summary_instance, root_id)
             } else {
-                // Handle as normal expiration (accept by default)
                 Self::handle_expired_voting_without_challenges(summary_instance, root_id)
             }
         }
 
-        /// Calculate consensus threshold using the established formula: (n * 2) / 3
         fn calculate_consensus_threshold(total_watchtowers: u32) -> u32 {
             (total_watchtowers * 2) / 3
         }
@@ -1161,7 +1157,6 @@ pub mod pallet {
             });
 
             T::VoteStatusNotifier::on_voting_completed(
-                instance,
                 root_id.clone(),
                 VotingStatus::Accepted,
             )
@@ -1208,7 +1203,7 @@ pub mod pallet {
         ) -> DispatchResult {
             let challenge_key = (summary_instance, root_id.clone());
             let current_block = frame_system::Pallet::<T>::block_number();
-            let current_block_u32 = current_block.saturated_into();
+            let current_block_u32 = current_block.saturated_into::<u32>();
 
             let mut challenge_info =
                 Challenges::<T>::get(&challenge_key).unwrap_or_else(|| crate::ChallengeInfo {
@@ -1243,9 +1238,7 @@ pub mod pallet {
             let challenge_count = challenge_info.challengers.len() as u32;
 
             // Use the same threshold as consensus (2/3 majority)
-            let authorized_watchtowers = T::NodeManager::get_authorized_watchtowers()
-                .map_err(|_| Error::<T>::FailedToGetAuthorizedWatchtowers)?;
-            let total_authorized_watchtowers = authorized_watchtowers.len() as u32;
+            let total_authorized_watchtowers = T::NodeManager::get_authorized_watchtowers_count();
             let challenge_threshold =
                 Self::calculate_consensus_threshold(total_authorized_watchtowers);
 
@@ -1316,7 +1309,6 @@ pub mod pallet {
                         .original_consensus
                         .unwrap_or(VotingStatus::Accepted);
                     T::VoteStatusNotifier::on_voting_completed(
-                        summary_instance,
                         root_id.clone(),
                         final_status,
                     )
@@ -1329,7 +1321,6 @@ pub mod pallet {
                         .original_consensus
                         .unwrap_or(VotingStatus::Accepted);
                     T::VoteStatusNotifier::on_voting_completed(
-                        summary_instance,
                         root_id.clone(),
                         final_status,
                     )
@@ -1338,7 +1329,6 @@ pub mod pallet {
                 ChallengeResolution::SuccessfulChallenge => {
                     // Challenge was valid - the original consensus was wrong, reject the summary
                     T::VoteStatusNotifier::on_voting_completed(
-                        summary_instance,
                         root_id.clone(),
                         VotingStatus::Rejected,
                     )
@@ -1346,10 +1336,7 @@ pub mod pallet {
                 },
             }
 
-            // TODO: Add logic for successful challenges when challenge is proven correct
-            // This would happen if the challenge leads to blocking/invalidating a bad root
-            // For now, we only handle resolution of challenges that are deemed incorrect
-
+            
             Self::deposit_event(Event::ChallengeResolved {
                 summary_instance,
                 root_id: root_id.clone(),
@@ -1374,5 +1361,24 @@ pub mod pallet {
     }
 }
 
+pub struct ExternalNotifier<T>(sp_std::marker::PhantomData<T>);
 
 pub type SummarySourceId = u8;
+
+impl<T: Config> sp_avn_common::ExternalNotification<BlockNumberFor<T>> for ExternalNotifier<T> {
+    fn on_summary_ready_for_validation(
+        instance_id: SummarySourceId,
+        root_id: sp_avn_common::RootId<BlockNumberFor<T>>,
+        root_hash: sp_core::H256,
+    ) -> DispatchResult {
+        let summary_instance = match instance_id {
+            1 => SummarySource::EthereumBridge, // EthereumInstanceId
+            2 => SummarySource::AnchorStorage,  // AvnInstanceId
+            _ => {
+                return Err(DispatchError::Other("UnknownSummaryInstance"));
+            },
+        };
+
+        Pallet::<T>::notify_summary_ready_for_validation(summary_instance, root_id, root_hash)
+    }
+}
