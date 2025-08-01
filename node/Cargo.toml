@@ -80,6 +80,7 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/pari
 # Local Dependencies
 tnf-node-runtime = { path = "../runtime" }
 tnf-service = { path = "./tnf-service" }
+summary-calculation-rpc = { path = "./summary-calculation-rpc" }
 avn-key-subcommand = { path = "./avn-key-subcommand" }
 
 # CLI-specific dependencies

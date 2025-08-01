@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
+use sc_client_api::{BlockBackend, UsageProvider};
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
@@ -32,6 +33,8 @@ pub fn create_full<C, P>(
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
     C: ProvideRuntimeApi<Block>,
+    C: BlockBackend<Block>,
+    C: UsageProvider<Block>,
     C: HeaderBackend<Block> + HeaderMetadata<Block, Error = BlockChainError> + 'static,
     C: Send + Sync + 'static,
     C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
@@ -39,6 +42,7 @@ where
     C::Api: BlockBuilder<Block>,
     P: TransactionPool + 'static,
 {
+    use summary_calculation_rpc::{SummaryCalculationProvider, SummaryCalculationProviderRpcServer};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
     use substrate_frame_rpc_system::{System, SystemApiServer};
 
@@ -46,12 +50,13 @@ where
     let FullDeps { client, pool, deny_unsafe } = deps;
 
     module.merge(System::new(client.clone(), pool, deny_unsafe).into_rpc())?;
-    module.merge(TransactionPayment::new(client).into_rpc())?;
+    module.merge(TransactionPayment::new(client.clone()).into_rpc())?;
 
     // Extend this RPC with a custom API by using the following syntax.
     // `YourRpcStruct` should have a reference to a client, which is needed
     // to call into the runtime.
     // `module.merge(YourRpcTrait::into_rpc(YourRpcStruct::new(ReferenceToClient, ...)))?;`
+    module.merge(SummaryCalculationProvider::new(client.clone()).into_rpc())?;
 
     Ok(module)
 }
