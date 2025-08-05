@@ -902,46 +902,38 @@ pub mod pallet {
             let consensus_key = (summary_instance, root_id.clone());
             let current_block = frame_system::Pallet::<T>::block_number();
 
+            ensure!(
+                PendingValidationRootHash::<T>::get(&consensus_key).is_some(),
+                Error::<T>::VotingNotStarted
+            );
+
             ensure!(!VoteConsensusReached::<T>::get(&consensus_key), {
                 Error::<T>::ConsensusAlreadyReached
             });
 
-            // Check if consensus is mathematically already reached before casting this vote
+            ensure!(
+                VoterHistory::<T>::get(&consensus_key, &voter).is_none(),
+                Error::<T>::AlreadyVoted
+            );
+
             if let Some(required_consensus) = ConsensusThreshold::<T>::get(&consensus_key) {
                 let (current_yes_votes, current_no_votes) =
                     VoteCounters::<T>::get(summary_instance, root_id.clone());
 
-                // If either yes or no votes have already reached consensus threshold, reject new
-                // votes
                 if current_yes_votes >= required_consensus || current_no_votes >= required_consensus
                 {
                     return Err(Error::<T>::ConsensusAlreadyReached.into());
                 }
             }
 
-            let voting_start_block = VotingStartBlock::<T>::get(&consensus_key);
-            if let Some(start_block) = voting_start_block {
-                let voting_deadline = start_block + VotingPeriod::<T>::get();
-                if current_block > voting_deadline {
-                    return Err(Error::<T>::VotingPeriodExpired.into());
-                }
-            } else {
-                let total_authorized_watchtowers =
-                    T::NodeManager::get_authorized_watchtowers_count();
-                let required_for_consensus =
-                    Self::calculate_consensus_threshold(total_authorized_watchtowers);
-
-                VotingStartBlock::<T>::insert(&consensus_key, current_block);
-                ConsensusThreshold::<T>::insert(&consensus_key, required_for_consensus);
+            let voting_start_block = VotingStartBlock::<T>::get(&consensus_key)
+                .ok_or(Error::<T>::VotingNotStarted)?;
+                
+            let voting_deadline = voting_start_block + VotingPeriod::<T>::get();
+            if current_block > voting_deadline {
+                return Err(Error::<T>::VotingPeriodExpired.into());
             }
 
-            // Check if voter has already voted
-            ensure!(
-                VoterHistory::<T>::get(&consensus_key, &voter).is_none(),
-                Error::<T>::AlreadyVoted
-            );
-
-            // Record the vote and update counters
             VoterHistory::<T>::insert(&consensus_key, &voter, ());
             VoteCounters::<T>::mutate(
                 summary_instance,
@@ -962,7 +954,7 @@ pub mod pallet {
                 vote_is_valid,
             });
 
-            Self::try_reach_consensus(summary_instance, root_id.clone()).map_err(|e| e)?;
+            Self::try_reach_consensus(summary_instance, root_id.clone())?;
 
             Ok(())
         }
