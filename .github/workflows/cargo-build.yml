@@ -56,6 +56,7 @@ jobs:
           name: node
           path: target/release/tnf-node
           if-no-files-found: error
+          retention-days: 7
 
       - name: Node runtime Artifact
         if: ${{ inputs.upload_artifacts }}
@@ -64,3 +65,4 @@ jobs:
           name: node-runtime
           path: target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
           if-no-files-found: error
+          retention-days: 7
