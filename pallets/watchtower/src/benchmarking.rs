@@ -18,7 +18,7 @@ use frame_benchmarking::{
 use frame_system::{Pallet as System, RawOrigin};
 
 // Helper function to create a RootId for testing
-fn create_test_root_id<T: Config>(index: u32) -> WatchtowerRootId<BlockNumberFor<T>> {
+fn create_test_root_id<T: Config>(index: u32) -> RootId<BlockNumberFor<T>> {
     use sp_avn_common::{RootId, RootRange};
     RootId {
         range: RootRange {
