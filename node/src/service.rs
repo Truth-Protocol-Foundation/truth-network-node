@@ -136,7 +136,7 @@ pub fn new_partial(
 
     Ok(sc_service::PartialComponents {
         client,
-        backend,
+        backend: backend.clone(),
         task_manager,
         import_queue,
         keystore_container,
@@ -205,7 +205,7 @@ pub fn new_full(
             .clone()
             .unwrap_or_else(|| DEFAULT_EXTERNAL_SERVICE_PORT_NUMBER.to_string());
 
-        if let Some(mut local_db) = backend.offchain_storage() {
+        if let Some(mut local_db) = backend.clone().offchain_storage() {
             local_db.set(
                 sp_core::offchain::STORAGE_PREFIX,
                 EXTERNAL_SERVICE_PORT_NUMBER_KEY,
@@ -234,7 +234,7 @@ pub fn new_full(
                 runtime_api_provider: client.clone(),
                 is_validator: config.role.is_authority(),
                 keystore: Some(keystore_container.keystore()),
-                offchain_db: backend.offchain_storage(),
+                offchain_db: backend.clone().offchain_storage(),
                 transaction_pool: Some(OffchainTransactionPoolFactory::new(
                     transaction_pool.clone(),
                 )),
@@ -258,10 +258,15 @@ pub fn new_full(
     let rpc_extensions_builder = {
         let client = client.clone();
         let pool = transaction_pool.clone();
+        let offchain_storage_for_rpc = backend.clone().offchain_storage();
 
         Box::new(move |deny_unsafe, _| {
-            let deps =
-                crate::rpc::FullDeps { client: client.clone(), pool: pool.clone(), deny_unsafe };
+            let deps = crate::rpc::FullDeps {
+                client: client.clone(),
+                pool: pool.clone(),
+                deny_unsafe,
+                offchain_storage: offchain_storage_for_rpc.clone(),
+            };
             crate::rpc::create_full(deps).map_err(Into::into)
         })
     };
@@ -273,7 +278,7 @@ pub fn new_full(
         task_manager: &mut task_manager,
         transaction_pool: transaction_pool.clone(),
         rpc_builder: rpc_extensions_builder,
-        backend,
+        backend: backend.clone(),
         system_rpc_tx,
         tx_handler_controller,
         sync_service: sync_service.clone(),
