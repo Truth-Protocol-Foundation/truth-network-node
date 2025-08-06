@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use crate::{self as pallet_watchtower, *};
+use crate::{self as pallet_watchtower, *, SummarySource};
 use frame_support::{derive_impl, pallet_prelude::MaxEncodedLen, traits::ConstU64};
 use frame_system as system;
 pub use parity_scale_codec::{alloc::sync::Arc, Decode, Encode};
@@ -434,8 +434,8 @@ pub fn assert_consensus_reached_event_emitted(
 
 pub fn assert_challenge_submitted_event_emitted(
     challenger: &AccountId,
-    instance: SummarySourceInstance,
-    root_id: &WatchtowerRootId<BlockNumber>,
+    instance: SummarySource,
+    root_id: &RootId<BlockNumber>,
     incorrect_root_id: &WatchtowerOnChainHash,
     correct_root_hash: &WatchtowerOnChainHash,
     challenge_count: u32,
@@ -461,8 +461,8 @@ pub fn assert_challenge_submitted_event_emitted(
 }
 
 pub fn assert_first_challenge_alert_event_emitted(
-    instance: SummarySourceInstance,
-    root_id: &WatchtowerRootId<BlockNumber>,
+    instance: SummarySource,
+    root_id: &RootId<BlockNumber>,
 ) {
     let events = System::events();
     assert!(
@@ -480,8 +480,8 @@ pub fn assert_first_challenge_alert_event_emitted(
 }
 
 pub fn assert_challenge_accepted_event_emitted(
-    instance: SummarySourceInstance,
-    root_id: &WatchtowerRootId<BlockNumber>,
+    instance: SummarySource,
+    root_id: &RootId<BlockNumber>,
 ) {
     let events = System::events();
     assert!(
@@ -500,8 +500,8 @@ pub fn assert_challenge_accepted_event_emitted(
 }
 
 pub fn assert_challenge_resolved_event_emitted(
-    instance: SummarySourceInstance,
-    root_id: &WatchtowerRootId<BlockNumber>,
+    instance: SummarySource,
+    root_id: &RootId<BlockNumber>,
     resolution: crate::ChallengeResolution,
 ) {
     let events = System::events();

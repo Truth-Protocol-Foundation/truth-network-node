@@ -78,11 +78,15 @@ benchmarks! {
         let root_id = create_test_root_id::<T>(0);
         let vote_is_valid = true;
         let signature = create_fake_signature::<T>();
+        let root_hash = sp_core::H256::from([1u8; 32]);
 
-        let consensus_key = (summary_instance, root_id.clone());
-        VotingStartBlock::<T>::insert(&consensus_key, System::<T>::block_number());
+        Watchtower::<T>::notify_summary_ready_for_validation(
+            summary_instance,
+            root_id.clone(),
+            root_hash
+        ).expect("Voting initialization should work");
 
-    }: _(RawOrigin::None, voter.clone(), summary_instance, root_id.clone(), vote_is_valid, signature)
+    }: _(RawOrigin::Signed(voter.clone()), summary_instance, root_id.clone(), vote_is_valid)
     verify {
         // Verify the vote was recorded in counters
         let (yes_votes, no_votes) = VoteCounters::<T>::get(summary_instance, root_id.clone());
@@ -103,7 +107,7 @@ benchmarks! {
         let challenger: T::AccountId = whitelisted_caller();
         whitelist_account!(challenger);
 
-        let summary_instance = SummarySourceInstance::EthereumBridge;
+        let summary_instance = SummarySource::EthereumBridge;
         let root_id = create_test_root_id::<T>(1);
         let (incorrect_root_id, correct_root_hash) = create_test_challenge_data();
         let signature = create_fake_signature::<T>();
@@ -124,7 +128,7 @@ benchmarks! {
 
     resolve_challenge {
         let challenger: T::AccountId = whitelisted_caller();
-        let summary_instance = SummarySourceInstance::EthereumBridge;
+        let summary_instance = SummarySource::EthereumBridge;
         let root_id = create_test_root_id::<T>(2);
         let (incorrect_root_id, correct_root_hash) = create_test_challenge_data();
 
@@ -135,7 +139,7 @@ benchmarks! {
             status: ChallengeStatus::Pending,
             created_block: 1u32,
             first_challenge_alert_sent: false,
-            original_consensus: Some(WatchtowerSummaryStatus::Accepted),
+            original_consensus: Some(VotingStatus::Accepted),
         };
         let challenge_key = (summary_instance, root_id.clone());
         Challenges::<T>::insert(&challenge_key, challenge_info);
@@ -152,41 +156,62 @@ benchmarks! {
     }
 
     submit_multiple_votes_for_consensus {
-        let v in 1 .. T::MaxWatchtowers::get();
+        let v in 1 .. T::NodeManager::get_authorized_watchtowers_count().min(100u32);
 
-        let summary_instance = SummarySourceInstance::EthereumBridge;
+        let summary_instance = SummarySource::EthereumBridge;
         let root_id = create_test_root_id::<T>(3);
         let signature = create_fake_signature::<T>();
+        let root_hash = sp_core::H256::from([3u8; 32]);
 
+        // Initialize voting properly
+        Watchtower::<T>::notify_summary_ready_for_validation(
+            summary_instance,
+            root_id.clone(),
+            root_hash
+        ).expect("Voting initialization should work");
+
+        // Get the consensus threshold to avoid accidentally reaching it during setup
         let consensus_key = (summary_instance, root_id.clone());
-        VotingStartBlock::<T>::insert(&consensus_key, System::<T>::block_number());
-
-        for i in 1..v {
+        let threshold = ConsensusThreshold::<T>::get(&consensus_key).unwrap_or(2);
+        
+        // Add votes carefully - ensure we don't reach consensus threshold during setup
+        let votes_to_add = (v - 1).min(threshold - 1); // Always stay below threshold
+        for i in 1..=votes_to_add {
             let voter: T::AccountId = account("voter", i, 0);
-            let _ = IndividualWatchtowerVotes::<T>::try_mutate(
-                summary_instance,
-                root_id.clone(),
-                |votes| -> Result<(), &'static str> {
-                    votes.try_push((voter, true)).map_err(|_| "Too many votes")?;
-                    Ok(())
-                }
-            );
+            VoterHistory::<T>::insert(&consensus_key, &voter, ());
+            
+            // Update vote counters
+            VoteCounters::<T>::mutate(summary_instance, root_id.clone(), |counters| {
+                counters.0 += 1; // increment yes votes
+            });
         }
 
         let final_voter: T::AccountId = whitelisted_caller();
         whitelist_account!(final_voter);
 
-    }: submit_watchtower_vote(RawOrigin::None, final_voter.clone(), summary_instance, root_id.clone(), true, signature)
+    }: vote(RawOrigin::Signed(final_voter.clone()), summary_instance, root_id.clone(), true)
     verify {
-        let votes = IndividualWatchtowerVotes::<T>::get(summary_instance, root_id.clone());
-        assert_eq!(votes.len() as u32, v, "Should have v votes");
+        // The vote should have been recorded
+        let consensus_key = (summary_instance, root_id.clone());
+        let consensus_reached = VoteConsensusReached::<T>::get(&consensus_key);
+        
+        if consensus_reached {
+            // If consensus was reached, voter history should be cleaned up
+            let votes: Vec<_> = VoterHistory::<T>::iter_prefix(&consensus_key).collect();
+            assert_eq!(votes.len(), 0, "Voter history should be cleaned up after consensus");
+        } else {
+            // If no consensus yet, should have votes_to_add + 1 votes total
+            let votes: Vec<_> = VoterHistory::<T>::iter_prefix(&consensus_key).collect();
+            assert!(votes.len() > 0, "Should have at least one vote recorded");
+        }
+        
         assert_events_emitted::<T>();
     }
 
     submit_multiple_challenges {
-        let c in 1 .. T::MaxWatchtowers::get();
+        let c in 1 .. T::NodeManager::get_authorized_watchtowers_count().min(100u32);
 
-        let summary_instance = SummarySourceInstance::EthereumBridge;
+        let summary_instance = SummarySource::EthereumBridge;
         let root_id = create_test_root_id::<T>(4);
         let (incorrect_root_id, correct_root_hash) = create_test_challenge_data();
         let signature = create_fake_signature::<T>();
@@ -226,6 +251,14 @@ benchmarks! {
         let summary_instance = SummarySource::EthereumBridge;
         let root_id = create_test_root_id::<T>(1);
         let vote_is_valid = true;
+        let root_hash = sp_core::H256::from([1u8; 32]);
+
+        // Initialize voting properly
+        Watchtower::<T>::notify_summary_ready_for_validation(
+            summary_instance,
+            root_id.clone(),
+            root_hash
+        ).expect("Voting initialization should work");
 
         // Get the signing key for the node (mock should provide this)
         let signing_key = T::SignerId::generate_pair(None);

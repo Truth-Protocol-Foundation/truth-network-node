@@ -1,8 +1,6 @@
-use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
-    MultiSignature, RuntimeDebug,
+    MultiSignature,
 };
 
 // Some way of identifying an account on the chain. We intentionally make it equivalent
