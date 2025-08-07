@@ -86,7 +86,7 @@ benchmarks! {
             root_hash
         ).expect("Voting initialization should work");
 
-    }: _(RawOrigin::None, voter.clone(), summary_instance, root_id.clone(), vote_is_valid, signature)
+    }: _(RawOrigin::Signed(voter.clone()), summary_instance, root_id.clone(), vote_is_valid)
     verify {
         // Verify the vote was recorded in counters
         let (yes_votes, no_votes) = VoteCounters::<T>::get(summary_instance, root_id.clone());

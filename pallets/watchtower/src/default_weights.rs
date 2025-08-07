@@ -60,7 +60,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 impl WeightInfo for () {
 
     fn vote() -> Weight {
-        Weight::from_parts(1000, 0);
+        Weight::from_parts(1000, 0)
     }
     
     fn set_voting_period() -> Weight {
