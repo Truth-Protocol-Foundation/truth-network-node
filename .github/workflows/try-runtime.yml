@@ -51,17 +51,14 @@ jobs:
           repository: ${{ inputs.repository }}
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions/setup-rust@v1
         with:
-          profile: minimal
-          toolchain: 1.81.0
+          rust-version: 1.81.0
           components: rustfmt, clippy
           target: wasm32-unknown-unknown
-          override: true
-          default: true
 
       - name: Restore cargo cache - common
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -136,8 +133,7 @@ jobs:
 
       - name: Build runtime and node for try-runtime
         run: |
-          cargo build --locked --release --features try-runtime -p tnf-node-runtime
-          cargo build --locked --release --bin tnf-node
+          cargo build --locked --release --features try-runtime -p tnf-node-runtime --bin tnf-node
 
       - name: Install standalone try-runtime-cli
         run: cargo install --git https://github.com/paritytech/try-runtime-cli --locked
@@ -224,8 +220,7 @@ jobs:
 
       - name: Build runtime with features
         run: |
-          cargo build --locked --release --features ${{ matrix.features }} -p tnf-node-runtime
-          cargo build --locked --release --bin tnf-node
+          cargo build --locked --release --features ${{ matrix.features }} -p tnf-node-runtime --bin tnf-node
 
       - name: Install standalone try-runtime-cli
         run: cargo install --git https://github.com/paritytech/try-runtime-cli --locked
