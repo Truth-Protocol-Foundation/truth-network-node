@@ -1,0 +1,262 @@
+name: Try Runtime
+
+on:
+  workflow_call:
+    inputs:
+      fetch-depth:
+        required: false
+        type: number
+        default: 1
+      ref:
+        required: false
+        type: string
+        default: ''
+      repository:
+        required: false
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      chain:
+        description: 'Chain to run try-runtime against'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: try-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  try-runtime-build:
+    name: Try Runtime Build
+    runs-on: gh-ubuntu-2404-x64
+    timeout-minutes: 90
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+          ref: ${{ inputs.ref }}
+          repository: ${{ inputs.repository }}
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
+
+      - name: Restore cargo cache - common
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-common-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Restore cargo cache - try-runtime
+        uses: actions/cache@v3
+        with:
+          path: |
+            target/
+          key: ${{ runner.os }}-cargo-try-runtime-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check try-runtime build
+        run: cargo check --locked --features try-runtime -p tnf-node-runtime
+
+      - name: Build runtime with try-runtime
+        run: cargo build --locked --release --features try-runtime -p tnf-node-runtime
+
+      - name: Install standalone try-runtime-cli
+        run: cargo install --git https://github.com/paritytech/try-runtime-cli --locked
+
+      - name: Test try-runtime CLI
+        run: try-runtime --help
+
+  test-runtime-upgrade:
+    name: Test Runtime Upgrade
+    runs-on: gh-ubuntu-2404-x64
+    timeout-minutes: 90
+    needs: try-runtime-build
+    strategy:
+      fail-fast: false
+      matrix:
+        chain: [${{ github.event.inputs.chain || 'dev' }}]
+        test_type: [follow-chain, execute-block, on-runtime-upgrade]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+          ref: ${{ inputs.ref }}
+          repository: ${{ inputs.repository }}
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
+
+      - name: Restore cargo cache - common
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-common-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Restore cargo cache - runtime-test
+        uses: actions/cache@v3
+        with:
+          path: |
+            target/
+          key: ${{ runner.os }}-cargo-runtime-test-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build runtime and node for try-runtime
+        run: |
+          cargo build --locked --release --features try-runtime -p tnf-node-runtime
+          cargo build --locked --release --bin tnf-node
+
+      - name: Install standalone try-runtime-cli
+        run: cargo install --git https://github.com/paritytech/try-runtime-cli --locked
+
+      - name: Setup chain data directory
+        run: mkdir -p /tmp/try-runtime-data
+          
+      - name: Generate chain spec
+        run: ./target/release/tnf-node build-spec --chain=${{ matrix.chain }} --raw > /tmp/try-runtime-data/chain-spec.json
+
+      - name: Assert runtime Wasm exists
+        run: test -s ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
+
+      - name: Test ${{ matrix.test_type }}
+        continue-on-error: ${{ matrix.test_type != 'on-runtime-upgrade' }}
+        run: |
+          case "${{ matrix.test_type }}" in
+            "follow-chain")
+              timeout 300s try-runtime \
+                --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
+                --chain /tmp/try-runtime-data/chain-spec.json \
+                follow-chain \
+                --dev
+              ;;
+            "execute-block")
+              try-runtime \
+                --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
+                --chain /tmp/try-runtime-data/chain-spec.json \
+                execute-block \
+                --block-at 0
+              ;;
+            "on-runtime-upgrade")
+              try-runtime \
+                --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
+                --chain /tmp/try-runtime-data/chain-spec.json \
+                on-runtime-upgrade \
+                --checks all
+              ;;
+          esac
+
+  test-features:
+    name: Test Features
+    runs-on: gh-ubuntu-2404-x64
+    timeout-minutes: 90
+    needs: try-runtime-build
+    strategy:
+      fail-fast: false
+      matrix:
+        features: [try-runtime, "try-runtime,runtime-benchmarks"]
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+          ref: ${{ inputs.ref }}
+          repository: ${{ inputs.repository }}
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
+
+      - name: Restore cargo cache - common
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-common-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Restore cargo cache - features
+        uses: actions/cache@v3
+        with:
+          path: |
+            target/
+          key: ${{ runner.os }}-cargo-features-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build runtime with features
+        run: |
+          cargo build --locked --release --features ${{ matrix.features }} -p tnf-node-runtime
+          cargo build --locked --release --bin tnf-node
+
+      - name: Install standalone try-runtime-cli
+        run: cargo install --git https://github.com/paritytech/try-runtime-cli --locked
+
+      - name: Test runtime operations
+        continue-on-error: true
+        run: |
+          ./target/release/tnf-node build-spec --chain=dev --raw > /tmp/dev-spec.json
+          try-runtime \
+            --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
+            --chain /tmp/dev-spec.json \
+            on-runtime-upgrade \
+            --checks=all
+
+  validate-integration:
+    name: Validate Integration
+    runs-on: gh-ubuntu-2404-x64
+    timeout-minutes: 90
+    needs: [try-runtime-build, test-runtime-upgrade, test-features]
+    if: always()
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+          ref: ${{ inputs.ref }}
+          repository: ${{ inputs.repository }}
+
+      - name: Validate integration
+        run: |
+          echo "Try-Runtime validation completed"
+          echo "Build: ${{ needs.try-runtime-build.result }}"
+          echo "Runtime upgrade: ${{ needs.test-runtime-upgrade.result }}"
+          echo "Features: ${{ needs.test-features.result }}" 

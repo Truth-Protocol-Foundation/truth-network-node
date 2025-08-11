@@ -189,7 +189,13 @@ pub fn run() -> sc_cli::Result<()> {
                 }
             })
         },
-        Some(Subcommand::TryRuntime) => Err("The `try-runtime` subcommand has been migrated to a standalone CLI (https://github.com/paritytech/try-runtime-cli). It is no longer being maintained here and will be removed entirely some time after January 2024. Please remove this subcommand from your runtime and use the standalone CLI.".into()),
+        #[cfg(feature = "try-runtime")]
+        Some(Subcommand::TryRuntime) => {
+            Err("The embedded try-runtime subcommand has been deprecated. Please use the standalone try-runtime-cli instead.\n\
+                 Install it with: cargo install --git https://github.com/paritytech/try-runtime-cli --locked\n\
+                 Usage: try-runtime --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.wasm \\\n\
+                       --chain=dev on-runtime-upgrade live --uri ws://localhost:9944".into())
+        },
         Some(Subcommand::ChainInfo(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
