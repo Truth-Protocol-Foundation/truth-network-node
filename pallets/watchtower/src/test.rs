@@ -15,26 +15,21 @@ fn mock_setup_works() {
         .with_watchtowers()
         .as_externality()
         .execute_with(|| {
-            // Test that the mock setup is working
             assert_eq!(System::block_number(), 1);
 
-            // Test that watchtowers are properly configured
             assert!(MockNodeManager::is_authorized_watchtower(&watchtower_account_1()));
             assert!(MockNodeManager::is_authorized_watchtower(&watchtower_account_2()));
             assert!(MockNodeManager::is_authorized_watchtower(&watchtower_account_3()));
             assert!(!MockNodeManager::is_authorized_watchtower(&unauthorized_account()));
 
-            // Test that authorized watchtowers count works
             let watchtower_count = MockNodeManager::get_authorized_watchtowers_count();
             assert_eq!(watchtower_count, 3);
 
-            // Test that signing keys are available
             assert!(MockNodeManager::get_node_signing_key(&watchtower_account_1()).is_some());
             assert!(MockNodeManager::get_node_signing_key(&watchtower_account_2()).is_some());
             assert!(MockNodeManager::get_node_signing_key(&watchtower_account_3()).is_some());
             assert!(MockNodeManager::get_node_signing_key(&unauthorized_account()).is_none());
 
-            // Test that the new efficient node lookup works
             assert_eq!(MockNodeManager::get_node_from_local_signing_keys(), None);
 
             UintAuthorityId::set_all_keys(vec![
@@ -59,6 +54,13 @@ fn vote_works() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
+
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
 
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
@@ -81,8 +83,14 @@ fn voting_consensus_acceptance_works() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
 
-            // Submit votes from 2 watchtowers (2/3 = majority for acceptance)
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -111,8 +119,14 @@ fn voting_consensus_rejection_works() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
 
-            // Submit votes from 2 watchtowers (2/3 = majority for rejection)
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -127,7 +141,15 @@ fn voting_consensus_rejection_works() {
                 false
             ));
 
-            assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Rejected);
+            assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::PendingChallengeResolution);
+            
+            let challenge_key = (instance, root_id.clone());
+            let challenge_info = Watchtower::challenges(&challenge_key);
+            assert!(challenge_info.is_some(), "Challenge should be created automatically");
+            
+            let challenge = challenge_info.unwrap();
+            assert_eq!(challenge.status, crate::ChallengeStatus::Pending);
+            assert_eq!(challenge.original_consensus, Some(VotingStatus::Rejected));
         });
 }
 
@@ -137,12 +159,10 @@ fn voting_period_update_works() {
         let old_period = Watchtower::get_voting_period();
         let new_period = 200u64;
 
-        // Only root can update voting period
         assert_ok!(Watchtower::set_voting_period(RuntimeOrigin::root(), new_period));
 
         assert_eq!(Watchtower::get_voting_period(), new_period);
 
-        // Check that event was emitted
         let events = System::events();
         assert!(events.iter().any(|record| {
             matches!(
@@ -165,6 +185,18 @@ fn multiple_summary_instances_work_independently() {
             let root_id = get_test_root_id();
             let ethereum_instance = SummarySource::EthereumBridge;
             let anchor_instance = SummarySource::AnchorStorage;
+            let root_hash = get_test_onchain_hash();
+
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                ethereum_instance,
+                root_id.clone(),
+                root_hash
+            ));
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                anchor_instance,
+                root_id.clone(),
+                root_hash
+            ));
 
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
@@ -203,8 +235,16 @@ fn multiple_summary_instances_work_independently() {
             assert_consensus_reached_event_emitted(
                 anchor_instance,
                 &root_id,
-                VotingStatus::Rejected,
+                VotingStatus::PendingChallengeResolution,
             );
+            
+            let challenge_key = (anchor_instance, root_id.clone());
+            let challenge_info = Watchtower::challenges(&challenge_key);
+            assert!(challenge_info.is_some(), "Challenge should be created automatically for anchor instance");
+            
+            let challenge = challenge_info.unwrap();
+            assert_eq!(challenge.status, crate::ChallengeStatus::Pending);
+            assert_eq!(challenge.original_consensus, Some(VotingStatus::Rejected));
         });
 }
 
@@ -217,7 +257,6 @@ fn vote_unauthorized_fails() {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
 
-            // Try to submit a vote from an unauthorized account
             assert_noop!(
                 Watchtower::vote(
                     RuntimeOrigin::signed(unauthorized_account()),
@@ -238,8 +277,14 @@ fn double_voting_fails() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
 
-            // First vote should succeed
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -247,7 +292,6 @@ fn double_voting_fails() {
                 true
             ));
 
-            // Second vote from same watchtower should fail
             assert_noop!(
                 Watchtower::vote(
                     RuntimeOrigin::signed(watchtower_account_1()),
@@ -268,8 +312,14 @@ fn voting_after_consensus_fails() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
 
-            // Reach consensus with 2 votes
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -284,10 +334,8 @@ fn voting_after_consensus_fails() {
                 true
             ));
 
-            // Verify consensus reached
             assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Accepted);
 
-            // Third vote should fail as consensus already reached
             assert_noop!(
                 Watchtower::vote(
                     RuntimeOrigin::signed(watchtower_account_3()),
@@ -295,7 +343,7 @@ fn voting_after_consensus_fails() {
                     root_id,
                     false
                 ),
-                Error::<TestRuntime>::ConsensusAlreadyReached
+                Error::<TestRuntime>::VotingNotStarted
             );
         });
 }
@@ -308,9 +356,15 @@ fn voting_period_expiry_works() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
             let voting_period = Watchtower::get_voting_period();
 
-            // Submit initial vote
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -318,10 +372,8 @@ fn voting_period_expiry_works() {
                 true
             ));
 
-            // Advance blocks past voting period
             roll_forward(voting_period + 1);
 
-            // Try to vote after period expiry should fail
             assert_noop!(
                 Watchtower::vote(
                     RuntimeOrigin::signed(watchtower_account_2()),
@@ -342,8 +394,14 @@ fn split_vote_no_consensus() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
 
-            // Submit split votes (no consensus possible with current setup)
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -358,7 +416,6 @@ fn split_vote_no_consensus() {
                 false
             ));
 
-            // Third vote determines consensus
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_3()),
                 instance,
@@ -366,7 +423,6 @@ fn split_vote_no_consensus() {
                 true
             ));
 
-            // Should reach consensus on acceptance (2 true vs 1 false)
             assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Accepted);
         });
 }
@@ -374,7 +430,6 @@ fn split_vote_no_consensus() {
 #[test]
 fn invalid_voting_period_update_fails() {
     ExtBuilder::build_default().as_externality().execute_with(|| {
-        // Try to set voting period below minimum (10 blocks)
         assert_noop!(
             Watchtower::set_voting_period(RuntimeOrigin::root(), 5u64),
             Error::<TestRuntime>::InvalidVotingPeriod
@@ -388,7 +443,6 @@ fn non_root_voting_period_update_fails() {
         .with_watchtowers()
         .as_externality()
         .execute_with(|| {
-            // Try to set voting period from non-root origin
             assert_noop!(
                 Watchtower::set_voting_period(
                     RuntimeOrigin::signed(watchtower_account_1()),
@@ -410,18 +464,14 @@ fn ocw_signature_validation_works() {
                 let instance = SummarySource::EthereumBridge;
                 let vote_is_valid = true;
 
-                // Get signing key for watchtower 1
                 let signing_key =
                     MockNodeManager::get_node_signing_key(&watchtower_account_1()).unwrap();
 
-                // Create test data and signature
                 let data = (crate::WATCHTOWER_OCW_CONTEXT, &instance, &root_id, vote_is_valid);
                 let signature = signing_key.sign(&data.encode()).unwrap();
 
-                // Validate signature
                 assert!(Watchtower::offchain_signature_is_valid(&data, &signing_key, &signature));
 
-                // Test with invalid signature
                 let wrong_data =
                     (crate::WATCHTOWER_OCW_CONTEXT, &instance, &root_id, !vote_is_valid);
                 assert!(!Watchtower::offchain_signature_is_valid(
@@ -436,24 +486,20 @@ fn ocw_signature_validation_works() {
 #[test]
 fn ocw_response_validation_works() {
     ExtBuilder::build_default().as_externality().execute_with(|| {
-        // Test valid hex response
         let valid_response =
             b"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_vec();
         let result = Watchtower::validate_response(valid_response);
         assert!(result.is_ok());
 
-        // Test invalid length response
         let invalid_length_response = b"0123456789abcdef".to_vec();
         let result = Watchtower::validate_response(invalid_length_response);
         assert!(result.is_err());
 
-        // Test invalid hex response
         let invalid_hex_response =
             b"gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg".to_vec();
         let result = Watchtower::validate_response(invalid_hex_response);
         assert!(result.is_err());
 
-        // Test non-UTF8 response
         let non_utf8_response = vec![0xFF; 64];
         let result = Watchtower::validate_response(non_utf8_response);
         assert!(result.is_err());
@@ -468,20 +514,24 @@ fn voting_status_query_works() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
 
-            // Check status before voting starts
             let status = Watchtower::get_voting_status(instance, root_id.clone());
             assert!(status.is_none());
 
-            // Submit a vote
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
-                true
+                true,
             ));
 
-            // Check status after voting starts
             let status = Watchtower::get_voting_status(instance, root_id.clone());
             assert!(status.is_some());
 
@@ -501,16 +551,23 @@ fn vote_counters_work_correctly() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
 
             let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
             assert_eq!(yes_votes, 0);
             assert_eq!(no_votes, 0);
 
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
-                true
+                true,
             ));
 
             let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
@@ -521,7 +578,7 @@ fn vote_counters_work_correctly() {
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
-                false
+                false,
             ));
 
             let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
@@ -532,7 +589,7 @@ fn vote_counters_work_correctly() {
                 RuntimeOrigin::signed(watchtower_account_3()),
                 instance,
                 root_id.clone(),
-                true
+                true,
             ));
 
             let (yes_votes, no_votes) = Watchtower::vote_counters(instance, root_id.clone());
@@ -549,17 +606,21 @@ fn exact_consensus_threshold_works() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
 
-            // With 3 watchtowers, need 2 for consensus (⌈(2*3)/3⌉ = ⌈8/3⌉ = 3, but actually uses
-            // 2/3) First vote - no consensus yet
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
                 root_id.clone(),
-                true
+                true,
             ));
 
-            // Verify no consensus yet
             let events = System::events();
             assert!(!events.iter().any(|record| {
                 matches!(
@@ -568,15 +629,13 @@ fn exact_consensus_threshold_works() {
                 )
             }));
 
-            // Second vote - should trigger consensus
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
-                true
+                true,
             ));
 
-            // Now consensus should be reached
             assert_consensus_reached_event_emitted(instance, &root_id, VotingStatus::Accepted);
         });
 }
@@ -589,9 +648,15 @@ fn voting_deadline_boundary_test() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
             let voting_period = Watchtower::get_voting_period();
 
-            // Submit initial vote at block 1
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
                 instance,
@@ -599,22 +664,17 @@ fn voting_deadline_boundary_test() {
                 true
             ));
 
-            // Roll to exactly the deadline (start_block + voting_period)
             roll_forward(voting_period);
 
-            // Vote should still be possible at the deadline block - use split vote to avoid
-            // consensus
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_2()),
                 instance,
                 root_id.clone(),
-                false // Different vote to prevent consensus
+                false
             ));
 
-            // Roll one more block past deadline
             roll_one_block();
 
-            // Now voting should fail
             assert_noop!(
                 Watchtower::vote(
                     RuntimeOrigin::signed(watchtower_account_3()),
@@ -635,7 +695,14 @@ fn lazy_cleanup_on_access_works() {
         .execute_with(|| {
             let root_id = get_test_root_id();
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
             let voting_period = Watchtower::get_voting_period();
+
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
 
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
@@ -661,6 +728,12 @@ fn lazy_cleanup_on_access_works() {
 
             let root_id_2 =
                 RootId { range: RootRange { from_block: 20, to_block: 30 }, ingress_counter: 1 };
+
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id_2.clone(),
+                root_hash
+            ));
 
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
@@ -688,9 +761,21 @@ fn different_root_ids_independent_voting() {
         .execute_with(|| {
             let root_id_1 = get_test_root_id();
             let mut root_id_2 = get_test_root_id();
-            root_id_2.ingress_counter = 1; // Make it different
+            root_id_2.ingress_counter = 1;
 
             let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
+
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id_1.clone(),
+                root_hash
+            ));
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id_2.clone(),
+                root_hash
+            ));
 
             assert_ok!(Watchtower::vote(
                 RuntimeOrigin::signed(watchtower_account_1()),
@@ -723,5 +808,455 @@ fn different_root_ids_independent_voting() {
                 root_id_2,
                 false
             ));
+        });
+}
+
+#[test]
+fn challenge_submission_works() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let incorrect_root_hash = get_test_onchain_hash();
+            let correct_root_hash = sp_core::H256::from([2u8; 32]);
+            let challenger = watchtower_account_1();
+            let signing_key = MockNodeManager::get_node_signing_key(&challenger).unwrap();
+
+            let data = (
+                crate::WATCHTOWER_CHALLENGE_CONTEXT,
+                &instance,
+                &root_id,
+                &incorrect_root_hash,
+                &correct_root_hash,
+            );
+            let signature = signing_key.sign(&data.encode()).unwrap();
+
+            assert_ok!(Watchtower::submit_challenge(
+                RuntimeOrigin::none(),
+                challenger.clone(),
+                instance,
+                root_id.clone(),
+                incorrect_root_hash,
+                correct_root_hash,
+                signature
+            ));
+
+            let challenge_key = (instance, root_id.clone());
+            let challenge_info = Watchtower::challenges(&challenge_key);
+            assert!(challenge_info.is_some(), "Challenge should be stored");
+
+            let challenge = challenge_info.unwrap();
+            assert_eq!(challenge.challengers.len(), 1);
+            assert_eq!(challenge.challengers[0], challenger);
+            assert_eq!(challenge.status, crate::ChallengeStatus::Pending);
+            assert_eq!(challenge.incorrect_root_id, incorrect_root_hash);
+            assert_eq!(challenge.correct_root_hash, correct_root_hash);
+
+            let events = System::events();
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::ChallengeSubmitted { .. })
+                )
+            }));
+
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::FirstChallengeAlert { .. })
+                )
+            }));
+        });
+}
+
+#[test]
+fn challenge_threshold_acceptance_works() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let incorrect_root_hash = get_test_onchain_hash();
+            let correct_root_hash = sp_core::H256::from([2u8; 32]);
+
+            let challenger1 = watchtower_account_1();
+            let signing_key1 = MockNodeManager::get_node_signing_key(&challenger1).unwrap();
+            let data = (
+                crate::WATCHTOWER_CHALLENGE_CONTEXT,
+                &instance,
+                &root_id,
+                &incorrect_root_hash,
+                &correct_root_hash,
+            );
+            let signature1 = signing_key1.sign(&data.encode()).unwrap();
+
+            assert_ok!(Watchtower::submit_challenge(
+                RuntimeOrigin::none(),
+                challenger1.clone(),
+                instance,
+                root_id.clone(),
+                incorrect_root_hash,
+                correct_root_hash,
+                signature1
+            ));
+
+            let challenge_key = (instance, root_id.clone());
+            let challenge = Watchtower::challenges(&challenge_key).unwrap();
+            assert_eq!(challenge.status, crate::ChallengeStatus::Pending);
+
+            let challenger2 = watchtower_account_2();
+            let signing_key2 = MockNodeManager::get_node_signing_key(&challenger2).unwrap();
+            let signature2 = signing_key2.sign(&data.encode()).unwrap();
+
+            assert_ok!(Watchtower::submit_challenge(
+                RuntimeOrigin::none(),
+                challenger2.clone(),
+                instance,
+                root_id.clone(),
+                incorrect_root_hash,
+                correct_root_hash,
+                signature2
+            ));
+
+            let challenge = Watchtower::challenges(&challenge_key).unwrap();
+            assert_eq!(challenge.status, crate::ChallengeStatus::Accepted);
+            assert_eq!(challenge.challengers.len(), 2);
+
+            let events = System::events();
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::ChallengeAccepted { .. })
+                )
+            }));
+        });
+}
+
+#[test]
+fn challenge_resolution_bad_challenge_works() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let incorrect_root_hash = get_test_onchain_hash();
+            let correct_root_hash = sp_core::H256::from([2u8; 32]);
+            let challenger = watchtower_account_1();
+
+            let challenge_info = crate::ChallengeInfo {
+                incorrect_root_id: incorrect_root_hash,
+                correct_root_hash,
+                challengers: vec![challenger.clone()].try_into().unwrap(),
+                status: crate::ChallengeStatus::Accepted,
+                created_block: 1u32,
+                first_challenge_alert_sent: true,
+                original_consensus: Some(VotingStatus::Accepted),
+            };
+            let challenge_key = (instance, root_id.clone());
+            crate::Challenges::<TestRuntime>::insert(&challenge_key, challenge_info);
+
+            assert_eq!(Watchtower::failed_challenge_count(&challenger), 0);
+
+            assert_ok!(Watchtower::resolve_challenge(
+                RuntimeOrigin::root(),
+                instance,
+                root_id.clone(),
+                crate::ChallengeResolution::BadChallenge
+            ));
+
+            assert!(Watchtower::challenges(&challenge_key).is_none());
+
+            assert_eq!(Watchtower::failed_challenge_count(&challenger), 1);
+
+            let events = System::events();
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::ChallengeResolved {
+                        resolution: crate::ChallengeResolution::BadChallenge,
+                        ..
+                    })
+                )
+            }));
+        });
+}
+
+#[test]
+fn challenge_resolution_successful_challenge_works() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let incorrect_root_hash = get_test_onchain_hash();
+            let correct_root_hash = sp_core::H256::from([2u8; 32]);
+            let challenger = watchtower_account_1();
+
+            let challenge_info = crate::ChallengeInfo {
+                incorrect_root_id: incorrect_root_hash,
+                correct_root_hash,
+                challengers: vec![challenger.clone()].try_into().unwrap(),
+                status: crate::ChallengeStatus::Accepted,
+                created_block: 1u32,
+                first_challenge_alert_sent: true,
+                original_consensus: Some(VotingStatus::Accepted),
+            };
+            let challenge_key = (instance, root_id.clone());
+            crate::Challenges::<TestRuntime>::insert(&challenge_key, challenge_info);
+
+            assert_eq!(Watchtower::failed_challenge_count(&challenger), 0);
+
+            assert_ok!(Watchtower::resolve_challenge(
+                RuntimeOrigin::root(),
+                instance,
+                root_id.clone(),
+                crate::ChallengeResolution::SuccessfulChallenge
+            ));
+
+            assert!(Watchtower::challenges(&challenge_key).is_none());
+
+            assert_eq!(Watchtower::failed_challenge_count(&challenger), 0);
+
+            let events = System::events();
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::ChallengeResolved {
+                        resolution: crate::ChallengeResolution::SuccessfulChallenge,
+                        ..
+                    })
+                )
+            }));
+        });
+}
+
+#[test]
+fn challenge_resolution_invalid_challenge_works() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let incorrect_root_hash = get_test_onchain_hash();
+            let correct_root_hash = sp_core::H256::from([2u8; 32]);
+            let challenger = watchtower_account_1();
+
+            let challenge_info = crate::ChallengeInfo {
+                incorrect_root_id: incorrect_root_hash,
+                correct_root_hash,
+                challengers: vec![challenger.clone()].try_into().unwrap(),
+                status: crate::ChallengeStatus::Accepted,
+                created_block: 1u32,
+                first_challenge_alert_sent: true,
+                original_consensus: Some(VotingStatus::Accepted),
+            };
+            let challenge_key = (instance, root_id.clone());
+            crate::Challenges::<TestRuntime>::insert(&challenge_key, challenge_info);
+
+            assert_ok!(Watchtower::resolve_challenge(
+                RuntimeOrigin::root(),
+                instance,
+                root_id.clone(),
+                crate::ChallengeResolution::InvalidChallenge
+            ));
+
+            assert!(Watchtower::challenges(&challenge_key).is_none());
+
+            assert_eq!(Watchtower::failed_challenge_count(&challenger), 0);
+
+            let events = System::events();
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::ChallengeResolved {
+                        resolution: crate::ChallengeResolution::InvalidChallenge,
+                        ..
+                    })
+                )
+            }));
+        });
+}
+
+#[test]
+fn automatic_challenge_on_negative_consensus_works() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let root_hash = get_test_onchain_hash();
+
+            assert_ok!(Watchtower::notify_summary_ready_for_validation(
+                instance,
+                root_id.clone(),
+                root_hash
+            ));
+
+            assert_ok!(Watchtower::vote(
+                RuntimeOrigin::signed(watchtower_account_1()),
+                instance,
+                root_id.clone(),
+                false
+            ));
+
+            assert_ok!(Watchtower::vote(
+                RuntimeOrigin::signed(watchtower_account_2()),
+                instance,
+                root_id.clone(),
+                false
+            ));
+
+            let challenge_key = (instance, root_id.clone());
+            let challenge_info = Watchtower::challenges(&challenge_key);
+            assert!(challenge_info.is_some(), "Automatic challenge should be created");
+
+            let challenge = challenge_info.unwrap();
+            assert_eq!(challenge.status, crate::ChallengeStatus::Pending);
+            assert_eq!(challenge.original_consensus, Some(VotingStatus::Rejected));
+            assert_eq!(challenge.incorrect_root_id, root_hash);
+            assert_eq!(challenge.challengers.len(), 0);
+
+            let events = System::events();
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::ChallengesPresentedToAdmin { .. })
+                )
+            }));
+
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::WatchtowerConsensusReached {
+                        consensus_result: VotingStatus::PendingChallengeResolution,
+                        ..
+                    })
+                )
+            }));
+        });
+}
+
+#[test]
+fn duplicate_challenge_submission_fails() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let incorrect_root_hash = get_test_onchain_hash();
+            let correct_root_hash = sp_core::H256::from([2u8; 32]);
+            let challenger = watchtower_account_1();
+            let signing_key = MockNodeManager::get_node_signing_key(&challenger).unwrap();
+
+            let data = (
+                crate::WATCHTOWER_CHALLENGE_CONTEXT,
+                &instance,
+                &root_id,
+                &incorrect_root_hash,
+                &correct_root_hash,
+            );
+            let signature = signing_key.sign(&data.encode()).unwrap();
+
+            assert_ok!(Watchtower::submit_challenge(
+                RuntimeOrigin::none(),
+                challenger.clone(),
+                instance,
+                root_id.clone(),
+                incorrect_root_hash,
+                correct_root_hash,
+                signature.clone()
+            ));
+
+            assert_noop!(
+                Watchtower::submit_challenge(
+                    RuntimeOrigin::none(),
+                    challenger,
+                    instance,
+                    root_id,
+                    incorrect_root_hash,
+                    correct_root_hash,
+                    signature
+                ),
+                Error::<TestRuntime>::AlreadyChallenged
+            );
+        });
+}
+
+#[test]
+fn unauthorized_challenge_submission_fails() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let root_id = get_test_root_id();
+            let instance = SummarySource::EthereumBridge;
+            let incorrect_root_hash = get_test_onchain_hash();
+            let correct_root_hash = sp_core::H256::from([2u8; 32]);
+            let unauthorized_challenger = unauthorized_account();
+
+            let signing_key = sp_runtime::testing::UintAuthorityId(999);
+            let data = (
+                crate::WATCHTOWER_CHALLENGE_CONTEXT,
+                &instance,
+                &root_id,
+                &incorrect_root_hash,
+                &correct_root_hash,
+            );
+            let signature = signing_key.sign(&data.encode()).unwrap();
+
+            assert_noop!(
+                Watchtower::submit_challenge(
+                    RuntimeOrigin::none(),
+                    unauthorized_challenger,
+                    instance,
+                    root_id,
+                    incorrect_root_hash,
+                    correct_root_hash,
+                    signature
+                ),
+                Error::<TestRuntime>::NotAuthorizedWatchtower
+            );
+        });
+}
+
+#[test]
+fn challenge_resolution_admin_management_works() {
+    ExtBuilder::build_default()
+        .with_watchtowers()
+        .as_externality()
+        .execute_with(|| {
+            let admin = watchtower_account_1();
+
+            assert_eq!(Watchtower::challenge_resolution_admin(), None);
+
+            assert_ok!(Watchtower::set_challenge_resolution_admin(
+                RuntimeOrigin::root(),
+                Some(admin.clone())
+            ));
+
+            assert_eq!(Watchtower::challenge_resolution_admin(), Some(admin.clone()));
+
+            assert_ok!(Watchtower::set_challenge_resolution_admin(
+                RuntimeOrigin::root(),
+                None
+            ));
+
+            assert_eq!(Watchtower::challenge_resolution_admin(), None);
+
+            let events = System::events();
+            assert!(events.iter().any(|record| {
+                matches!(
+                    record.event,
+                    RuntimeEvent::Watchtower(crate::Event::ChallengeResolutionAdminUpdated { .. })
+                )
+            }));
         });
 }

@@ -873,6 +873,7 @@ impl pallet_watchtower::Config for Runtime {
     type NodeManager = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type MinVotingPeriod = MinVotingPeriod;
+    type ChallengeResolutionOrigin = EnsureAdminOrRoot;
 }
 
 impl pallet_utility::Config for Runtime {
