@@ -54,7 +54,6 @@ mod benchmarking;
 pub use crate::default_weights::WeightInfo;
 
 pub const OCW_LOCK_PREFIX: &[u8] = b"pallet-watchtower::lock::";
-pub const OCW_LOCK_TIMEOUT_MS: u64 = 10000;
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub const WATCHTOWER_OCW_CONTEXT: &[u8] = b"watchtower_ocw_vote";
 pub const WATCHTOWER_VOTE_PROVIDE_TAG: &[u8] = b"WatchtowerVoteProvideTag";
@@ -507,7 +506,7 @@ pub mod pallet {
             match call {
                 Call::ocw_vote {
                     node,
-                    signing_key,
+                    signing_key: _,
                     summary_instance,
                     root_id,
                     vote_is_valid,
@@ -517,9 +516,15 @@ pub mod pallet {
                         return InvalidTransaction::Call.into();
                     }
 
+                    // Bind the signature to the node's registered signing key, not the provided one
+                    let expected_signing_key = match T::NodeManager::get_node_signing_key(node) {
+                        Some(key) => key,
+                        None => return InvalidTransaction::BadSigner.into(),
+                    };
+
                     if !Self::offchain_signature_is_valid(
                         &(WATCHTOWER_OCW_CONTEXT, summary_instance, root_id, *vote_is_valid),
-                        signing_key,
+                        &expected_signing_key,
                         signature,
                     ) {
                         return InvalidTransaction::BadSigner.into();
@@ -863,7 +868,11 @@ pub mod pallet {
                 consensus_result = VotingStatus::Accepted;
                 consensus_reached = true;
             } else if no_votes >= required_for_consensus {
-                return Self::create_automatic_challenge(summary_instance, root_id);
+                return Self::create_automatic_challenge(
+                    summary_instance,
+                    root_id,
+                    ChallengeAdminTrigger::ConsensusReached,
+                );
             } else {
                 return Ok(());
             }
@@ -1031,6 +1040,7 @@ pub mod pallet {
         fn create_automatic_challenge(
             summary_instance: SummarySource,
             root_id: RootId<BlockNumberFor<T>>,
+            trigger: ChallengeAdminTrigger,
         ) -> DispatchResult {
             let challenge_key = (summary_instance, root_id.clone());
             let consensus_key = (summary_instance, root_id.clone());
@@ -1054,11 +1064,12 @@ pub mod pallet {
 
             Challenges::<T>::insert(&challenge_key, challenge_info.clone());
 
+            // Notify admin once with the appropriate trigger
             Self::deposit_event(Event::ChallengesPresentedToAdmin {
                 summary_instance: summary_instance.clone(),
                 root_id: root_id.clone(),
                 challenge_count: challenge_info.challengers.len() as u32,
-                trigger: ChallengeAdminTrigger::VotingPeriodExpired,
+                trigger,
             });
 
 
@@ -1074,12 +1085,7 @@ pub mod pallet {
                 consensus_result: VotingStatus::PendingChallengeResolution,
             });
 
-            Self::deposit_event(Event::ChallengesPresentedToAdmin {
-                summary_instance,
-                root_id: root_id.clone(),
-                challenge_count: 1,
-                trigger: ChallengeAdminTrigger::ConsensusReached,
-            });
+            // Only emit this once; already emitted above
 
             VoteCounters::<T>::remove(summary_instance, &root_id);
             let _ = VoterHistory::<T>::clear_prefix(&consensus_key, u32::MAX, None);
@@ -1097,7 +1103,11 @@ pub mod pallet {
             let (yes_votes, no_votes) = VoteCounters::<T>::get(summary_instance, root_id.clone());
 
             if no_votes > yes_votes {
-                Self::create_automatic_challenge(summary_instance, root_id)
+                Self::create_automatic_challenge(
+                    summary_instance,
+                    root_id,
+                    ChallengeAdminTrigger::VotingPeriodExpired,
+                )
             } else {
                 Self::handle_expired_voting_without_challenges(summary_instance, root_id)
             }
@@ -1132,8 +1142,15 @@ pub mod pallet {
             let (consensus_reached, positive_votes, required_for_consensus) =
                 Self::check_consensus_reached(instance, &root_id)?;
 
-            // If we didn't reach consensus through positive votes, notify admin
-            if !consensus_reached {
+            // Emit different events depending on whether consensus threshold was met
+            if consensus_reached {
+                Self::deposit_event(Event::WatchtowerConsensusReached {
+                    summary_instance: instance,
+                    root_id: root_id.clone(),
+                    consensus_result: VotingStatus::Accepted,
+                });
+            } else {
+                // Inform about acceptance without reaching the threshold
                 Self::deposit_event(Event::SummaryAcceptedWithoutConsensus {
                     summary_instance: instance,
                     root_id: root_id.clone(),
@@ -1141,12 +1158,6 @@ pub mod pallet {
                     required_votes: required_for_consensus,
                 });
             }
-
-            Self::deposit_event(Event::WatchtowerConsensusReached {
-                summary_instance: instance,
-                root_id: root_id.clone(),
-                consensus_result: VotingStatus::Accepted,
-            });
 
             T::VoteStatusNotifier::on_voting_completed(
                 root_id.clone(),
