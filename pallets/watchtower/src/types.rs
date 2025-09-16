@@ -21,7 +21,10 @@ pub enum Payload<T: Config> {
     Uri(BoundedVec<u8, T::MaxUriLen>),
 }
 
-pub fn to_proposal<T: Config, K>(request: ProposalRequest<K>, proposer: Option<T::AccountId>) -> Result<Proposal<T, K>, Error<T>>
+pub fn to_proposal<T: Config, K>(
+    request: ProposalRequest<K>,
+    proposer: Option<T::AccountId>,
+) -> Result<Proposal<T, K>, Error<T>>
 where
     K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
 {
@@ -40,7 +43,8 @@ where
 pub fn to_payload<T: Config>(raw: RawPayload) -> Result<Payload<T>, Error<T>> {
     match raw {
         RawPayload::Inline(data) => {
-            let bounded = BoundedVec::try_from(data).map_err(|_| Error::<T>::InvalidInlinePayload)?;
+            let bounded =
+                BoundedVec::try_from(data).map_err(|_| Error::<T>::InvalidInlinePayload)?;
             Ok(Payload::Inline(bounded))
         },
         RawPayload::Uri(data) => {
@@ -77,7 +81,11 @@ where
     pub end_at: BlockNumberFor<T>,
 }
 
-impl<T: Config, K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug> Proposal<T, K> {
+impl<
+        T: Config,
+        K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
+    > Proposal<T, K>
+{
     pub fn generate_id(self) -> ProposalId {
         // External ref is unique globally, so we can use it to generate a unique id
         let data =
@@ -89,8 +97,8 @@ impl<T: Config, K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + 
 
     pub fn is_valid(&self) -> bool {
         let base_is_valid = !self.title.is_empty() &&
-        self.external_ref != H256::zero() &&
-        self.end_at >= self.created_at + T::MinVotingPeriod::get();
+            self.external_ref != H256::zero() &&
+            self.end_at >= self.created_at + T::MinVotingPeriod::get();
 
         let payload_valid = match &self.payload {
             Payload::Inline(data) =>

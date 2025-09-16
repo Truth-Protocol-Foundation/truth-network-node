@@ -25,6 +25,7 @@ use alloc::{
 use hex;
 use log;
 use parity_scale_codec::{Decode, Encode};
+pub use prediction_market_primitives::watchtower::*;
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
     traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
@@ -35,7 +36,6 @@ pub use sp_runtime::{
     Perbill,
 };
 use sp_std::prelude::*;
-pub use prediction_market_primitives::watchtower::*;
 
 pub const OCW_LOCK_PREFIX: &[u8] = b"pallet-watchtower::lock::";
 pub const OCW_LOCK_TIMEOUT_MS: u64 = 10000;
@@ -87,7 +87,10 @@ pub mod pallet {
         type VoteStatusNotifier: VoteStatusNotifier;
 
         /// Access control for “external” (non-pallet-originated) proposals.
-        type ExternalProposerOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Option<Self::AccountId>>;
+        type ExternalProposerOrigin: EnsureOrigin<
+            Self::RuntimeOrigin,
+            Success = Option<Self::AccountId>,
+        >;
 
         /// The SignerId type used in NodeManager
         type SignerId: Member + Parameter + sp_runtime::RuntimeAppPublic + Ord + MaxEncodedLen;
@@ -184,11 +187,13 @@ pub mod pallet {
             Self::add_proposal(proposer, proposal)?;
             Ok(())
         }
-
     }
 
     impl<T: Config> Pallet<T> {
-        fn add_proposal(proposer: Option<T::AccountId>, proposal: ProposalRequestOf<T>) -> DispatchResult {
+        fn add_proposal(
+            proposer: Option<T::AccountId>,
+            proposal: ProposalRequestOf<T>,
+        ) -> DispatchResult {
             let proposal = to_proposal::<T, T::ProposalKind>(proposal, proposer.clone())?;
             ensure!(proposal.is_valid(), Error::<T>::InvalidProposal);
 
@@ -222,7 +227,10 @@ pub mod pallet {
             VotingStatus::<T>::get(proposal_id)
         }
 
-        fn submit_proposal(proposer: Option<Self::AccountId>, proposal: ProposalRequestOf<T>) -> DispatchResult {
+        fn submit_proposal(
+            proposer: Option<Self::AccountId>,
+            proposal: ProposalRequestOf<T>,
+        ) -> DispatchResult {
             Self::add_proposal(proposer, proposal)
         }
     }

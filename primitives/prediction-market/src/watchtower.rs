@@ -1,20 +1,12 @@
+use alloc::vec::Vec;
 use frame_support::pallet_prelude::*;
 use scale_info::TypeInfo;
-use sp_runtime::{Perbill, RuntimeDebug};
 use sp_core::H256;
-use alloc::vec::Vec;
+use sp_runtime::{Perbill, RuntimeDebug};
 
 pub type ProposalId = H256;
 
-#[derive(
-    Encode,
-    Decode,
-    RuntimeDebug,
-    Clone,
-    PartialEq,
-    Eq,
-    TypeInfo,
-)]
+#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo)]
 pub enum RawPayload {
     /// Small proposals that can fit safely in the runtime
     Inline(Vec<u8>),
@@ -33,16 +25,7 @@ pub enum DecisionRule {
     Threshold { threshold: Perbill },
 }
 
-#[derive(
-    Encode,
-    Decode,
-    RuntimeDebug,
-    Clone,
-    PartialEq,
-    Eq,
-    TypeInfo,
-    MaxEncodedLen,
-)]
+#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
 #[scale_info(skip_type_params(T))]
 pub enum ProposalSource<K>
 where
@@ -69,15 +52,7 @@ impl Default for VotingStatusEnum {
     }
 }
 
-#[derive(
-    Encode,
-    Decode,
-    RuntimeDebug,
-    Clone,
-    PartialEq,
-    Eq,
-    TypeInfo,
-)]
+#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo)]
 #[scale_info(skip_type_params(K))]
 pub struct ProposalRequest<K>
 where
@@ -98,6 +73,9 @@ pub trait WatchtowerInterface {
     type K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug;
     type AccountId: Parameter;
 
-    fn submit_proposal(proposer: Option<Self::AccountId>, proposal: ProposalRequest<Self::K>) -> DispatchResult;
+    fn submit_proposal(
+        proposer: Option<Self::AccountId>,
+        proposal: ProposalRequest<Self::K>,
+    ) -> DispatchResult;
     fn get_voting_status(proposal_id: ProposalId) -> VotingStatusEnum;
 }
