@@ -1,6 +1,6 @@
 use crate::*;
 use frame_support::{CloneNoBound, EqNoBound, PartialEqNoBound, RuntimeDebugNoBound};
-use sp_core::hashing::blake2_256;
+use sp_runtime::traits::Hash;
 
 #[derive(
     Encode,
@@ -21,28 +21,32 @@ pub enum Payload<T: Config> {
     Uri(BoundedVec<u8, T::MaxUriLen>),
 }
 
-#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-pub enum DecisionRule {
-    /// Yes > No to win
-    SimpleMajority,
-    /// Yes > No AND turnout >= min_turnout (percent of snapshot).
-    MajorityWithTurnout { min_turnout: Perbill },
-    /// Yes / (Yes+No) >= threshold AND turnout >= min_turnout (optional).
-    Threshold { threshold: Perbill },
+pub fn to_proposal<T: Config, K>(request: ProposalRequest<K>, proposer: Option<T::AccountId>) -> Result<Proposal<T, K>, Error<T>>
+where
+    K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
+{
+    Ok(Proposal {
+        title: BoundedVec::try_from(request.title).map_err(|_| Error::<T>::InvalidTitle)?,
+        payload: to_payload(request.payload)?,
+        rule: request.rule,
+        source: request.source,
+        external_ref: request.external_ref,
+        proposer,
+        created_at: BlockNumberFor::<T>::from(request.created_at),
+        end_at: frame_system::Pallet::<T>::block_number() + request.max_vote_duration.into(),
+    })
 }
 
-#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-pub enum VotingStatusEnum {
-    Ongoing,
-    Resolved { passed: bool },
-    Cancelled,
-    Unknown,
-}
-
-//implement default for VotingStatusEnum to be Unknown
-impl Default for VotingStatusEnum {
-    fn default() -> Self {
-        VotingStatusEnum::Unknown
+pub fn to_payload<T: Config>(raw: RawPayload) -> Result<Payload<T>, Error<T>> {
+    match raw {
+        RawPayload::Inline(data) => {
+            let bounded = BoundedVec::try_from(data).map_err(|_| Error::<T>::InvalidInlinePayload)?;
+            Ok(Payload::Inline(bounded))
+        },
+        RawPayload::Uri(data) => {
+            let bounded = BoundedVec::try_from(data).map_err(|_| Error::<T>::InvalidUri)?;
+            Ok(Payload::Uri(bounded))
+        },
     }
 }
 
@@ -57,50 +61,45 @@ impl Default for VotingStatusEnum {
     MaxEncodedLen,
 )]
 #[scale_info(skip_type_params(T))]
-pub enum ProposalSource<T: Config> {
-    /// External proposals created by other users. These require manual review and voting.
-    External,
-    /// Proposals created by other pallets. These can be voted on automatically by the pallet.
-    Internal(T::ProposalKind),
-}
-
-#[derive(
-    Encode,
-    Decode,
-    RuntimeDebugNoBound,
-    CloneNoBound,
-    PartialEqNoBound,
-    EqNoBound,
-    TypeInfo,
-    MaxEncodedLen,
-)]
-#[scale_info(skip_type_params(T))]
-pub struct Proposal<T: Config> {
+pub struct Proposal<T: Config, K>
+where
+    K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
+{
     pub title: BoundedVec<u8, T::MaxTitleLen>,
     pub payload: Payload<T>,
     pub rule: DecisionRule,
-    pub source: ProposalSource<T>,
+    pub source: ProposalSource<K>,
     /// A unique ref provided by the proposer. Used when sending notifications about this proposal.
     pub external_ref: H256,
-    pub proposer: T::AccountId,
+    // Internal proposer or Root do not have an account id
+    pub proposer: Option<T::AccountId>,
     pub created_at: BlockNumberFor<T>,
     pub end_at: BlockNumberFor<T>,
 }
 
-impl<T: Config> Proposal<T> {
+impl<T: Config, K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug> Proposal<T, K> {
     pub fn generate_id(self) -> ProposalId {
+        // External ref is unique globally, so we can use it to generate a unique id
         let data =
             (self.title, self.payload, self.rule, self.source, self.external_ref, self.created_at)
                 .encode();
-        let hash = blake2_256(&data.clone());
+        let hash = sp_io::hashing::blake2_256(&data);
         ProposalId::from(hash)
     }
 
     pub fn is_valid(&self) -> bool {
-        self.end_at > self.created_at &&
-            self.end_at >= frame_system::Pallet::<T>::block_number() + T::MinVotingPeriod::get() &&
-            !self.title.is_empty() &&
-            self.external_ref != H256::zero()
+        let base_is_valid = !self.title.is_empty() &&
+        self.external_ref != H256::zero() &&
+        self.end_at >= self.created_at + T::MinVotingPeriod::get();
+
+        let payload_valid = match &self.payload {
+            Payload::Inline(data) =>
+                !data.is_empty() && matches!(self.source, ProposalSource::Internal(_)),
+            Payload::Uri(data) =>
+                !data.is_empty() && matches!(self.source, ProposalSource::External),
+        };
+
+        base_is_valid && payload_valid
     }
 }
 
@@ -115,15 +114,12 @@ pub trait NodeManagerInterface<AccountId, SignerId> {
     fn get_authorized_watchtowers_count() -> u32;
 }
 
-pub trait VoteStatusNotifier<BlockNumber: AtLeast32Bit> {
+pub trait VoteStatusNotifier {
     fn on_voting_completed(external_ref: H256, status: VotingStatusEnum) -> DispatchResult;
 }
 
-/// Interface for other pallets to interact with the watchtower pallet
-pub trait WatchtowerInterface {
-    type Config: Config;
-
-    fn submit_proposal(proposal: Proposal<Self::Config>) -> DispatchResult;
-    fn get_voting_status(proposal_id: ProposalId) -> VotingStatusEnum;
-    fn get_proposal(proposal_id: ProposalId) -> Option<Proposal<Self::Config>>;
+impl VoteStatusNotifier for () {
+    fn on_voting_completed(_external_ref: H256, _status: VotingStatusEnum) -> DispatchResult {
+        Ok(())
+    }
 }

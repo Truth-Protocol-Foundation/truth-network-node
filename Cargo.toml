@@ -158,6 +158,7 @@ pallet-pm-order-book = { path = "pallets/order-book", default-features = false }
 pallet-pm-eth-asset-registry = { path = "pallets/eth-asset-registry", default-features = false }
 pallet-node-manager = { path = "pallets/node-manager", default-features = false }
 pallet-config = { path = "pallets/config", default-features = false }
+pallet-watchtower = { path = "pallets/watchtower", default-features = false }
 
 # Other (client)
 clap = "4.5.4"

@@ -10,7 +10,6 @@ pub mod asset_registry;
 pub mod fees;
 pub mod third_party_weights;
 use asset_registry::CustomAssetProcessor;
-
 use codec::{Decode, Encode, MaxEncodedLen};
 use core::cmp::Ordering;
 use orml_traits::parameter_type_with_key;
@@ -129,6 +128,24 @@ impl EnsureOrigin<RuntimeOrigin> for EnsureConfigAdmin {
     fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
         let admin = PalletConfig::config_admin().map_err(|_| ())?;
         Ok(RuntimeOrigin::from(frame_system::RawOrigin::Signed(admin)))
+    }
+}
+
+pub struct EnsureExternalProposerOrRoot;
+impl EnsureOrigin<RuntimeOrigin> for EnsureExternalProposerOrRoot {
+    type Success = Option<AccountId>;
+
+    fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+        match EnsureSigned::<AccountId>::try_origin(o) {
+            Ok(who) => Ok(Some(who)),
+            Err(o) => EnsureRoot::<AccountId>::try_origin(o).map(|_| None),
+        }
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+        use frame_benchmarking::whitelisted_caller;
+        Ok(RuntimeOrigin::signed(whitelisted_caller()))
     }
 }
 
@@ -872,6 +889,28 @@ impl pallet_config::Config for Runtime {
     type WeightInfo = pallet_config::default_weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_watchtower::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
+    type VoteStatusNotifier = ();
+    type ProposalKind = RuntimeProposalKind;
+    type NodeManager = RuntimeNodeManager;
+    type SignerId = NodeManagerKeyId;
+    type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
+    type MinVotingPeriod = ConstU32<20>;
+    type MaxTitleLen = ConstU32<500>;
+    type MaxInlineLen = ConstU32<2000>;
+    type MaxUriLen = ConstU32<1000>;
+}
+
+#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+pub enum RuntimeProposalKind {
+    Summary,
+    Anchor,
+    Governance,
+}
+
 // Prediction market
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 
@@ -1316,6 +1355,7 @@ construct_runtime!(
         AnchorSummary: pallet_summary::<Instance2> = 26,
         NodeManager: pallet_node_manager = 27,
         PalletConfig: pallet_config = 28,
+        Watchtower: pallet_watchtower = 29,
 
         // Prediction Market pallets
         AdvisoryCommittee: pallet_collective::<Instance1>::{Call, Config<T>, Event<T>, Origin<T>, Pallet, Storage} = 30,
@@ -1396,6 +1436,7 @@ mod benches {
         [pallet_nft_manager, NftManager]
         [pallet_node_manager, NodeManager]
         [pallet_config, PalletConfig]
+        [pallet_watchtower, Watchtower]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
         [pallet_proxy, Proxy]
@@ -1729,5 +1770,25 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 
     fn get_events_to_migrate() -> Option<BoundedVec<EventMigration, ProcessingBatchBound>> {
         EthereumEvents::get_events_to_migrate()
+    }
+}
+
+pub struct RuntimeNodeManager;
+impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager {
+    fn is_authorized_watchtower(who: &AccountId) -> bool {
+        pallet_node_manager::NodeRegistry::<Runtime>::contains_key(who)
+    }
+
+    fn get_node_signing_key(node: &AccountId) -> Option<NodeManagerKeyId> {
+        pallet_node_manager::NodeRegistry::<Runtime>::get(node)
+            .map(|node_info| node_info.signing_key)
+    }
+
+    fn get_node_from_local_signing_keys() -> Option<(AccountId, NodeManagerKeyId)> {
+        pallet_node_manager::Pallet::<Runtime>::get_node_from_signing_key()
+    }
+
+    fn get_authorized_watchtowers_count() -> u32 {
+        pallet_node_manager::TotalRegisteredNodes::<Runtime>::get()
     }
 }
