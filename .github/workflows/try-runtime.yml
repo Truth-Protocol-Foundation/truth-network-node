@@ -74,9 +74,6 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-try-runtime-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Check try-runtime build
-        run: cargo check --locked --features try-runtime -p tnf-node-runtime
-
       - name: Build runtime with try-runtime
         run: cargo build --locked --release --features try-runtime -p tnf-node-runtime
 
