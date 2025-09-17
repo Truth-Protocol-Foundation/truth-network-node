@@ -5488,6 +5488,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-dummy"
+version = "1.14.0"
+dependencies = [
+ "common-primitives",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "log",
+ "pallet-avn",
+ "pallet-summary",
+ "pallet-timestamp",
+ "parity-scale-codec 3.6.9",
+ "parking_lot 0.12.2",
+ "prediction-market-primitives",
+ "scale-info",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-avn-common",
+ "sp-core",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
+]
+
+[[package]]
 name = "pallet-eth-bridge"
 version = "6.8.3"
 source = "git+https://github.com/AventusProtocolFoundation/avn-parachain?tag=v6.8.3-hotfix#a0cc8cf727f7d7e24cbf728f0bbdb8f80735c236"
@@ -6073,6 +6101,35 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-staking",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
+]
+
+[[package]]
+name = "pallet-summary-watchtower"
+version = "1.14.0"
+dependencies = [
+ "common-primitives",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "log",
+ "pallet-avn",
+ "pallet-summary",
+ "pallet-timestamp",
+ "pallet-watchtower",
+ "parity-scale-codec 3.6.9",
+ "parking_lot 0.12.2",
+ "prediction-market-primitives",
+ "scale-info",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-avn-common",
+ "sp-core",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
 ]
 
@@ -10579,6 +10636,7 @@ dependencies = [
  "pallet-balances",
  "pallet-collective",
  "pallet-config",
+ "pallet-dummy",
  "pallet-eth-bridge",
  "pallet-eth-bridge-runtime-api",
  "pallet-ethereum-events",
@@ -10604,6 +10662,7 @@ dependencies = [
  "pallet-session",
  "pallet-sudo",
  "pallet-summary",
+ "pallet-summary-watchtower",
  "pallet-timestamp",
  "pallet-token-manager",
  "pallet-transaction-payment",

@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use frame_support::pallet_prelude::*;
 use scale_info::TypeInfo;
 use sp_core::H256;
-use sp_runtime::{Perbill, RuntimeDebug};
+use sp_runtime::{Perbill, RuntimeDebug, traits::AtLeast32Bit};
 
 pub type ProposalId = H256;
 
@@ -26,19 +26,19 @@ pub enum DecisionRule {
 }
 
 #[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-#[scale_info(skip_type_params(T))]
-pub enum ProposalSource<K>
+pub enum ProposalSource<ProposalKind>
 where
-    K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
+    ProposalKind: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
 {
     /// External proposals created by other users. These require manual review and voting.
     External,
     /// Proposals created by other pallets. These can be voted on automatically by the pallet.
-    Internal(K),
+    Internal(ProposalKind),
 }
 
 #[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
 pub enum VotingStatusEnum {
+    Queued,
     Ongoing,
     Resolved { passed: bool },
     Cancelled,
@@ -53,15 +53,15 @@ impl Default for VotingStatusEnum {
 }
 
 #[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo)]
-#[scale_info(skip_type_params(K))]
-pub struct ProposalRequest<K>
+#[scale_info(skip_type_params(ProposalKind))]
+pub struct ProposalRequest<ProposalKind>
 where
-    K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
+    ProposalKind: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
 {
     pub title: Vec<u8>,
     pub payload: RawPayload,
     pub rule: DecisionRule,
-    pub source: ProposalSource<K>,
+    pub source: ProposalSource<ProposalKind>,
     /// A unique ref provided by the proposer. Used when sending notifications about this proposal.
     pub external_ref: H256,
     pub created_at: u32,
@@ -70,12 +70,53 @@ where
 
 // Interface for other pallets to interact with the watchtower pallet
 pub trait WatchtowerInterface {
-    type K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug;
+    type ProposalKind: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug;
     type AccountId: Parameter;
 
     fn submit_proposal(
         proposer: Option<Self::AccountId>,
-        proposal: ProposalRequest<Self::K>,
+        proposal: ProposalRequest<Self::ProposalKind>,
     ) -> DispatchResult;
+
     fn get_voting_status(proposal_id: ProposalId) -> VotingStatusEnum;
+    fn get_proposer(proposal_id: ProposalId) -> Option<Self::AccountId>;
+}
+
+pub trait WatchtowerHooks {
+    type Proposal: Parameter;
+
+    /// Called when Watchtower raises an alert/notification.
+    fn on_proposal_submitted(proposal_id: ProposalId, proposal: Self::Proposal) -> DispatchResult;
+    fn on_consensus_reached(proposal_id: ProposalId, external_ref: &H256) -> DispatchResult;
+    fn on_cancelled(proposal_id: ProposalId, external_ref: &H256) -> DispatchResult;
+}
+
+/*
+    //-------------------------------------------//
+    // This is a placehold and should be removed //
+    //-------------------------------------------//
+*/
+
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Debug, Eq, TypeInfo, MaxEncodedLen)]
+pub struct RootRange<BlockNumber: AtLeast32Bit> {
+    pub from_block: BlockNumber,
+    pub to_block: BlockNumber,
+}
+
+impl<BlockNumber: AtLeast32Bit> RootRange<BlockNumber> {
+    pub fn new(from_block: BlockNumber, to_block: BlockNumber) -> Self {
+        return RootRange::<BlockNumber> { from_block, to_block }
+    }
+}
+
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Debug, Eq, TypeInfo, MaxEncodedLen)]
+pub struct RootId<BlockNumber: AtLeast32Bit> {
+    pub range: RootRange<BlockNumber>,
+    pub ingress_counter: u32,
+}
+
+impl<BlockNumber: AtLeast32Bit + Encode> RootId<BlockNumber> {
+    pub fn new(range: RootRange<BlockNumber>, ingress_counter: u32) -> Self {
+        return RootId::<BlockNumber> { range, ingress_counter }
+    }
 }

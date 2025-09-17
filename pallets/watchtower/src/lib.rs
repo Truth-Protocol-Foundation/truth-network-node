@@ -98,6 +98,9 @@ pub mod pallet {
         /// Interface for accessing NodeManager pallet functionality
         type NodeManager: NodeManagerInterface<Self::AccountId, Self::SignerId>;
 
+        /// Hooks for other pallets to implement custom logic on certain events
+        type WatchtowerHooks: WatchtowerHooks<Proposal = ProposalOf<Self>>;
+
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
 
@@ -175,7 +178,6 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Register a new node
         #[pallet::call_index(0)]
         #[pallet::weight(0)]
         pub fn submit_external_proposal(
@@ -213,18 +215,24 @@ pub mod pallet {
             Proposals::<T>::insert(proposal_id, &proposal);
             ExternalRef::<T>::insert(external_ref, proposal_id);
 
-            Self::deposit_event(Event::ProposalSubmitted { proposal });
+            Self::deposit_event(Event::ProposalSubmitted { proposal: proposal.clone() });
+
+            T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
 
             Ok(())
         }
     }
 
     impl<T: Config> WatchtowerInterface for Pallet<T> {
-        type K = T::ProposalKind;
+        type ProposalKind = T::ProposalKind;
         type AccountId = T::AccountId;
 
         fn get_voting_status(proposal_id: ProposalId) -> VotingStatusEnum {
             VotingStatus::<T>::get(proposal_id)
+        }
+
+        fn get_proposer(proposal_id: ProposalId) -> Option<Self::AccountId> {
+            Proposals::<T>::get(proposal_id).map(|proposal| proposal.proposer)?
         }
 
         fn submit_proposal(

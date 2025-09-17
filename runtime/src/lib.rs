@@ -25,12 +25,12 @@ use sp_api::impl_runtime_apis;
 use sp_arithmetic::FixedU128;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, One},
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedPointNumber, Percent, RuntimeAppPublic,
+    ApplyExtrinsicResult, FixedPointNumber, Percent, RuntimeAppPublic, DispatchResult,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -40,7 +40,7 @@ use sp_version::RuntimeVersion;
 pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
 
-pub use prediction_market_primitives::{constants::*, types::*};
+pub use prediction_market_primitives::{constants::*, types::*, watchtower::{ProposalId, WatchtowerHooks}};
 
 pub use common_primitives::{
     constants::{
@@ -761,6 +761,18 @@ impl pallet_nft_manager::Config for Runtime {
     type WeightInfo = pallet_nft_manager::default_weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_dummy::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type WatchtowerInterface = Watchtower;
+    type WeightInfo = ();
+}
+
+impl pallet_summary_watchtower::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
+}
+
 parameter_types! {
     pub const MaxScheduledPerBlock: u32 = 50;
 
@@ -894,21 +906,15 @@ impl pallet_watchtower::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type WeightInfo = ();
     type VoteStatusNotifier = ();
-    type ProposalKind = RuntimeProposalKind;
+    type ProposalKind = pallet_dummy::RuntimeProposalKind;
     type NodeManager = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
+    type WatchtowerHooks = SummaryWatchtower;
     type MinVotingPeriod = ConstU32<20>;
     type MaxTitleLen = ConstU32<500>;
     type MaxInlineLen = ConstU32<2000>;
     type MaxUriLen = ConstU32<1000>;
-}
-
-#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-pub enum RuntimeProposalKind {
-    Summary,
-    Anchor,
-    Governance,
 }
 
 // Prediction market
@@ -1373,6 +1379,10 @@ construct_runtime!(
         Orderbook: pallet_pm_order_book::{Call, Event<T>, Pallet, Storage} = 46,
         HybridRouter: pallet_pm_hybrid_router::{Call, Event<T>, Pallet, Storage} = 47,
         Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 48,
+
+
+        Dummy: pallet_dummy = 249,
+        SummaryWatchtower: pallet_summary_watchtower = 250,
     }
 );
 
