@@ -25,7 +25,7 @@ use alloc::{
 use hex;
 use log;
 use parity_scale_codec::{Decode, Encode};
-pub use prediction_market_primitives::watchtower::*;
+pub use sp_avn_common::{RootId, RootRange, watchtower::*};
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
     traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
@@ -36,7 +36,7 @@ pub use sp_runtime::{
     Perbill,
 };
 use sp_std::prelude::*;
-pub use prediction_market_primitives::watchtower::*;
+pub use sp_avn_common::watchtower::*;
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -58,10 +58,7 @@ pub mod pallet {
             + PartialEq
             + core::fmt::Debug;
 
-        type WatchtowerInterface: WatchtowerInterface<
-            ProposalKind = RuntimeProposalKind,
-            AccountId = Self::AccountId
-        >;
+        type WatchtowerInterface: WatchtowerInterface<AccountId = Self::AccountId>;
 
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
@@ -93,18 +90,18 @@ pub mod pallet {
             let external_ref: T::Hash = T::Hashing::hash_of(&current_block);
             let inner_payload = RootId::<BlockNumberFor<T>>::new(
                 RootRange::<BlockNumberFor<T>>::new(current_block, current_block + 10u32.into()),
-                17u32,
+                17u64,
             );
 
-            let x = ProposalRequest::<RuntimeProposalKind> {
+            let x = ProposalRequest {
                 title: "Summary Proposal".as_bytes().to_vec(),
                 external_ref: H256::from_slice(&external_ref.as_ref()),
                 rule: DecisionRule::SimpleMajority,
                 payload: RawPayload::Inline(inner_payload.encode()),
-                source: ProposalSource::Internal(RuntimeProposalKind::Summary),
+                source: ProposalSource::Internal(ProposalType::Summary),
 
                 created_at: current_block.saturated_into::<u32>(),
-                max_vote_duration: 100u32,
+                vote_duration: Some(100u32),
             };
 
             T::WatchtowerInterface::submit_proposal(None, x.clone())?;
@@ -129,4 +126,5 @@ pub enum RuntimeProposalKind {
     Summary,
     Anchor,
     Governance,
+    Other(u8),
 }

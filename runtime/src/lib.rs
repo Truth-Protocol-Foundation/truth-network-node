@@ -40,7 +40,8 @@ use sp_version::RuntimeVersion;
 pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
 
-pub use prediction_market_primitives::{constants::*, types::*, watchtower::{ProposalId, WatchtowerHooks}};
+pub use prediction_market_primitives::{constants::*, types::*};
+pub use sp_avn_common::watchtower::{ProposalId, WatchtowerHooks};
 
 pub use common_primitives::{
     constants::{
@@ -849,6 +850,8 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
+    type RequireExternalValidation = ConstBool<true>;
+    type WatchtowerInterface = Watchtower;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -862,6 +865,8 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
+    type RequireExternalValidation = ConstBool<true>;
+    type WatchtowerInterface = Watchtower;
 }
 
 impl pallet_authors_manager::Config for Runtime {
@@ -906,7 +911,6 @@ impl pallet_watchtower::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type WeightInfo = ();
     type VoteStatusNotifier = ();
-    type ProposalKind = pallet_dummy::RuntimeProposalKind;
     type NodeManager = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type ExternalProposerOrigin = EnsureExternalProposerOrRoot;

@@ -25,7 +25,7 @@ use alloc::{
 use hex;
 use log;
 use parity_scale_codec::{Decode, Encode};
-pub use prediction_market_primitives::watchtower::*;
+pub use sp_avn_common::{RootId, RootRange, watchtower::*};
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
     traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
@@ -36,8 +36,7 @@ pub use sp_runtime::{
     Perbill,
 };
 use sp_std::prelude::*;
-pub use prediction_market_primitives::watchtower::*;
-use pallet_watchtower::{NodeManagerInterface, ProposalOf, Payload};
+use pallet_watchtower::{NodeManagerInterface, Proposal, Payload};
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -58,7 +57,8 @@ pub mod pallet {
         type RuntimeCall: Parameter
             + Dispatchable<RuntimeOrigin = <Self as frame_system::Config>::RuntimeOrigin>
             + IsSubType<Call<Self>>
-            + From<Call<Self>>;
+            + From<Call<Self>>
+            + From<pallet_watchtower::Call<Self>>;
 
         type RuntimeEvent: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>
@@ -104,11 +104,33 @@ pub mod pallet {
         }
     }
 
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn offchain_worker(block_number: BlockNumberFor<T>) {
+            log::debug!(target: "runtime::watchtower::ocw", "Watchtower OCW running for block {:?}", block_number);
+
+            let aye = true;
+            let proposal_id: ProposalId = H256::repeat_byte(1);
+
+            let call = pallet_watchtower::Call::internal_vote {
+                proposal_id,
+                aye,
+            };
+
+            match SubmitTransaction::<T, pallet_watchtower::Call<T>>::submit_unsigned_transaction(call.into()) {
+                Ok(()) => (),
+                Err(_e) => {
+                    log::debug!("Error submitting vote from Summary Watchtower OCW for block {:?}", block_number);
+                }
+            };
+        }
+    }
+
     impl<T: Config> Pallet<T> {
         fn process_proposal(
             proposer: Option<T::AccountId>,
             proposal_id: ProposalId,
-            proposal: ProposalOf<T>,
+            proposal: Proposal<T>,
         ) -> DispatchResult {
             // decode payload as inline with rootId. So something like: Payload::Inline(rootId)
 
@@ -122,7 +144,7 @@ pub mod pallet {
                         }
                     }
                 },
-                Payload::Uri(_uri) => {
+                _ => {
                     log::error!("Summary Watchtower: URI payloads are not supported for proposal {:?}", proposal_id);
                     return Err(Error::<T>::InvalidSummaryProposal.into());
                 }
@@ -135,10 +157,10 @@ pub mod pallet {
     }
 
     impl<T: Config> WatchtowerHooks for Pallet<T> {
-        type Proposal = ProposalOf<T>;
+        type P = Proposal<T>;
 
         /// Called when Watchtower raises an alert/notification.
-        fn on_proposal_submitted(proposal_id: ProposalId, proposal: Self::Proposal) -> DispatchResult {
+        fn on_proposal_submitted(proposal_id: ProposalId, proposal: Self::P) -> DispatchResult {
             log::warn!("Summary Watchtower: New proposal submitted: {:?}", proposal);
             Self::process_proposal(None, proposal_id, proposal)
         }

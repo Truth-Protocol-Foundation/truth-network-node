@@ -33,4 +33,3 @@ mod serde_wrapper;
 pub mod test_helper;
 pub mod traits;
 pub mod types;
-pub mod watchtower;

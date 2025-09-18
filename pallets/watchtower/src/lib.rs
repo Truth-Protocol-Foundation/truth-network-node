@@ -25,7 +25,7 @@ use alloc::{
 use hex;
 use log;
 use parity_scale_codec::{Decode, Encode};
-pub use prediction_market_primitives::watchtower::*;
+pub use sp_avn_common::watchtower::*;
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
     traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
@@ -46,10 +46,6 @@ pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 
 pub mod types;
 pub use types::*;
-
-pub type ProposalSourceOf<T> = ProposalSource<<T as Config>::ProposalKind>;
-pub type ProposalRequestOf<T> = ProposalRequest<<T as Config>::ProposalKind>;
-pub type ProposalOf<T> = Proposal<T, <T as Config>::ProposalKind>;
 
 pub use pallet::*;
 #[frame_support::pallet]
@@ -74,15 +70,6 @@ pub mod pallet {
             + IsSubType<Call<Self>>
             + From<Call<Self>>;
 
-        /// The type of proposal kinds used by internal proposals, defined by the runtime
-        type ProposalKind: Parameter
-            + Member
-            + MaxEncodedLen
-            + TypeInfo
-            + Clone
-            + Eq
-            + core::fmt::Debug;
-
         /// A trait to notify the result of voting
         type VoteStatusNotifier: VoteStatusNotifier;
 
@@ -99,7 +86,7 @@ pub mod pallet {
         type NodeManager: NodeManagerInterface<Self::AccountId, Self::SignerId>;
 
         /// Hooks for other pallets to implement custom logic on certain events
-        type WatchtowerHooks: WatchtowerHooks<Proposal = ProposalOf<Self>>;
+        type WatchtowerHooks: WatchtowerHooks<P = Proposal<Self>>;
 
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
@@ -138,7 +125,7 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn proposals)]
     pub type Proposals<T: Config> =
-        StorageMap<_, Blake2_128Concat, ProposalId, ProposalOf<T>, OptionQuery>;
+        StorageMap<_, Blake2_128Concat, ProposalId, Proposal<T>, OptionQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn voting_status)]
@@ -149,7 +136,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// A new proposal has been submitted
-        ProposalSubmitted { proposal: ProposalOf<T> },
+        ProposalSubmitted { proposal: Proposal<T> },
         /// A vote has been cast on a proposal
         Voted { voter: T::AccountId, proposal_id: ProposalId, aye: bool },
         /// Consensus has been reached on a proposal
@@ -158,6 +145,9 @@ pub mod pallet {
         VotingPeriodUpdated { old_period: BlockNumberFor<T>, new_period: BlockNumberFor<T> },
         /// An expired voting session has been cleaned up
         ExpiredVotingSessionCleaned { proposal_id: ProposalId },
+
+        // DUMMY
+        InternalVoteSubmitted { proposal_id: ProposalId, aye: bool },
     }
 
     #[pallet::error]
@@ -182,21 +172,81 @@ pub mod pallet {
         #[pallet::weight(0)]
         pub fn submit_external_proposal(
             origin: OriginFor<T>,
-            proposal: ProposalRequestOf<T>,
+            proposal: ProposalRequest,
         ) -> DispatchResult {
             let proposer = T::ExternalProposerOrigin::ensure_origin(origin)?;
-
             Self::add_proposal(proposer, proposal)?;
             Ok(())
+        }
+
+        #[pallet::call_index(1)]
+        #[pallet::weight(0)]
+        pub fn signed_submit_external_proposal(
+            origin: OriginFor<T>,
+            proposal: ProposalRequest,
+        ) -> DispatchResult {
+            let proposer = T::ExternalProposerOrigin::ensure_origin(origin)?;
+            Self::add_proposal(proposer, proposal)?;
+            Ok(())
+        }
+
+        #[pallet::call_index(2)]
+        #[pallet::weight(0)]
+        pub fn vote(
+            origin: OriginFor<T>,
+            proposal_id: ProposalId,
+        ) -> DispatchResult {
+            Ok(())
+        }
+
+        #[pallet::call_index(3)]
+        #[pallet::weight(0)]
+        pub fn signed_vote(
+            origin: OriginFor<T>,
+            proposal_id: ProposalId,
+        ) -> DispatchResult {
+            Ok(())
+        }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(0)]
+        pub fn internal_vote(
+            origin: OriginFor<T>,
+            proposal_id: ProposalId,
+            aye: bool,
+        ) -> DispatchResult {
+
+            Self::deposit_event(Event::InternalVoteSubmitted { proposal_id, aye });
+            Ok(())
+        }
+    }
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            if let Call::internal_vote { proposal_id, aye } = call
+            {
+                let provides_tag = (proposal_id, aye).encode();
+                ValidTransaction::with_tag_prefix("internalVote")
+                    .priority(TransactionPriority::MAX)
+                    .and_provides(vec![provides_tag])
+                    .longevity(64_u64)
+                    .propagate(true)
+                    .build()
+            } else {
+                InvalidTransaction::Call.into()
+            }
         }
     }
 
     impl<T: Config> Pallet<T> {
         fn add_proposal(
             proposer: Option<T::AccountId>,
-            proposal: ProposalRequestOf<T>,
+            proposal: ProposalRequest,
         ) -> DispatchResult {
-            let proposal = to_proposal::<T, T::ProposalKind>(proposal, proposer.clone())?;
+            let proposal = to_proposal::<T>(proposal, proposer.clone())?;
             ensure!(proposal.is_valid(), Error::<T>::InvalidProposal);
 
             let external_ref = proposal.external_ref;
@@ -224,7 +274,6 @@ pub mod pallet {
     }
 
     impl<T: Config> WatchtowerInterface for Pallet<T> {
-        type ProposalKind = T::ProposalKind;
         type AccountId = T::AccountId;
 
         fn get_voting_status(proposal_id: ProposalId) -> VotingStatusEnum {
@@ -237,7 +286,7 @@ pub mod pallet {
 
         fn submit_proposal(
             proposer: Option<Self::AccountId>,
-            proposal: ProposalRequestOf<T>,
+            proposal: ProposalRequest,
         ) -> DispatchResult {
             Self::add_proposal(proposer, proposal)
         }

@@ -21,12 +21,7 @@ pub enum Payload<T: Config> {
     Uri(BoundedVec<u8, T::MaxUriLen>),
 }
 
-pub fn to_proposal<T: Config, K>(
-    request: ProposalRequest<K>,
-    proposer: Option<T::AccountId>,
-) -> Result<Proposal<T, K>, Error<T>>
-where
-    K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
+pub fn to_proposal<T: Config>(request: ProposalRequest, proposer: Option<T::AccountId>) -> Result<Proposal<T>, Error<T>>
 {
     Ok(Proposal {
         title: BoundedVec::try_from(request.title).map_err(|_| Error::<T>::InvalidTitle)?,
@@ -36,7 +31,7 @@ where
         external_ref: request.external_ref,
         proposer,
         created_at: BlockNumberFor::<T>::from(request.created_at),
-        end_at: frame_system::Pallet::<T>::block_number() + request.max_vote_duration.into(),
+        end_at: frame_system::Pallet::<T>::block_number() + T::MinVotingPeriod::get(), // How do we expire them?
     })
 }
 
@@ -65,14 +60,12 @@ pub fn to_payload<T: Config>(raw: RawPayload) -> Result<Payload<T>, Error<T>> {
     MaxEncodedLen,
 )]
 #[scale_info(skip_type_params(T))]
-pub struct Proposal<T: Config, K>
-where
-    K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
+pub struct Proposal<T: Config>
 {
     pub title: BoundedVec<u8, T::MaxTitleLen>,
     pub payload: Payload<T>,
     pub rule: DecisionRule,
-    pub source: ProposalSource<K>,
+    pub source: ProposalSource,
     /// A unique ref provided by the proposer. Used when sending notifications about this proposal.
     pub external_ref: H256,
     // Internal proposer or Root do not have an account id
@@ -81,10 +74,7 @@ where
     pub end_at: BlockNumberFor<T>,
 }
 
-impl<
-        T: Config,
-        K: Parameter + Member + MaxEncodedLen + TypeInfo + Clone + Eq + core::fmt::Debug,
-    > Proposal<T, K>
+impl<T: Config> Proposal<T>
 {
     pub fn generate_id(self) -> ProposalId {
         // External ref is unique globally, so we can use it to generate a unique id
