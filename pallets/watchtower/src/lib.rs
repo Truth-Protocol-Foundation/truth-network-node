@@ -37,11 +37,7 @@ pub use sp_runtime::{
 };
 use sp_std::prelude::*;
 
-pub const OCW_LOCK_PREFIX: &[u8] = b"pallet-watchtower::lock::";
-pub const OCW_LOCK_TIMEOUT_MS: u64 = 10000;
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-pub const WATCHTOWER_OCW_CONTEXT: &[u8] = b"watchtower_ocw_vote";
-pub const WATCHTOWER_VOTE_PROVIDE_TAG: &[u8] = b"WatchtowerVoteProvideTag";
 pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 
 pub mod types;
@@ -86,7 +82,7 @@ pub mod pallet {
         type NodeManager: NodeManagerInterface<Self::AccountId, Self::SignerId>;
 
         /// Hooks for other pallets to implement custom logic on certain events
-        type WatchtowerHooks: WatchtowerHooks<P = Proposal<Self>>;
+        type WatchtowerHooks: WatchtowerHooks<Proposal<Self>>;
 
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
@@ -128,9 +124,18 @@ pub mod pallet {
         StorageMap<_, Blake2_128Concat, ProposalId, Proposal<T>, OptionQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn voting_status)]
-    pub type VotingStatus<T: Config> =
-        StorageMap<_, Blake2_128Concat, ProposalId, VotingStatusEnum, ValueQuery>;
+    #[pallet::getter(fn proposal_status)]
+    pub type ProposalStatus<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalId, ProposalStatusEnum, ValueQuery>;
+
+    /// The currently active internal proposal being voted on, if any
+    #[pallet::storage]
+    pub type ActiveInternalProposal<T: Config> = StorageValue<_, Proposal<T>, OptionQuery>;
+
+    /// A queue of internal proposals waiting to be processed
+    #[pallet::storage]
+    pub type InternalProposalQueue<T: Config> = StorageMap<_, Blake2_128Concat, ProposalId, (), ValueQuery>;
+
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -140,7 +145,7 @@ pub mod pallet {
         /// A vote has been cast on a proposal
         Voted { voter: T::AccountId, proposal_id: ProposalId, aye: bool },
         /// Consensus has been reached on a proposal
-        ConsensusReached { proposal_id: ProposalId, consensus_result: VotingStatusEnum },
+        ConsensusReached { proposal_id: ProposalId, consensus_result: ProposalStatusEnum },
         /// Voting period has been updated
         VotingPeriodUpdated { old_period: BlockNumberFor<T>, new_period: BlockNumberFor<T> },
         /// An expired voting session has been cleaned up
@@ -186,6 +191,7 @@ pub mod pallet {
             proposal: ProposalRequest,
         ) -> DispatchResult {
             let proposer = T::ExternalProposerOrigin::ensure_origin(origin)?;
+            // TODO: Complete me
             Self::add_proposal(proposer, proposal)?;
             Ok(())
         }
@@ -196,6 +202,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             proposal_id: ProposalId,
         ) -> DispatchResult {
+            // TODO: Complete me
             Ok(())
         }
 
@@ -205,6 +212,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             proposal_id: ProposalId,
         ) -> DispatchResult {
+            // TODO: Complete me
             Ok(())
         }
 
@@ -215,7 +223,7 @@ pub mod pallet {
             proposal_id: ProposalId,
             aye: bool,
         ) -> DispatchResult {
-
+            // TODO: Complete me
             Self::deposit_event(Event::InternalVoteSubmitted { proposal_id, aye });
             Ok(())
         }
@@ -244,9 +252,9 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         fn add_proposal(
             proposer: Option<T::AccountId>,
-            proposal: ProposalRequest,
+            proposal_request: ProposalRequest,
         ) -> DispatchResult {
-            let proposal = to_proposal::<T>(proposal, proposer.clone())?;
+            let proposal = to_proposal::<T>(proposal_request, proposer.clone())?;
             ensure!(proposal.is_valid(), Error::<T>::InvalidProposal);
 
             let external_ref = proposal.external_ref;
@@ -265,6 +273,14 @@ pub mod pallet {
             Proposals::<T>::insert(proposal_id, &proposal);
             ExternalRef::<T>::insert(external_ref, proposal_id);
 
+            if let ProposalSource::Internal(_) = proposal.source {
+                if ActiveInternalProposal::<T>::get().is_none() {
+                    ActiveInternalProposal::<T>::put(proposal.clone());
+                } else {
+                    InternalProposalQueue::<T>::insert(proposal_id, ());
+                }
+            }
+
             Self::deposit_event(Event::ProposalSubmitted { proposal: proposal.clone() });
 
             T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
@@ -276,8 +292,8 @@ pub mod pallet {
     impl<T: Config> WatchtowerInterface for Pallet<T> {
         type AccountId = T::AccountId;
 
-        fn get_voting_status(proposal_id: ProposalId) -> VotingStatusEnum {
-            VotingStatus::<T>::get(proposal_id)
+        fn get_proposal_status(proposal_id: ProposalId) -> ProposalStatusEnum {
+            ProposalStatus::<T>::get(proposal_id)
         }
 
         fn get_proposer(proposal_id: ProposalId) -> Option<Self::AccountId> {

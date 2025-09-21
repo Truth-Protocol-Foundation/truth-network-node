@@ -156,17 +156,20 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> WatchtowerHooks for Pallet<T> {
-        type P = Proposal<T>;
-
+    impl<T: Config> WatchtowerHooks<Proposal<T>> for Pallet<T> {
         /// Called when Watchtower raises an alert/notification.
-        fn on_proposal_submitted(proposal_id: ProposalId, proposal: Self::P) -> DispatchResult {
+        fn on_proposal_submitted(proposal_id: ProposalId, proposal: Proposal<T>) -> DispatchResult {
             log::warn!("Summary Watchtower: New proposal submitted: {:?}", proposal);
             Self::process_proposal(None, proposal_id, proposal)
         }
 
-        fn on_consensus_reached(proposal_id: ProposalId, external_ref: &H256) -> DispatchResult {
-            log::warn!("Summary Watchtower: Consensus reached on proposal {:?} with external ref {:?}", proposal_id, external_ref);
+        fn on_consensus_reached(proposal_id: ProposalId, external_ref: &H256, approved: bool) -> DispatchResult {
+            log::warn!("Summary Watchtower: Consensus reached on proposal {:?} with external ref {:?} and approval status {:?}",
+                proposal_id,
+                external_ref,
+                approved
+            );
+
             Ok(())
         }
 

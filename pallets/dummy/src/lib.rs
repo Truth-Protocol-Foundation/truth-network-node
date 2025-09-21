@@ -94,11 +94,11 @@ pub mod pallet {
             );
 
             let x = ProposalRequest {
-                title: "Summary Proposal".as_bytes().to_vec(),
+                title: "Dummy Proposal".as_bytes().to_vec(),
                 external_ref: H256::from_slice(&external_ref.as_ref()),
                 rule: DecisionRule::SimpleMajority,
                 payload: RawPayload::Inline(inner_payload.encode()),
-                source: ProposalSource::Internal(ProposalType::Summary),
+                source: ProposalSource::Internal(ProposalType::Anchor),
 
                 created_at: current_block.saturated_into::<u32>(),
                 vote_duration: Some(100u32),

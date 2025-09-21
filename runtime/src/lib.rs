@@ -850,8 +850,8 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
-    type RequireExternalValidation = ConstBool<true>;
-    type WatchtowerInterface = Watchtower;
+    //type RequireExternalValidation = ConstBool<true>;
+    //type WatchtowerInterface = Watchtower;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -865,8 +865,8 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
-    type RequireExternalValidation = ConstBool<true>;
-    type WatchtowerInterface = Watchtower;
+    //type RequireExternalValidation = ConstBool<true>;
+    //type WatchtowerInterface = Watchtower;
 }
 
 impl pallet_authors_manager::Config for Runtime {

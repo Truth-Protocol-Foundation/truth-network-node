@@ -23,6 +23,12 @@ pub enum Payload<T: Config> {
 
 pub fn to_proposal<T: Config>(request: ProposalRequest, proposer: Option<T::AccountId>) -> Result<Proposal<T>, Error<T>>
 {
+    let end_at = if let Some(vote_duration) = request.vote_duration {
+        frame_system::Pallet::<T>::block_number() + vote_duration.into()
+    } else {
+        frame_system::Pallet::<T>::block_number() + T::MinVotingPeriod::get()
+    };
+
     Ok(Proposal {
         title: BoundedVec::try_from(request.title).map_err(|_| Error::<T>::InvalidTitle)?,
         payload: to_payload(request.payload)?,
@@ -31,7 +37,7 @@ pub fn to_proposal<T: Config>(request: ProposalRequest, proposer: Option<T::Acco
         external_ref: request.external_ref,
         proposer,
         created_at: BlockNumberFor::<T>::from(request.created_at),
-        end_at: frame_system::Pallet::<T>::block_number() + T::MinVotingPeriod::get(), // How do we expire them?
+        end_at,
     })
 }
 
@@ -113,11 +119,11 @@ pub trait NodeManagerInterface<AccountId, SignerId> {
 }
 
 pub trait VoteStatusNotifier {
-    fn on_voting_completed(external_ref: H256, status: VotingStatusEnum) -> DispatchResult;
+    fn on_voting_completed(external_ref: H256, status: ProposalStatusEnum) -> DispatchResult;
 }
 
 impl VoteStatusNotifier for () {
-    fn on_voting_completed(_external_ref: H256, _status: VotingStatusEnum) -> DispatchResult {
+    fn on_voting_completed(_external_ref: H256, _status: ProposalStatusEnum) -> DispatchResult {
         Ok(())
     }
 }

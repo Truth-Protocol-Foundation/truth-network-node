@@ -37,7 +37,7 @@ where
 }
 
 #[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-pub enum VotingStatusEnum {
+pub enum ProposalStatusEnum {
     Queued,
     Ongoing,
     Resolved { passed: bool },
@@ -45,10 +45,10 @@ pub enum VotingStatusEnum {
     Unknown,
 }
 
-//implement default for VotingStatusEnum to be Unknown
-impl Default for VotingStatusEnum {
+//implement default for ProposalStatusEnum to be Unknown
+impl Default for ProposalStatusEnum {
     fn default() -> Self {
-        VotingStatusEnum::Unknown
+        ProposalStatusEnum::Unknown
     }
 }
 
@@ -77,15 +77,13 @@ pub trait WatchtowerInterface {
         proposal: ProposalRequest<Self::ProposalKind>,
     ) -> DispatchResult;
 
-    fn get_voting_status(proposal_id: ProposalId) -> VotingStatusEnum;
+    fn get_proposal_status(proposal_id: ProposalId) -> ProposalStatusEnum;
     fn get_proposer(proposal_id: ProposalId) -> Option<Self::AccountId>;
 }
 
-pub trait WatchtowerHooks {
-    type Proposal: Parameter;
-
+pub trait WatchtowerHooks<P: Parameter> {
     /// Called when Watchtower raises an alert/notification.
-    fn on_proposal_submitted(proposal_id: ProposalId, proposal: Self::Proposal) -> DispatchResult;
+    fn on_proposal_submitted(proposal_id: ProposalId, proposal: P) -> DispatchResult;
     fn on_consensus_reached(proposal_id: ProposalId, external_ref: &H256) -> DispatchResult;
     fn on_cancelled(proposal_id: ProposalId, external_ref: &H256) -> DispatchResult;
 }
