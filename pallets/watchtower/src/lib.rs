@@ -43,6 +43,9 @@ pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 pub mod types;
 pub use types::*;
 
+pub mod queue;
+pub use queue::*;
+
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
@@ -89,19 +92,23 @@ pub mod pallet {
 
         /// Minimum allowed voting period in blocks
         #[pallet::constant]
-        type MinVotingPeriod: Get<BlockNumberFor<Self>> + sp_std::fmt::Debug;
+        type MinVotingPeriod: Get<BlockNumberFor<Self>>;
 
         /// Maximum proposal title length
         #[pallet::constant]
-        type MaxTitleLen: Get<u32> + sp_std::fmt::Debug;
+        type MaxTitleLen: Get<u32>;
 
         /// Maximum length of inline proposal data
         #[pallet::constant]
-        type MaxInlineLen: Get<u32> + sp_std::fmt::Debug;
+        type MaxInlineLen: Get<u32>;
 
         /// Maximum length of URI for proposals
         #[pallet::constant]
-        type MaxUriLen: Get<u32> + sp_std::fmt::Debug;
+        type MaxUriLen: Get<u32>;
+
+        /// Maximum length of Internal proposals
+        #[pallet::constant]
+        type MaxInternalProposalLen: Get<u32>;
     }
 
     #[pallet::type_value]
@@ -132,27 +139,49 @@ pub mod pallet {
     #[pallet::storage]
     pub type ActiveInternalProposal<T: Config> = StorageValue<_, Proposal<T>, OptionQuery>;
 
-    /// A queue of internal proposals waiting to be processed
-    #[pallet::storage]
-    pub type InternalProposalQueue<T: Config> = StorageMap<_, Blake2_128Concat, ProposalId, (), ValueQuery>;
+    #[pallet::storage] // ring slots: physical index -> item id
+    pub type InternalProposalQueue<T: Config> =
+        StorageMap<_, Blake2_128Concat, (QueueId, u32), ProposalId, OptionQuery>;
 
+    #[pallet::storage] // next to pop
+    pub type Head<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    #[pallet::storage] // next free slot to push
+    pub type Tail<T: Config> = StorageValue<_, u64, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// A new proposal has been submitted
-        ProposalSubmitted { proposal: Proposal<T> },
+        ProposalSubmitted {
+            proposal: Proposal<T>,
+        },
         /// A vote has been cast on a proposal
-        Voted { voter: T::AccountId, proposal_id: ProposalId, aye: bool },
+        Voted {
+            voter: T::AccountId,
+            proposal_id: ProposalId,
+            aye: bool,
+        },
         /// Consensus has been reached on a proposal
-        ConsensusReached { proposal_id: ProposalId, consensus_result: ProposalStatusEnum },
+        ConsensusReached {
+            proposal_id: ProposalId,
+            consensus_result: ProposalStatusEnum,
+        },
         /// Voting period has been updated
-        VotingPeriodUpdated { old_period: BlockNumberFor<T>, new_period: BlockNumberFor<T> },
+        VotingPeriodUpdated {
+            old_period: BlockNumberFor<T>,
+            new_period: BlockNumberFor<T>,
+        },
         /// An expired voting session has been cleaned up
-        ExpiredVotingSessionCleaned { proposal_id: ProposalId },
+        ExpiredVotingSessionCleaned {
+            proposal_id: ProposalId,
+        },
 
         // DUMMY
-        InternalVoteSubmitted { proposal_id: ProposalId, aye: bool },
+        InternalVoteSubmitted {
+            proposal_id: ProposalId,
+            aye: bool,
+        },
     }
 
     #[pallet::error]
@@ -169,6 +198,12 @@ pub mod pallet {
         DuplicateExternalRef,
         /// A proposal with the same id already exists
         DuplicateProposal,
+        /// Inner proposal queue is full
+        InnerProposalQueueFull,
+        /// Inner proposal queue is corrupt
+        QueueCorruptState,
+        /// Inner proposal queue is empty
+        QueueEmpty,
     }
 
     #[pallet::call]
@@ -198,20 +233,14 @@ pub mod pallet {
 
         #[pallet::call_index(2)]
         #[pallet::weight(0)]
-        pub fn vote(
-            origin: OriginFor<T>,
-            proposal_id: ProposalId,
-        ) -> DispatchResult {
+        pub fn vote(origin: OriginFor<T>, proposal_id: ProposalId) -> DispatchResult {
             // TODO: Complete me
             Ok(())
         }
 
         #[pallet::call_index(3)]
         #[pallet::weight(0)]
-        pub fn signed_vote(
-            origin: OriginFor<T>,
-            proposal_id: ProposalId,
-        ) -> DispatchResult {
+        pub fn signed_vote(origin: OriginFor<T>, proposal_id: ProposalId) -> DispatchResult {
             // TODO: Complete me
             Ok(())
         }
@@ -234,8 +263,7 @@ pub mod pallet {
         type Call = Call<T>;
 
         fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-            if let Call::internal_vote { proposal_id, aye } = call
-            {
+            if let Call::internal_vote { proposal_id, aye } = call {
                 let provides_tag = (proposal_id, aye).encode();
                 ValidTransaction::with_tag_prefix("internalVote")
                     .priority(TransactionPriority::MAX)
@@ -277,7 +305,7 @@ pub mod pallet {
                 if ActiveInternalProposal::<T>::get().is_none() {
                     ActiveInternalProposal::<T>::put(proposal.clone());
                 } else {
-                    InternalProposalQueue::<T>::insert(proposal_id, ());
+                    Self::enqueue(proposal_id)?;
                 }
             }
 

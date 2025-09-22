@@ -21,8 +21,10 @@ pub enum Payload<T: Config> {
     Uri(BoundedVec<u8, T::MaxUriLen>),
 }
 
-pub fn to_proposal<T: Config>(request: ProposalRequest, proposer: Option<T::AccountId>) -> Result<Proposal<T>, Error<T>>
-{
+pub fn to_proposal<T: Config>(
+    request: ProposalRequest,
+    proposer: Option<T::AccountId>,
+) -> Result<Proposal<T>, Error<T>> {
     let end_at = if let Some(vote_duration) = request.vote_duration {
         frame_system::Pallet::<T>::block_number() + vote_duration.into()
     } else {
@@ -66,8 +68,7 @@ pub fn to_payload<T: Config>(raw: RawPayload) -> Result<Payload<T>, Error<T>> {
     MaxEncodedLen,
 )]
 #[scale_info(skip_type_params(T))]
-pub struct Proposal<T: Config>
-{
+pub struct Proposal<T: Config> {
     pub title: BoundedVec<u8, T::MaxTitleLen>,
     pub payload: Payload<T>,
     pub rule: DecisionRule,
@@ -80,8 +81,7 @@ pub struct Proposal<T: Config>
     pub end_at: BlockNumberFor<T>,
 }
 
-impl<T: Config> Proposal<T>
-{
+impl<T: Config> Proposal<T> {
     pub fn generate_id(self) -> ProposalId {
         // External ref is unique globally, so we can use it to generate a unique id
         let data =
