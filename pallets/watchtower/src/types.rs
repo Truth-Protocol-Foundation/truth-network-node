@@ -1,6 +1,5 @@
 use crate::*;
 use frame_support::{CloneNoBound, EqNoBound, PartialEqNoBound, RuntimeDebugNoBound};
-use sp_runtime::traits::Hash;
 
 #[derive(
     Encode,
@@ -34,8 +33,9 @@ pub fn to_proposal<T: Config>(
     Ok(Proposal {
         title: BoundedVec::try_from(request.title).map_err(|_| Error::<T>::InvalidTitle)?,
         payload: to_payload(request.payload)?,
-        rule: request.rule,
+        threshold: request.threshold,
         source: request.source,
+        decision_rule: request.decision_rule,
         external_ref: request.external_ref,
         proposer,
         created_at: BlockNumberFor::<T>::from(request.created_at),
@@ -71,8 +71,9 @@ pub fn to_payload<T: Config>(raw: RawPayload) -> Result<Payload<T>, Error<T>> {
 pub struct Proposal<T: Config> {
     pub title: BoundedVec<u8, T::MaxTitleLen>,
     pub payload: Payload<T>,
-    pub rule: DecisionRule,
+    pub threshold: Perbill,
     pub source: ProposalSource,
+    pub decision_rule: DecisionRule,
     /// A unique ref provided by the proposer. Used when sending notifications about this proposal.
     pub external_ref: H256,
     // Internal proposer or Root do not have an account id
@@ -84,9 +85,16 @@ pub struct Proposal<T: Config> {
 impl<T: Config> Proposal<T> {
     pub fn generate_id(self) -> ProposalId {
         // External ref is unique globally, so we can use it to generate a unique id
-        let data =
-            (self.title, self.payload, self.rule, self.source, self.external_ref, self.created_at)
-                .encode();
+        let data = (
+            self.title,
+            self.payload,
+            self.threshold,
+            self.source,
+            self.decision_rule,
+            self.external_ref,
+            self.created_at,
+        )
+            .encode();
         let hash = sp_io::hashing::blake2_256(&data);
         ProposalId::from(hash)
     }
@@ -107,15 +115,19 @@ impl<T: Config> Proposal<T> {
     }
 }
 
-pub trait NodeManagerInterface<AccountId, SignerId> {
+pub trait NodesInterface<AccountId, SignerId> {
+    /// Check if the given account is an authorized watchtower
     fn is_authorized_watchtower(who: &AccountId) -> bool;
+
+    /// Get the count of authorized watchtowers without fetching the full list
+    fn get_authorized_watchtowers_count() -> u32;
+
+    /// Get the voting weight of a given watchtower
+    fn get_watchtower_voting_weight(who: &AccountId) -> u32;
 
     fn get_node_signing_key(node: &AccountId) -> Option<SignerId>;
 
     fn get_node_from_local_signing_keys() -> Option<(AccountId, SignerId)>;
-
-    /// Get the count of authorized watchtowers without fetching the full list
-    fn get_authorized_watchtowers_count() -> u32;
 }
 
 pub trait VoteStatusNotifier {
@@ -126,4 +138,10 @@ impl VoteStatusNotifier for () {
     fn on_voting_completed(_external_ref: H256, _status: ProposalStatusEnum) -> DispatchResult {
         Ok(())
     }
+}
+
+#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, Default)]
+pub struct Vote {
+    pub ayes: u32,
+    pub nays: u32,
 }

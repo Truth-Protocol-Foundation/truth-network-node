@@ -25,7 +25,7 @@ use alloc::{
 use hex;
 use log;
 use parity_scale_codec::{Decode, Encode};
-pub use sp_avn_common::{RootId, RootRange, watchtower::*};
+pub use sp_avn_common::{watchtower::*, RootId, RootRange};
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
     traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
@@ -36,7 +36,6 @@ pub use sp_runtime::{
     Perbill,
 };
 use sp_std::prelude::*;
-pub use sp_avn_common::watchtower::*;
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -81,11 +80,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         #[pallet::call_index(0)]
         #[pallet::weight(0)]
-        pub fn submit_root_for_validation(
-            origin: OriginFor<T>,
-        ) -> DispatchResult {
-
-
+        pub fn submit_root_for_validation(origin: OriginFor<T>) -> DispatchResult {
             let current_block = <frame_system::Pallet<T>>::block_number();
             let external_ref: T::Hash = T::Hashing::hash_of(&current_block);
             let inner_payload = RootId::<BlockNumberFor<T>>::new(
@@ -96,10 +91,10 @@ pub mod pallet {
             let x = ProposalRequest {
                 title: "Dummy Proposal".as_bytes().to_vec(),
                 external_ref: H256::from_slice(&external_ref.as_ref()),
-                rule: DecisionRule::SimpleMajority,
+                threshold: Perbill::from_percent(50),
                 payload: RawPayload::Inline(inner_payload.encode()),
                 source: ProposalSource::Internal(ProposalType::Anchor),
-
+                decision_rule: DecisionRule::SimpleMajority,
                 created_at: current_block.saturated_into::<u32>(),
                 vote_duration: Some(100u32),
             };
@@ -119,7 +114,6 @@ pub mod pallet {
 
     // }
 }
-
 
 #[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
 pub enum RuntimeProposalKind {

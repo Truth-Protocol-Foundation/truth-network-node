@@ -24,8 +24,9 @@ use alloc::{
 
 use hex;
 use log;
+use pallet_watchtower::{NodesInterface, Payload, Proposal};
 use parity_scale_codec::{Decode, Encode};
-pub use sp_avn_common::{RootId, RootRange, watchtower::*};
+pub use sp_avn_common::{watchtower::*, RootId, RootRange};
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
     traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
@@ -36,7 +37,6 @@ pub use sp_runtime::{
     Perbill,
 };
 use sp_std::prelude::*;
-use pallet_watchtower::{NodeManagerInterface, Proposal, Payload};
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -53,7 +53,9 @@ pub mod pallet {
     pub struct Pallet<T>(_);
 
     #[pallet::config]
-    pub trait Config: SendTransactionTypes<Call<Self>> + frame_system::Config + pallet_watchtower::Config {
+    pub trait Config:
+        SendTransactionTypes<Call<Self>> + frame_system::Config + pallet_watchtower::Config
+    {
         type RuntimeCall: Parameter
             + Dispatchable<RuntimeOrigin = <Self as frame_system::Config>::RuntimeOrigin>
             + IsSubType<Call<Self>>
@@ -73,12 +75,12 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn voting_period)]
-    pub type ActiveRequest<T: Config> =
-        StorageValue<_, BlockNumberFor<T>, ValueQuery>;
+    pub type ActiveRequest<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn id_by_external_ref)]
-    pub type RequestQueue<T: Config> = StorageMap<_, Blake2_128Concat, H256, ProposalId, ValueQuery>;
+    pub type RequestQueue<T: Config> =
+        StorageMap<_, Blake2_128Concat, H256, ProposalId, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -97,9 +99,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         #[pallet::call_index(0)]
         #[pallet::weight(0)]
-        pub fn test(
-            origin: OriginFor<T>,
-        ) -> DispatchResult {
+        pub fn test(origin: OriginFor<T>) -> DispatchResult {
             Ok(())
         }
     }
@@ -109,20 +109,23 @@ pub mod pallet {
         fn offchain_worker(block_number: BlockNumberFor<T>) {
             log::debug!(target: "runtime::watchtower::ocw", "Watchtower OCW running for block {:?}", block_number);
 
-            let aye = true;
-            let proposal_id: ProposalId = H256::repeat_byte(1);
+            // let aye = true;
+            // let proposal_id: ProposalId = H256::repeat_byte(1);
 
-            let call = pallet_watchtower::Call::internal_vote {
-                proposal_id,
-                aye,
-            };
+            // let call = pallet_watchtower::Call::internal_vote {
+            //     proposal_id,
+            //     aye,
+            //     voter: Default::default(),
+            //     signature: Default::default()
+            // };
 
-            match SubmitTransaction::<T, pallet_watchtower::Call<T>>::submit_unsigned_transaction(call.into()) {
-                Ok(()) => (),
-                Err(_e) => {
-                    log::debug!("Error submitting vote from Summary Watchtower OCW for block {:?}", block_number);
-                }
-            };
+            // match SubmitTransaction::<T,
+            // pallet_watchtower::Call<T>>::submit_unsigned_transaction(call.into()) {
+            //     Ok(()) => (),
+            //     Err(_e) => {
+            //         log::debug!("Error submitting vote from Summary Watchtower OCW for block
+            // {:?}", block_number);     }
+            // };
         }
     }
 
@@ -135,19 +138,24 @@ pub mod pallet {
             // decode payload as inline with rootId. So something like: Payload::Inline(rootId)
 
             let root_id = match &proposal.payload {
-                Payload::Inline(data) => {
+                Payload::Inline(data) =>
                     match RootId::<BlockNumberFor<T>>::decode(&mut &data[..]) {
                         Ok(root_id) => root_id,
                         Err(_) => {
-                            log::error!("Summary Watchtower: Invalid inline payload for proposal {:?}", proposal_id);
+                            log::error!(
+                                "Summary Watchtower: Invalid inline payload for proposal {:?}",
+                                proposal_id
+                            );
                             return Err(Error::<T>::InvalidSummaryProposal.into());
-                        }
-                    }
-                },
+                        },
+                    },
                 _ => {
-                    log::error!("Summary Watchtower: URI payloads are not supported for proposal {:?}", proposal_id);
+                    log::error!(
+                        "Summary Watchtower: URI payloads are not supported for proposal {:?}",
+                        proposal_id
+                    );
                     return Err(Error::<T>::InvalidSummaryProposal.into());
-                }
+                },
             };
 
             Self::deposit_event(Event::SummaryVerificationRequested { proposal_id, root_id });
@@ -163,7 +171,11 @@ pub mod pallet {
             Self::process_proposal(None, proposal_id, proposal)
         }
 
-        fn on_consensus_reached(proposal_id: ProposalId, external_ref: &H256, approved: bool) -> DispatchResult {
+        fn on_consensus_reached(
+            proposal_id: ProposalId,
+            external_ref: &H256,
+            approved: bool,
+        ) -> DispatchResult {
             log::warn!("Summary Watchtower: Consensus reached on proposal {:?} with external ref {:?} and approval status {:?}",
                 proposal_id,
                 external_ref,
@@ -174,7 +186,11 @@ pub mod pallet {
         }
 
         fn on_cancelled(proposal_id: ProposalId, external_ref: &H256) -> DispatchResult {
-            log::warn!("Summary Watchtower: Proposal {:?} with external ref {:?} was cancelled", proposal_id, external_ref);
+            log::warn!(
+                "Summary Watchtower: Proposal {:?} with external ref {:?} was cancelled",
+                proposal_id,
+                external_ref
+            );
             Ok(())
         }
     }

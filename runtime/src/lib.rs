@@ -30,7 +30,7 @@ use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, One},
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedPointNumber, Percent, RuntimeAppPublic, DispatchResult,
+    ApplyExtrinsicResult, DispatchResult, FixedPointNumber, Percent, RuntimeAppPublic,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -911,7 +911,7 @@ impl pallet_watchtower::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type WeightInfo = ();
     type VoteStatusNotifier = ();
-    type NodeManager = RuntimeNodeManager;
+    type Watchtowers = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
     type WatchtowerHooks = SummaryWatchtower;
@@ -919,6 +919,10 @@ impl pallet_watchtower::Config for Runtime {
     type MaxTitleLen = ConstU32<500>;
     type MaxInlineLen = ConstU32<2000>;
     type MaxUriLen = ConstU32<1000>;
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
+    type SignedTxLifetime = ConstU32<64>;
+    type MaxInternalProposalLen = ConstU32<1024>;
 }
 
 // Prediction market
@@ -1422,7 +1426,7 @@ pub type Executive = frame_executive::Executive<
     AllPalletsWithSystem,
     (
         pallet_eth_bridge::migration::EthBridgeMigrations<Runtime>,
-        pallet_node_manager::migration::RewardPeriodInfoUpgrade<Runtime>,
+        pallet_node_manager::migration::OwnedNodesUpgrade<Runtime>,
     ),
 >;
 
@@ -1788,7 +1792,7 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 }
 
 pub struct RuntimeNodeManager;
-impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager {
+impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager {
     fn is_authorized_watchtower(who: &AccountId) -> bool {
         pallet_node_manager::NodeRegistry::<Runtime>::contains_key(who)
     }
@@ -1800,6 +1804,10 @@ impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for Ru
 
     fn get_node_from_local_signing_keys() -> Option<(AccountId, NodeManagerKeyId)> {
         pallet_node_manager::Pallet::<Runtime>::get_node_from_signing_key()
+    }
+
+    fn get_watchtower_voting_weight(who: &AccountId) -> u32 {
+        pallet_node_manager::OwnedNodesCount::<Runtime>::get(who)
     }
 
     fn get_authorized_watchtowers_count() -> u32 {
