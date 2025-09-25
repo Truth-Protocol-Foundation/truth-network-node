@@ -162,13 +162,63 @@ pub mod pallet {
 
             Ok(())
         }
+
+        // pub fn record_finalise_internal_vote_submission(
+    //     block_number: BlockNumberFor<T>,
+    //     proposal_id: ProposalId,
+    //     watchtower: T::AccountId,
+    // ) -> Result<(), Error<T>> {
+    //     let mut key = OC_DB_PREFIX.to_vec();
+    //     key.extend((proposal_id, watchtower).encode());
+
+    //     let storage = StorageValueRef::persistent(&key);
+    //     let result = storage
+    //         .mutate(|_: Result<Option<BlockNumberFor<T>>, StorageRetrievalError>| Ok(block_number));
+    //     match result {
+    //         Err(MutateStorageError::ValueFunctionFailed(e)) => Err(e),
+    //         Err(MutateStorageError::ConcurrentModification(_)) =>
+    //             Err(Error::<T>::FailedToAcquireOcwDbLock),
+    //         Ok(_) => return Ok(()),
+    //     }
+    // }
+
+    // pub fn finalise_internal_vote_submission_in_progress(
+    //     proposal_id: ProposalId,
+    //     watchtower: T::AccountId,
+    //     block_number: BlockNumberFor<T>,
+    // ) -> bool {
+    //     let mut key = OC_DB_PREFIX.to_vec();
+    //     key.extend((proposal_id, watchtower).encode());
+
+    //     match StorageValueRef::persistent(&key).get::<BlockNumberFor<T>>().ok().flatten() {
+    //         Some(last_submission) => {
+    //             // Allow BLOCK_INCLUSION_PERIOD blocks for the transaction to be included
+    //             return block_number <=
+    //                 last_submission
+    //                     .saturating_add(BlockNumberFor::<T>::from(BLOCK_INCLUSION_PERIOD));
+    //         },
+    //         _ => false,
+    //     }
+    // }
     }
 
     impl<T: Config> WatchtowerHooks<Proposal<T>> for Pallet<T> {
         /// Called when Watchtower raises an alert/notification.
         fn on_proposal_submitted(proposal_id: ProposalId, proposal: Proposal<T>) -> DispatchResult {
-            log::warn!("Summary Watchtower: New proposal submitted: {:?}", proposal);
-            Self::process_proposal(None, proposal_id, proposal)
+
+            match &proposal.source {
+                // it source is Internal(ProposalType::Anchor) or Internal(ProposalType::Summary) then process it
+                ProposalSource::Internal(internalType)  => {
+                    match internalType {
+                        ProposalType::Anchor | ProposalType::Summary => {
+                            log::warn!("Summary Watchtower: New proposal submitted: {:?}", proposal);
+                            Self::process_proposal(None, proposal_id, proposal)
+                        },
+                        _ => Ok(()),
+                    }
+                }
+                _ => Ok(()),
+            }
         }
 
         fn on_consensus_reached(

@@ -80,7 +80,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         #[pallet::call_index(0)]
         #[pallet::weight(0)]
-        pub fn submit_root_for_validation(origin: OriginFor<T>) -> DispatchResult {
+        pub fn submit_root_for_validation(origin: OriginFor<T>, duration: u32) -> DispatchResult {
             let current_block = <frame_system::Pallet<T>>::block_number();
             let external_ref: T::Hash = T::Hashing::hash_of(&current_block);
             let inner_payload = RootId::<BlockNumberFor<T>>::new(
@@ -96,15 +96,36 @@ pub mod pallet {
                 source: ProposalSource::Internal(ProposalType::Anchor),
                 decision_rule: DecisionRule::SimpleMajority,
                 created_at: current_block.saturated_into::<u32>(),
-                vote_duration: Some(100u32),
+                vote_duration: Some(duration),
             };
 
             T::WatchtowerInterface::submit_proposal(None, x.clone())?;
 
-            // let block_number = <frame_system::Pallet<T>>::block_number();
-            // let external_ref = H256::from_slice(&block_number.encode());
+            Ok(())
+        }
 
-            // Self::deposit_event(Event::SummaryProposalSubmitted { external_ref });
+        #[pallet::call_index(1)]
+        #[pallet::weight(0)]
+        pub fn submit_external_proposal(origin: OriginFor<T>, duration: u32) -> DispatchResult {
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            let external_ref: T::Hash = T::Hashing::hash_of(&current_block);
+            let inner_payload = RootId::<BlockNumberFor<T>>::new(
+                RootRange::<BlockNumberFor<T>>::new(current_block, current_block + 10u32.into()),
+                17u64,
+            );
+
+            let x = ProposalRequest {
+                title: "Dummy External Proposal".as_bytes().to_vec(),
+                external_ref: H256::from_slice(&external_ref.as_ref()),
+                threshold: Perbill::from_percent(50),
+                payload: RawPayload::Uri(inner_payload.encode()),
+                source: ProposalSource::External,
+                decision_rule: DecisionRule::SimpleMajority,
+                created_at: current_block.saturated_into::<u32>(),
+                vote_duration: Some(duration),
+            };
+
+            T::WatchtowerInterface::submit_proposal(None, x.clone())?;
 
             Ok(())
         }

@@ -24,11 +24,13 @@ pub fn to_proposal<T: Config>(
     request: ProposalRequest,
     proposer: Option<T::AccountId>,
 ) -> Result<Proposal<T>, Error<T>> {
-    let end_at = if let Some(vote_duration) = request.vote_duration {
-        frame_system::Pallet::<T>::block_number() + vote_duration.into()
-    } else {
-        frame_system::Pallet::<T>::block_number() + T::MinVotingPeriod::get()
-    };
+    let vote_duration: u32 = request.vote_duration.unwrap_or(
+        T::MinVotingPeriod::get().saturated_into::<u32>()
+    );
+
+    if vote_duration < T::MinVotingPeriod::get().saturated_into::<u32>() {
+        return Err(Error::<T>::VotingPeriodTooShort);
+    }
 
     Ok(Proposal {
         title: BoundedVec::try_from(request.title).map_err(|_| Error::<T>::InvalidTitle)?,
@@ -39,7 +41,9 @@ pub fn to_proposal<T: Config>(
         external_ref: request.external_ref,
         proposer,
         created_at: BlockNumberFor::<T>::from(request.created_at),
-        end_at,
+        vote_duration,
+        // This gets updated when the proposal is activated
+        end_at: None,
     })
 }
 
@@ -79,7 +83,8 @@ pub struct Proposal<T: Config> {
     // Internal proposer or Root do not have an account id
     pub proposer: Option<T::AccountId>,
     pub created_at: BlockNumberFor<T>,
-    pub end_at: BlockNumberFor<T>,
+    pub vote_duration: u32,
+    pub end_at: Option<BlockNumberFor<T>>,
 }
 
 impl<T: Config> Proposal<T> {
@@ -93,6 +98,7 @@ impl<T: Config> Proposal<T> {
             self.decision_rule,
             self.external_ref,
             self.created_at,
+            self.vote_duration,
         )
             .encode();
         let hash = sp_io::hashing::blake2_256(&data);
@@ -102,7 +108,7 @@ impl<T: Config> Proposal<T> {
     pub fn is_valid(&self) -> bool {
         let base_is_valid = !self.title.is_empty() &&
             self.external_ref != H256::zero() &&
-            self.end_at >= self.created_at + T::MinVotingPeriod::get();
+            self.vote_duration >= T::MinVotingPeriod::get().saturated_into::<u32>();
 
         let payload_valid = match &self.payload {
             Payload::Inline(data) =>
@@ -118,6 +124,9 @@ impl<T: Config> Proposal<T> {
 pub trait NodesInterface<AccountId, SignerId> {
     /// Check if the given account is an authorized watchtower
     fn is_authorized_watchtower(who: &AccountId) -> bool;
+
+    /// Check if the given account owns watchtower nodes
+    fn is_authorized_owner(who: &AccountId) -> bool;
 
     /// Get the count of authorized watchtowers without fetching the full list
     fn get_authorized_watchtowers_count() -> u32;

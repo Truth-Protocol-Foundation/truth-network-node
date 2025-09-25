@@ -23,7 +23,8 @@ pub use sp_runtime::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
         ValidTransaction,
     },
-    Perbill,
+    Perbill, SaturatedConversion,
+
 };
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
@@ -189,7 +190,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// A new proposal has been submitted
-        ProposalSubmitted { proposal: Proposal<T> },
+        ProposalSubmitted { proposal_id: ProposalId, proposal: Proposal<T> },
         /// A vote has been cast on a proposal
         ExternalVoteSubmitted {
             voter: T::AccountId,
@@ -259,6 +260,10 @@ pub mod pallet {
         UnauthorizedUnsignedTransaction,
         /// Failed to acquire offchain db lock
         FailedToAcquireOcwDbLock,
+        /// The voting period for the proposal has not yet ended
+        ProposalVotingPeriodNotEnded,
+        /// The voting period is shorter than the minimum allowed
+        VotingPeriodTooShort,
     }
 
     #[pallet::call]
@@ -318,8 +323,8 @@ pub mod pallet {
         #[pallet::call_index(2)]
         #[pallet::weight(0)]
         pub fn vote(origin: OriginFor<T>, proposal_id: ProposalId, aye: bool) -> DispatchResult {
-            let voter = ensure_signed(origin)?;
-            Self::process_vote(&voter, proposal_id, aye)?;
+            let owner = ensure_signed(origin)?;
+            Self::process_vote(&owner, proposal_id, aye)?;
             Ok(())
         }
 
@@ -332,8 +337,8 @@ pub mod pallet {
             block_number: BlockNumberFor<T>,
             proof: Proof<T::Signature, T::AccountId>,
         ) -> DispatchResult {
-            let voter = ensure_signed(origin)?;
-            ensure!(voter == proof.signer, Error::<T>::SenderIsNotSigner);
+            let owner = ensure_signed(origin)?;
+            ensure!(owner == proof.signer, Error::<T>::SenderIsNotSigner);
             ensure!(
                 block_number.saturating_add(T::SignedTxLifetime::get().into()) >
                     frame_system::Pallet::<T>::block_number(),
@@ -353,7 +358,7 @@ pub mod pallet {
                 Error::<T>::UnauthorizedSignedTransaction
             );
 
-            Self::process_vote(&voter, proposal_id, aye)?;
+            Self::process_vote(&owner, proposal_id, aye)?;
 
             Ok(())
         }
@@ -364,18 +369,18 @@ pub mod pallet {
             origin: OriginFor<T>,
             proposal_id: ProposalId,
             aye: bool,
-            voter: T::AccountId,
+            watchtower: T::AccountId,
             signature: <T::SignerId as RuntimeAppPublic>::Signature,
         ) -> DispatchResult {
             ensure_none(origin)?;
 
-            let voter_signing_key = match T::Watchtowers::get_node_signing_key(&voter) {
+            let voter_signing_key = match T::Watchtowers::get_node_signing_key(&watchtower) {
                 Some(key) => key,
                 None => return Err(Error::<T>::VoterSigningKeyNotFound.into()),
             };
 
             if !Self::offchain_signature_is_valid(
-                &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, aye, &voter),
+                &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, aye, &watchtower),
                 &voter_signing_key,
                 &signature,
             ) {
@@ -384,39 +389,31 @@ pub mod pallet {
             // We allow unsigned votes for both internal and external proposals.
             // For now we expect that only internal proposals should be voted on by the OCW but it
             // might change in the future.
-            Self::process_vote(&voter, proposal_id, aye)?;
+            Self::process_vote(&watchtower, proposal_id, aye)?;
             Ok(())
         }
 
         #[pallet::call_index(5)]
         #[pallet::weight(0)]
-        pub fn unsigned_finalise_proposal(
+        pub fn finalise_proposal(
             origin: OriginFor<T>,
             proposal_id: ProposalId,
-            watchtower: T::AccountId,
-            signature: <T::SignerId as RuntimeAppPublic>::Signature,
         ) -> DispatchResult {
-            ensure_none(origin)?;
+            // Anyone can call this to finalise voting
+            ensure_signed(origin)?;
 
             let proposal = Proposals::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotFound)?;
             ensure!(
                 ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active,
                 Error::<T>::ProposalNotActive
             );
-            let watchtower_signing_key = match T::Watchtowers::get_node_signing_key(&watchtower) {
-                Some(key) => key,
-                None => return Err(Error::<T>::VoterSigningKeyNotFound.into()),
-            };
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            ensure!(current_block >= proposal.end_at.unwrap_or(0u32.into()), Error::<T>::ProposalVotingPeriodNotEnded);
 
-            if !Self::offchain_signature_is_valid(
-                &(WATCHTOWER_FINALISE_PROPOSAL_CONTEXT, proposal_id, &watchtower),
-                &watchtower_signing_key,
-                &signature,
-            ) {
-                return Err(Error::<T>::UnauthorizedUnsignedTransaction.into())
-            }
+            let result = Self::get_vote_result_on_expiry(proposal_id, &proposal);
+            Self::finalise_voting(proposal_id, &proposal, result)?;
 
-            Self::finalise_voting_if_required(proposal_id, &proposal)
+            Ok(())
         }
     }
 
@@ -426,30 +423,18 @@ pub mod pallet {
 
         fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
             match call {
-                Call::unsigned_vote { proposal_id, aye, voter, signature } => {
-                    if T::Watchtowers::is_authorized_watchtower(voter) == false {
+                Call::unsigned_vote { proposal_id, aye, watchtower, signature } => {
+                    if T::Watchtowers::is_authorized_watchtower(watchtower) == false {
                         return InvalidTransaction::Custom(INVALID_WATCHTOWER).into()
                     }
 
                     ValidTransaction::with_tag_prefix("wt_unsignedVote")
                         .priority(TransactionPriority::MAX)
-                        .and_provides((voter, proposal_id))
-                        .longevity(64_u64)
-                        .propagate(true)
-                        .build()
-                },
-                Call::unsigned_finalise_proposal { proposal_id, watchtower, signature } => {
-                    if T::Watchtowers::is_authorized_watchtower(watchtower) == false {
-                        return InvalidTransaction::Custom(INVALID_WATCHTOWER).into()
-                    }
-
-                    ValidTransaction::with_tag_prefix("wt_unsignedFinaliseProposal")
-                        .priority(TransactionPriority::MAX)
                         .and_provides((watchtower, proposal_id))
                         .longevity(64_u64)
                         .propagate(true)
                         .build()
-                },
+                }
                 _ => InvalidTransaction::Call.into(),
             }
         }
@@ -457,39 +442,30 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn offchain_worker(block_number: BlockNumberFor<T>) {
-            // Only run if this node is a watchtower with a local signing key
-            let Some((watchtower, signing_key)) =
-                T::Watchtowers::get_node_from_local_signing_keys()
-            else {
-                return;
-            };
-
-            // Only proceed if there is an active internal proposal
+        fn on_initialize(now: BlockNumberFor<T>) -> Weight {
+            let mut total_weight: Weight = Weight::zero();
+            // Check if the active proposal has expired and finalise it if needed
+            total_weight = total_weight.saturating_add(T::DbWeight::get().reads(1));
             let Some(proposal_id) = ActiveInternalProposal::<T>::get() else {
-                return;
+                return total_weight;
             };
 
             // Only proceed if the proposal exists
+            total_weight = total_weight.saturating_add(T::DbWeight::get().reads(1));
             let Some(active_proposal) = <Proposals<T>>::get(proposal_id) else {
-                return;
+                return total_weight;
             };
 
             // Only finalise if the voting period has ended
-            if block_number < active_proposal.end_at {
-                return;
+            if now < active_proposal.end_at.unwrap_or(0u32.into()) {
+                return total_weight;
             }
 
-            // Only send a new finalise request if we haven't sent one already
-            if Self::finalise_internal_vote_submission_in_progress(
-                proposal_id,
-                watchtower.clone(),
-                block_number,
-            ) {
-                return;
-            }
+            let result = Self::get_vote_result_on_expiry(proposal_id, &active_proposal);
+            Self::finalise_voting(proposal_id, &active_proposal, result);
 
-            Self::invoke_finalise_internal_vote(proposal_id, watchtower, signing_key, block_number);
+            // TODO: compute the weight of the above calls and add to total_weight
+            total_weight
         }
     }
 
@@ -498,7 +474,7 @@ pub mod pallet {
             proposer: Option<T::AccountId>,
             proposal_request: ProposalRequest,
         ) -> DispatchResult {
-            let proposal = to_proposal::<T>(proposal_request, proposer.clone())?;
+            let mut proposal = to_proposal::<T>(proposal_request, proposer.clone())?;
             ensure!(proposal.is_valid(), Error::<T>::InvalidProposal);
 
             let external_ref = proposal.external_ref;
@@ -510,11 +486,11 @@ pub mod pallet {
             let proposal_id = proposal.clone().generate_id();
             ensure!(!Proposals::<T>::contains_key(proposal_id), Error::<T>::DuplicateProposal);
 
-            Proposals::<T>::insert(proposal_id, &proposal);
-            ExternalRef::<T>::insert(external_ref, proposal_id);
+            let current_block = <frame_system::Pallet<T>>::block_number();
 
             if let ProposalSource::Internal(_) = proposal.source {
                 if ActiveInternalProposal::<T>::get().is_none() {
+                    proposal.end_at = Some(current_block + proposal.vote_duration.into());
                     ActiveInternalProposal::<T>::put(proposal_id);
                     ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
                 } else {
@@ -522,10 +498,14 @@ pub mod pallet {
                     ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Queued);
                 }
             } else {
+                proposal.end_at = Some(current_block + proposal.vote_duration.into());
                 ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
             }
 
-            Self::deposit_event(Event::ProposalSubmitted { proposal: proposal.clone() });
+            Proposals::<T>::insert(proposal_id, &proposal);
+            ExternalRef::<T>::insert(external_ref, proposal_id);
+
+            Self::deposit_event(Event::ProposalSubmitted { proposal_id, proposal: proposal.clone() });
             T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
 
             Ok(())
@@ -537,7 +517,6 @@ pub mod pallet {
             aye: bool,
         ) -> DispatchResult {
             let proposal = Proposals::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotFound)?;
-            ensure!(T::Watchtowers::is_authorized_watchtower(voter), Error::<T>::UnauthorizedVoter);
             ensure!(
                 ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active,
                 Error::<T>::ProposalNotActive
@@ -545,14 +524,38 @@ pub mod pallet {
             ensure!(!Voters::<T>::contains_key(voter, proposal_id), Error::<T>::AlreadyVoted);
 
             let current_block = <frame_system::Pallet<T>>::block_number();
-            if current_block >= proposal.end_at {
+            if current_block >= proposal.end_at.unwrap_or(0u32.into()) {
                 // Voting ended but we haven't finalised it yet
                 return Self::finalise_voting_if_required(proposal_id, &proposal);
             }
 
-            let vote_weight = T::Watchtowers::get_watchtower_voting_weight(voter);
-            // This should not happen but just in case
-            ensure!(vote_weight > 0, Error::<T>::UnauthorizedVoter);
+            let mut vote_weight;
+            match proposal.source {
+                ProposalSource::Internal(_) => {
+                    ensure!(T::Watchtowers::is_authorized_watchtower(voter), Error::<T>::UnauthorizedVoter);
+                    vote_weight = 1;
+
+                    Self::deposit_event(Event::InternalVoteSubmitted {
+                        voter: voter.clone(),
+                        proposal_id,
+                        aye,
+                        vote_weight,
+                    })
+            },
+                ProposalSource::External => {
+                    ensure!(T::Watchtowers::is_authorized_owner(voter), Error::<T>::UnauthorizedVoter);
+                    vote_weight = T::Watchtowers::get_watchtower_voting_weight(voter);
+                    // This should not happen but just in case
+                    ensure!(vote_weight > 0, Error::<T>::UnauthorizedVoter);
+
+                    Self::deposit_event(Event::ExternalVoteSubmitted {
+                        voter: voter.clone(),
+                        proposal_id,
+                        aye,
+                        vote_weight,
+                    })
+                },
+            };
 
             Voters::<T>::insert(voter, proposal_id, aye);
             Votes::<T>::mutate(proposal_id, |vote| {
@@ -562,21 +565,6 @@ pub mod pallet {
                     vote.nays = vote.nays.saturating_add(vote_weight);
                 }
             });
-
-            match proposal.source {
-                ProposalSource::Internal(_) => Self::deposit_event(Event::InternalVoteSubmitted {
-                    voter: voter.clone(),
-                    proposal_id,
-                    aye,
-                    vote_weight,
-                }),
-                ProposalSource::External => Self::deposit_event(Event::ExternalVoteSubmitted {
-                    voter: voter.clone(),
-                    proposal_id,
-                    aye,
-                    vote_weight,
-                }),
-            };
 
             Self::finalise_voting_if_required(proposal_id, &proposal)
         }

@@ -45,6 +45,43 @@ impl<T: Config> Pallet<T> {
         }
     }
 
+    pub fn finalise_voting(
+        proposal_id: ProposalId,
+        proposal: &Proposal<T>,
+        consensus_result: ProposalStatusEnum,
+    ) -> DispatchResult {
+        ProposalStatus::<T>::insert(proposal_id, consensus_result.clone());
+        T::VoteStatusNotifier::on_voting_completed(
+            proposal.external_ref,
+            consensus_result.clone(),
+        )?;
+
+        Self::deposit_event(Event::VotingEnded {
+            proposal_id,
+            external_ref: proposal.external_ref,
+            consensus_result,
+        });
+
+        // If this was an internal proposal, activate the next one in the queue
+        if let ProposalSource::Internal(_) = proposal.source {
+            ActiveInternalProposal::<T>::kill();
+            if let Ok(next_proposal_id) = Self::dequeue() {
+                ActiveInternalProposal::<T>::put(next_proposal_id);
+                ProposalStatus::<T>::insert(next_proposal_id, ProposalStatusEnum::Active);
+                Proposals::<T>::mutate(next_proposal_id, |p_opt| {
+                    if let Some(p) = p_opt {
+                        p.end_at = Some(
+                            frame_system::Pallet::<T>::block_number() + p.vote_duration.into(),
+                        );
+                    }
+                });
+            }
+        }
+
+
+        Ok(())
+    }
+
     pub fn finalise_voting_if_required(
         proposal_id: ProposalId,
         proposal: &Proposal<T>,
@@ -54,34 +91,16 @@ impl<T: Config> Pallet<T> {
             consensus_result = Some(Self::get_consensus_result(proposal_id, proposal, consensus));
         } else {
             let current_block = <frame_system::Pallet<T>>::block_number();
-            if current_block >= proposal.end_at {
+            if current_block >= proposal.end_at.unwrap_or(0u32.into()) {
                 consensus_result = Some(Self::get_vote_result_on_expiry(proposal_id, proposal));
             }
         }
 
         if let Some(consensus_result) = consensus_result {
-            ProposalStatus::<T>::insert(proposal_id, consensus_result.clone());
-            T::VoteStatusNotifier::on_voting_completed(
-                proposal.external_ref,
-                consensus_result.clone(),
-            )?;
-
-            Self::deposit_event(Event::VotingEnded {
-                proposal_id,
-                external_ref: proposal.external_ref,
-                consensus_result,
-            });
-
-            // If this was an internal proposal, activate the next one in the queue
-            if let ProposalSource::Internal(_) = proposal.source {
-                ActiveInternalProposal::<T>::kill();
-                if let Ok(next_proposal_id) = Self::dequeue() {
-                    ActiveInternalProposal::<T>::put(next_proposal_id);
-                    ProposalStatus::<T>::insert(next_proposal_id, ProposalStatusEnum::Active);
-                }
-            }
+            Self::finalise_voting(proposal_id, proposal, consensus_result)?;
         }
 
         Ok(())
     }
+
 }

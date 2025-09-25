@@ -1793,8 +1793,12 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 
 pub struct RuntimeNodeManager;
 impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager {
-    fn is_authorized_watchtower(who: &AccountId) -> bool {
-        pallet_node_manager::NodeRegistry::<Runtime>::contains_key(who)
+    fn is_authorized_watchtower(node: &AccountId) -> bool {
+        pallet_node_manager::NodeRegistry::<Runtime>::contains_key(node)
+    }
+
+    fn is_authorized_owner(who: &AccountId) -> bool {
+        pallet_node_manager::OwnedNodes::<Runtime>::iter_prefix(&who).next().is_some()
     }
 
     fn get_node_signing_key(node: &AccountId) -> Option<NodeManagerKeyId> {
@@ -1806,8 +1810,8 @@ impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeN
         pallet_node_manager::Pallet::<Runtime>::get_node_from_signing_key()
     }
 
-    fn get_watchtower_voting_weight(who: &AccountId) -> u32 {
-        pallet_node_manager::OwnedNodesCount::<Runtime>::get(who)
+    fn get_watchtower_voting_weight(owner: &AccountId) -> u32 {
+        pallet_node_manager::OwnedNodesCount::<Runtime>::get(owner)
     }
 
     fn get_authorized_watchtowers_count() -> u32 {
