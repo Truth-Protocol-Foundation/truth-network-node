@@ -35,7 +35,8 @@ impl<T: Config> Pallet<T> {
             ProposalSource::Internal(_) => ProposalStatusEnum::Expired,
             ProposalSource::External => {
                 let votes = Votes::<T>::get(proposal_id);
-                if votes.ayes > votes.nays {
+                if proposal.decision_rule == DecisionRule::SimpleMajority && votes.ayes > votes.nays
+                {
                     ProposalStatusEnum::Resolved { passed: true }
                 } else {
                     ProposalStatusEnum::Resolved { passed: false }
@@ -75,10 +76,8 @@ impl<T: Config> Pallet<T> {
             if let ProposalSource::Internal(_) = proposal.source {
                 ActiveInternalProposal::<T>::kill();
                 if let Ok(next_proposal_id) = Self::dequeue() {
-                    if let Some(next_proposal) = Proposals::<T>::get(next_proposal_id) {
-                        ActiveInternalProposal::<T>::put(next_proposal.clone());
-                        ProposalStatus::<T>::insert(next_proposal_id, ProposalStatusEnum::Active);
-                    }
+                    ActiveInternalProposal::<T>::put(next_proposal_id);
+                    ProposalStatus::<T>::insert(next_proposal_id, ProposalStatusEnum::Active);
                 }
             }
         }

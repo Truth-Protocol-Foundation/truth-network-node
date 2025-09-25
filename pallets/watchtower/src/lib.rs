@@ -35,7 +35,7 @@ pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 pub const WATCHTOWER_UNSIGNED_VOTE_CONTEXT: &'static [u8] = b"wt_unsigned_vote";
 pub const WATCHTOWER_FINALISE_PROPOSAL_CONTEXT: &'static [u8] = b"wt_finalise_proposal";
-pub const INVALID_VOTER: u8 = 2;
+pub const INVALID_WATCHTOWER: u8 = 2;
 
 pub mod vote;
 pub use vote::*;
@@ -173,7 +173,7 @@ pub mod pallet {
 
     /// The currently active internal proposal being voted on, if any
     #[pallet::storage]
-    pub type ActiveInternalProposal<T: Config> = StorageValue<_, Proposal<T>, OptionQuery>;
+    pub type ActiveInternalProposal<T: Config> = StorageValue<_, ProposalId, OptionQuery>;
 
     #[pallet::storage] // ring slots: physical index -> item id
     pub type InternalProposalQueue<T: Config> =
@@ -257,6 +257,8 @@ pub mod pallet {
         VoterSigningKeyNotFound,
         /// The signature on the unsigned transaction is not valid
         UnauthorizedUnsignedTransaction,
+        /// Failed to acquire offchain db lock
+        FailedToAcquireOcwDbLock,
     }
 
     #[pallet::call]
@@ -423,19 +425,32 @@ pub mod pallet {
         type Call = Call<T>;
 
         fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-            if let Call::unsigned_vote { proposal_id, aye, voter, signature } = call {
-                if T::Watchtowers::is_authorized_watchtower(voter) == false {
-                    return InvalidTransaction::Custom(INVALID_VOTER).into()
-                }
+            match call {
+                Call::unsigned_vote { proposal_id, aye, voter, signature } => {
+                    if T::Watchtowers::is_authorized_watchtower(voter) == false {
+                        return InvalidTransaction::Custom(INVALID_WATCHTOWER).into()
+                    }
 
-                ValidTransaction::with_tag_prefix("wt_unsignedVote")
-                    .priority(TransactionPriority::MAX)
-                    .and_provides((voter, proposal_id))
-                    .longevity(64_u64)
-                    .propagate(true)
-                    .build()
-            } else {
-                InvalidTransaction::Call.into()
+                    ValidTransaction::with_tag_prefix("wt_unsignedVote")
+                        .priority(TransactionPriority::MAX)
+                        .and_provides((voter, proposal_id))
+                        .longevity(64_u64)
+                        .propagate(true)
+                        .build()
+                },
+                Call::unsigned_finalise_proposal { proposal_id, watchtower, signature } => {
+                    if T::Watchtowers::is_authorized_watchtower(watchtower) == false {
+                        return InvalidTransaction::Custom(INVALID_WATCHTOWER).into()
+                    }
+
+                    ValidTransaction::with_tag_prefix("wt_unsignedFinaliseProposal")
+                        .priority(TransactionPriority::MAX)
+                        .and_provides((watchtower, proposal_id))
+                        .longevity(64_u64)
+                        .propagate(true)
+                        .build()
+                },
+                _ => InvalidTransaction::Call.into(),
             }
         }
     }
@@ -443,12 +458,38 @@ pub mod pallet {
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         fn offchain_worker(block_number: BlockNumberFor<T>) {
-            // check if the active internal proposal has expired
-            if let Some(active_proposal) = ActiveInternalProposal::<T>::get() {
-                if block_number >= active_proposal.end_at {
-                    // Send an extrinsic to finalise voting
-                }
+            // Only run if this node is a watchtower with a local signing key
+            let Some((watchtower, signing_key)) =
+                T::Watchtowers::get_node_from_local_signing_keys()
+            else {
+                return;
+            };
+
+            // Only proceed if there is an active internal proposal
+            let Some(proposal_id) = ActiveInternalProposal::<T>::get() else {
+                return;
+            };
+
+            // Only proceed if the proposal exists
+            let Some(active_proposal) = <Proposals<T>>::get(proposal_id) else {
+                return;
+            };
+
+            // Only finalise if the voting period has ended
+            if block_number < active_proposal.end_at {
+                return;
             }
+
+            // Only send a new finalise request if we haven't sent one already
+            if Self::finalise_internal_vote_submission_in_progress(
+                proposal_id,
+                watchtower.clone(),
+                block_number,
+            ) {
+                return;
+            }
+
+            Self::invoke_finalise_internal_vote(proposal_id, watchtower, signing_key, block_number);
         }
     }
 
@@ -474,7 +515,7 @@ pub mod pallet {
 
             if let ProposalSource::Internal(_) = proposal.source {
                 if ActiveInternalProposal::<T>::get().is_none() {
-                    ActiveInternalProposal::<T>::put(proposal.clone());
+                    ActiveInternalProposal::<T>::put(proposal_id);
                     ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
                 } else {
                     Self::enqueue(proposal_id)?;

@@ -125,8 +125,10 @@ pub trait NodesInterface<AccountId, SignerId> {
     /// Get the voting weight of a given watchtower
     fn get_watchtower_voting_weight(who: &AccountId) -> u32;
 
+    /// Get the signing key for a given watchtower account
     fn get_node_signing_key(node: &AccountId) -> Option<SignerId>;
 
+    /// Get a local watchtower account and its signing key, if available on this node
     fn get_node_from_local_signing_keys() -> Option<(AccountId, SignerId)>;
 }
 
