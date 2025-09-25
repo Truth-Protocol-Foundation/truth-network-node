@@ -78,7 +78,6 @@ impl<T: Config> Pallet<T> {
             }
         }
 
-
         Ok(())
     }
 
@@ -102,5 +101,4 @@ impl<T: Config> Pallet<T> {
 
         Ok(())
     }
-
 }

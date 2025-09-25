@@ -24,7 +24,6 @@ pub use sp_runtime::{
         ValidTransaction,
     },
     Perbill, SaturatedConversion,
-
 };
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
@@ -395,10 +394,7 @@ pub mod pallet {
 
         #[pallet::call_index(5)]
         #[pallet::weight(0)]
-        pub fn finalise_proposal(
-            origin: OriginFor<T>,
-            proposal_id: ProposalId,
-        ) -> DispatchResult {
+        pub fn finalise_proposal(origin: OriginFor<T>, proposal_id: ProposalId) -> DispatchResult {
             // Anyone can call this to finalise voting
             ensure_signed(origin)?;
 
@@ -408,7 +404,10 @@ pub mod pallet {
                 Error::<T>::ProposalNotActive
             );
             let current_block = <frame_system::Pallet<T>>::block_number();
-            ensure!(current_block >= proposal.end_at.unwrap_or(0u32.into()), Error::<T>::ProposalVotingPeriodNotEnded);
+            ensure!(
+                current_block >= proposal.end_at.unwrap_or(0u32.into()),
+                Error::<T>::ProposalVotingPeriodNotEnded
+            );
 
             let result = Self::get_vote_result_on_expiry(proposal_id, &proposal);
             Self::finalise_voting(proposal_id, &proposal, result)?;
@@ -434,7 +433,7 @@ pub mod pallet {
                         .longevity(64_u64)
                         .propagate(true)
                         .build()
-                }
+                },
                 _ => InvalidTransaction::Call.into(),
             }
         }
@@ -505,7 +504,10 @@ pub mod pallet {
             Proposals::<T>::insert(proposal_id, &proposal);
             ExternalRef::<T>::insert(external_ref, proposal_id);
 
-            Self::deposit_event(Event::ProposalSubmitted { proposal_id, proposal: proposal.clone() });
+            Self::deposit_event(Event::ProposalSubmitted {
+                proposal_id,
+                proposal: proposal.clone(),
+            });
             T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
 
             Ok(())
@@ -532,7 +534,10 @@ pub mod pallet {
             let mut vote_weight;
             match proposal.source {
                 ProposalSource::Internal(_) => {
-                    ensure!(T::Watchtowers::is_authorized_watchtower(voter), Error::<T>::UnauthorizedVoter);
+                    ensure!(
+                        T::Watchtowers::is_authorized_watchtower(voter),
+                        Error::<T>::UnauthorizedVoter
+                    );
                     vote_weight = 1;
 
                     Self::deposit_event(Event::InternalVoteSubmitted {
@@ -541,9 +546,12 @@ pub mod pallet {
                         aye,
                         vote_weight,
                     })
-            },
+                },
                 ProposalSource::External => {
-                    ensure!(T::Watchtowers::is_authorized_owner(voter), Error::<T>::UnauthorizedVoter);
+                    ensure!(
+                        T::Watchtowers::is_authorized_owner(voter),
+                        Error::<T>::UnauthorizedVoter
+                    );
                     vote_weight = T::Watchtowers::get_watchtower_voting_weight(voter);
                     // This should not happen but just in case
                     ensure!(vote_weight > 0, Error::<T>::UnauthorizedVoter);

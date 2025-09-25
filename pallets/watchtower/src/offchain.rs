@@ -45,5 +45,4 @@ impl<T: Config> Pallet<T> {
         );
         return signature_valid;
     }
-
 }

@@ -24,9 +24,9 @@ pub fn to_proposal<T: Config>(
     request: ProposalRequest,
     proposer: Option<T::AccountId>,
 ) -> Result<Proposal<T>, Error<T>> {
-    let vote_duration: u32 = request.vote_duration.unwrap_or(
-        T::MinVotingPeriod::get().saturated_into::<u32>()
-    );
+    let vote_duration: u32 = request
+        .vote_duration
+        .unwrap_or(T::MinVotingPeriod::get().saturated_into::<u32>());
 
     if vote_duration < T::MinVotingPeriod::get().saturated_into::<u32>() {
         return Err(Error::<T>::VotingPeriodTooShort);
