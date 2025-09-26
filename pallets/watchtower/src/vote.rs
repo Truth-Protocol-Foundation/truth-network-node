@@ -4,7 +4,11 @@ impl<T: Config> Pallet<T> {
     pub fn threshold_achieved(proposal_id: ProposalId, threshold: Perbill) -> Option<bool> {
         let vote = Votes::<T>::get(proposal_id);
         let total_voters = T::Watchtowers::get_authorized_watchtowers_count();
-        let min_votes = threshold * total_voters;
+        if total_voters == 0 {
+            return None;
+        }
+
+        let min_votes = threshold.mul_ceil(total_voters);
 
         if vote.ayes >= min_votes {
             Some(true)
@@ -15,11 +19,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn get_consensus_result(
-        proposal_id: ProposalId,
-        proposal: &Proposal<T>,
-        result: bool,
-    ) -> ProposalStatusEnum {
+    pub fn get_consensus_result(result: bool) -> ProposalStatusEnum {
         if result {
             ProposalStatusEnum::Resolved { passed: true }
         } else {
@@ -87,7 +87,7 @@ impl<T: Config> Pallet<T> {
     ) -> DispatchResult {
         let mut consensus_result = None;
         if let Some(consensus) = Self::threshold_achieved(proposal_id, proposal.threshold) {
-            consensus_result = Some(Self::get_consensus_result(proposal_id, proposal, consensus));
+            consensus_result = Some(Self::get_consensus_result(consensus));
         } else {
             let current_block = <frame_system::Pallet<T>>::block_number();
             if current_block >= proposal.end_at.unwrap_or(0u32.into()) {

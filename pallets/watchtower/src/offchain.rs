@@ -1,11 +1,7 @@
 use crate::*;
-use frame_system::offchain::SubmitTransaction;
-use sp_runtime::offchain::storage::{MutateStorageError, StorageRetrievalError, StorageValueRef};
 
-const BLOCK_INCLUSION_PERIOD: u32 = 5;
 const SIGNED_SUBMIT_EXTERNAL_PROPOSAL_CONTEXT: &'static [u8] = b"wt_submit_external_proposal";
 const SIGNED_SUBMIT_VOTE_CONTEXT: &'static [u8] = b"wt_submit_vote";
-const OC_DB_PREFIX: &[u8] = b"wt_ocw_db";
 
 impl<T: Config> Pallet<T> {
     // external_ref will ensure signature re-use is not possible but we also add a lifetime (block

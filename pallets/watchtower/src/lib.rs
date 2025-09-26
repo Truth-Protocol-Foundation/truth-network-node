@@ -38,9 +38,7 @@ pub const WATCHTOWER_FINALISE_PROPOSAL_CONTEXT: &'static [u8] = b"wt_finalise_pr
 pub const INVALID_WATCHTOWER: u8 = 2;
 
 pub mod vote;
-pub use vote::*;
 pub mod offchain;
-pub use offchain::*;
 pub mod types;
 pub use types::*;
 
@@ -422,7 +420,7 @@ pub mod pallet {
 
         fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
             match call {
-                Call::unsigned_vote { proposal_id, aye, watchtower, signature } => {
+                Call::unsigned_vote { proposal_id, aye: _, watchtower, signature: _ } => {
                     if T::Watchtowers::is_authorized_watchtower(watchtower) == false {
                         return InvalidTransaction::Custom(INVALID_WATCHTOWER).into()
                     }
@@ -461,7 +459,14 @@ pub mod pallet {
             }
 
             let result = Self::get_vote_result_on_expiry(proposal_id, &active_proposal);
-            Self::finalise_voting(proposal_id, &active_proposal, result);
+            Self::finalise_voting(proposal_id, &active_proposal, result)
+                .unwrap_or_else(|e| {
+                    log::error!(
+                        "🪲 Failed to finalise voting for internal proposal {}: {:?}",
+                        proposal_id,
+                        e
+                    );
+                });
 
             // TODO: compute the weight of the above calls and add to total_weight
             total_weight
@@ -531,7 +536,7 @@ pub mod pallet {
                 return Self::finalise_voting_if_required(proposal_id, &proposal);
             }
 
-            let mut vote_weight;
+            let vote_weight;
             match proposal.source {
                 ProposalSource::Internal(_) => {
                     ensure!(
