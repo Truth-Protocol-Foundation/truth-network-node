@@ -12,6 +12,7 @@ use frame_support::{
     dispatch::DispatchResult,
     pallet_prelude::*,
     traits::{IsSubType, IsType},
+    weights::WeightMeter,
 };
 use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, WeightInfo};
 use parity_scale_codec::{Decode, Encode};
@@ -37,9 +38,9 @@ pub const WATCHTOWER_UNSIGNED_VOTE_CONTEXT: &'static [u8] = b"wt_unsigned_vote";
 pub const WATCHTOWER_FINALISE_PROPOSAL_CONTEXT: &'static [u8] = b"wt_finalise_proposal";
 pub const INVALID_WATCHTOWER: u8 = 2;
 
-pub mod vote;
-pub mod offchain;
+pub mod proxy;
 pub mod types;
+pub mod vote;
 pub use types::*;
 
 pub mod queue;
@@ -67,9 +68,6 @@ pub mod pallet {
             + Dispatchable<RuntimeOrigin = <Self as frame_system::Config>::RuntimeOrigin>
             + IsSubType<Call<Self>>
             + From<Call<Self>>;
-
-        /// A trait to notify the result of voting
-        type VoteStatusNotifier: VoteStatusNotifier;
 
         /// Access control for “external” (non-pallet-originated) proposals.
         type ExternalProposerOrigin: EnsureOrigin<
@@ -108,10 +106,6 @@ pub mod pallet {
         #[pallet::constant]
         type SignedTxLifetime: Get<u32>;
 
-        /// Minimum allowed voting period in blocks
-        #[pallet::constant]
-        type MinVotingPeriod: Get<BlockNumberFor<Self>>;
-
         /// Maximum proposal title length
         #[pallet::constant]
         type MaxTitleLen: Get<u32>;
@@ -135,8 +129,7 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    #[pallet::getter(fn voting_period)]
-    pub type VotingPeriod<T: Config> =
+    pub type MinVotingPeriod<T: Config> =
         StorageValue<_, BlockNumberFor<T>, ValueQuery, DefaultVotingPeriod<T>>;
 
     #[pallet::storage]
@@ -162,10 +155,10 @@ pub mod pallet {
     pub type Voters<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
-        T::AccountId, // Voter
-        Blake2_128Concat,
         ProposalId,
-        bool, // voted aye or nay
+        Blake2_128Concat,
+        T::AccountId, // Voter
+        bool,         // voted aye or nay
         ValueQuery,
     >;
 
@@ -183,26 +176,18 @@ pub mod pallet {
     #[pallet::storage] // next free slot to push
     pub type Tail<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+    /// Completed or Expired proposals that need to be removed from storage.
+    #[pallet::storage]
+    pub type ProposalsToRemove<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalId, (), OptionQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// A new proposal has been submitted
-        ProposalSubmitted { proposal_id: ProposalId, proposal: Proposal<T> },
+        ProposalSubmitted { proposal_id: ProposalId, external_ref: H256 },
         /// A vote has been cast on a proposal
-        ExternalVoteSubmitted {
-            voter: T::AccountId,
-            proposal_id: ProposalId,
-            aye: bool,
-            vote_weight: u32,
-        },
-        // Keeping 2 events instead of one with source to make it easier to filter for Dapps
-        /// An internal vote has been submitted
-        InternalVoteSubmitted {
-            voter: T::AccountId,
-            proposal_id: ProposalId,
-            aye: bool,
-            vote_weight: u32,
-        },
+        VoteSubmitted { voter: T::AccountId, proposal_id: ProposalId, aye: bool, vote_weight: u32 },
         /// Consensus has been reached on a proposal
         VotingEnded {
             proposal_id: ProposalId,
@@ -211,8 +196,10 @@ pub mod pallet {
         },
         /// Voting period has been updated
         VotingPeriodUpdated { old_period: BlockNumberFor<T>, new_period: BlockNumberFor<T> },
-        /// An expired voting session has been cleaned up
-        ExpiredVotingSessionCleaned { proposal_id: ProposalId },
+        /// A completed or expired proposal has been cleaned from storage
+        ProposalCleaned { proposal_id: ProposalId },
+        /// Minimum voting period has been updated
+        MinVotingPeriodSet { new_period: BlockNumberFor<T> },
     }
 
     #[pallet::error]
@@ -412,6 +399,24 @@ pub mod pallet {
 
             Ok(())
         }
+
+        /// Set admin configurations
+        #[pallet::call_index(6)]
+        #[pallet::weight(0)]
+        pub fn set_admin_config(
+            origin: OriginFor<T>,
+            config: AdminConfig<BlockNumberFor<T>>,
+        ) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
+
+            match config {
+                AdminConfig::MinVotingPeriod(period) => {
+                    <MinVotingPeriod<T>>::mutate(|p| *p = period);
+                    Self::deposit_event(Event::MinVotingPeriodSet { new_period: period });
+                    return Ok(Some(Weight::zero()).into())
+                },
+            }
+        }
     }
 
     #[pallet::validate_unsigned]
@@ -459,17 +464,20 @@ pub mod pallet {
             }
 
             let result = Self::get_vote_result_on_expiry(proposal_id, &active_proposal);
-            Self::finalise_voting(proposal_id, &active_proposal, result)
-                .unwrap_or_else(|e| {
-                    log::error!(
-                        "🪲 Failed to finalise voting for internal proposal {}: {:?}",
-                        proposal_id,
-                        e
-                    );
-                });
+            Self::finalise_voting(proposal_id, &active_proposal, result).unwrap_or_else(|e| {
+                log::error!(
+                    "🪲 Failed to finalise voting for internal proposal {}: {:?}",
+                    proposal_id,
+                    e
+                );
+            });
 
             // TODO: compute the weight of the above calls and add to total_weight
             total_weight
+        }
+
+        fn on_idle(n: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
+            Self::cleanup_proposals(n, remaining_weight)
         }
     }
 
@@ -478,8 +486,8 @@ pub mod pallet {
             proposer: Option<T::AccountId>,
             proposal_request: ProposalRequest,
         ) -> DispatchResult {
-            let mut proposal = to_proposal::<T>(proposal_request, proposer.clone())?;
-            ensure!(proposal.is_valid(), Error::<T>::InvalidProposal);
+            // Proposal is validated before creating it.
+            let mut proposal = to_proposal::<T>(proposal_request, proposer)?;
 
             let external_ref = proposal.external_ref;
             ensure!(
@@ -487,14 +495,15 @@ pub mod pallet {
                 Error::<T>::DuplicateExternalRef
             );
 
-            let proposal_id = proposal.clone().generate_id();
+            let proposal_id = proposal.generate_id();
             ensure!(!Proposals::<T>::contains_key(proposal_id), Error::<T>::DuplicateProposal);
 
             let current_block = <frame_system::Pallet<T>>::block_number();
 
             if let ProposalSource::Internal(_) = proposal.source {
                 if ActiveInternalProposal::<T>::get().is_none() {
-                    proposal.end_at = Some(current_block + proposal.vote_duration.into());
+                    proposal.end_at =
+                        Some(current_block.saturating_add(proposal.vote_duration.into()));
                     ActiveInternalProposal::<T>::put(proposal_id);
                     ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
                 } else {
@@ -502,17 +511,15 @@ pub mod pallet {
                     ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Queued);
                 }
             } else {
-                proposal.end_at = Some(current_block + proposal.vote_duration.into());
+                proposal.end_at = Some(current_block.saturating_add(proposal.vote_duration.into()));
                 ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
             }
 
             Proposals::<T>::insert(proposal_id, &proposal);
             ExternalRef::<T>::insert(external_ref, proposal_id);
 
-            Self::deposit_event(Event::ProposalSubmitted {
-                proposal_id,
-                proposal: proposal.clone(),
-            });
+            Self::deposit_event(Event::ProposalSubmitted { proposal_id, external_ref });
+
             T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
 
             Ok(())
@@ -528,13 +535,15 @@ pub mod pallet {
                 ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active,
                 Error::<T>::ProposalNotActive
             );
-            ensure!(!Voters::<T>::contains_key(voter, proposal_id), Error::<T>::AlreadyVoted);
 
-            let current_block = <frame_system::Pallet<T>>::block_number();
-            if current_block >= proposal.end_at.unwrap_or(0u32.into()) {
+            // Do this before validating vote uniqueness
+            if Self::proposal_expired(&proposal) {
                 // Voting ended but we haven't finalised it yet
-                return Self::finalise_voting_if_required(proposal_id, &proposal);
+                let result = Self::get_vote_result_on_expiry(proposal_id, &proposal);
+                return Self::finalise_voting(proposal_id, &proposal, result);
             }
+
+            ensure!(!Voters::<T>::contains_key(proposal_id, voter), Error::<T>::AlreadyVoted);
 
             let vote_weight;
             match proposal.source {
@@ -543,34 +552,22 @@ pub mod pallet {
                         T::Watchtowers::is_authorized_watchtower(voter),
                         Error::<T>::UnauthorizedVoter
                     );
-                    vote_weight = 1;
 
-                    Self::deposit_event(Event::InternalVoteSubmitted {
-                        voter: voter.clone(),
-                        proposal_id,
-                        aye,
-                        vote_weight,
-                    })
+                    vote_weight = 1;
                 },
                 ProposalSource::External => {
                     ensure!(
-                        T::Watchtowers::is_authorized_owner(voter),
+                        T::Watchtowers::is_watchtower_owner(voter),
                         Error::<T>::UnauthorizedVoter
                     );
+
                     vote_weight = T::Watchtowers::get_watchtower_voting_weight(voter);
                     // This should not happen but just in case
                     ensure!(vote_weight > 0, Error::<T>::UnauthorizedVoter);
-
-                    Self::deposit_event(Event::ExternalVoteSubmitted {
-                        voter: voter.clone(),
-                        proposal_id,
-                        aye,
-                        vote_weight,
-                    })
                 },
             };
 
-            Voters::<T>::insert(voter, proposal_id, aye);
+            Voters::<T>::insert(proposal_id, voter, aye);
             Votes::<T>::mutate(proposal_id, |vote| {
                 if aye {
                     vote.ayes = vote.ayes.saturating_add(vote_weight);
@@ -579,33 +576,67 @@ pub mod pallet {
                 }
             });
 
+            Self::deposit_event(Event::VoteSubmitted {
+                voter: voter.clone(),
+                proposal_id,
+                aye,
+                vote_weight,
+            });
+
             Self::finalise_voting_if_required(proposal_id, &proposal)
         }
 
-        pub fn get_encoded_call_param(
-            call: &<T as Config>::RuntimeCall,
-        ) -> Option<(&Proof<T::Signature, T::AccountId>, Vec<u8>)> {
-            let call = match call.is_sub_type() {
-                Some(call) => call,
-                None => return None,
+        fn cleanup_proposals(n: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
+            let mut meter = WeightMeter::with_limit(remaining_weight);
+            let dbw = <T as frame_system::Config>::DbWeight::get();
+            const MAX_VOTERS: usize = 250;
+
+            // Check if we have enough weight to read the keys
+            if meter.try_consume(dbw.reads(1)).is_err() {
+                return meter.consumed()
+            }
+
+            let Some(proposal_id) = ProposalsToRemove::<T>::iter_keys().next() else {
+                // Nothing to clean
+                return meter.consumed();
             };
 
-            match call {
-                Call::signed_submit_external_proposal {
-                    ref proof,
-                    ref block_number,
-                    ref proposal,
-                } => {
-                    let encoded_data = Self::encode_signed_submit_external_proposal_params(
-                        &proof.relayer,
-                        proposal,
-                        block_number,
-                    );
-
-                    Some((proof, encoded_data))
-                },
-                _ => None,
+            // Avoid deleting while iterating. Its safer to do it in 2 steps
+            let mut to_delete: Vec<T::AccountId> = Vec::new();
+            for (who, _) in Voters::<T>::iter_prefix(&proposal_id).take(MAX_VOTERS) {
+                // read for this item
+                if meter.try_consume(dbw.reads(1)).is_err() {
+                    break;
+                }
+                to_delete.push(who);
             }
+
+            for who in to_delete.iter() {
+                if meter.try_consume(dbw.writes(1)).is_err() {
+                    break;
+                }
+                Voters::<T>::remove(&proposal_id, who);
+            }
+
+            // Check if we have finished removing all votes
+            if meter.try_consume(dbw.reads(1)).is_err() {
+                return meter.consumed()
+            }
+
+            if Voters::<T>::iter_prefix(proposal_id).next().is_none() {
+                // We have removed all votes, now we can remove the proposal and its data
+                if meter.try_consume(dbw.writes(4)).is_err() {
+                    return meter.consumed()
+                }
+
+                Proposals::<T>::remove(proposal_id);
+                Votes::<T>::remove(proposal_id);
+                ProposalsToRemove::<T>::remove(proposal_id);
+
+                Self::deposit_event(Event::ProposalCleaned { proposal_id });
+            }
+
+            meter.consumed()
         }
     }
 

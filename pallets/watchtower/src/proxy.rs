@@ -41,4 +41,26 @@ impl<T: Config> Pallet<T> {
         );
         return signature_valid;
     }
+
+    pub fn get_encoded_call_param(
+        call: &<T as Config>::RuntimeCall,
+    ) -> Option<(&Proof<T::Signature, T::AccountId>, Vec<u8>)> {
+        let call = match call.is_sub_type() {
+            Some(call) => call,
+            None => return None,
+        };
+
+        match call {
+            Call::signed_submit_external_proposal { ref proof, ref block_number, ref proposal } => {
+                let encoded_data = Self::encode_signed_submit_external_proposal_params(
+                    &proof.relayer,
+                    proposal,
+                    block_number,
+                );
+
+                Some((proof, encoded_data))
+            },
+            _ => None,
+        }
+    }
 }

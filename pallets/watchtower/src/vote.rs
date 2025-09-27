@@ -9,7 +9,6 @@ impl<T: Config> Pallet<T> {
         }
 
         let min_votes = threshold.mul_ceil(total_voters);
-
         if vote.ayes >= min_votes {
             Some(true)
         } else if vote.nays >= min_votes {
@@ -51,16 +50,6 @@ impl<T: Config> Pallet<T> {
         consensus_result: ProposalStatusEnum,
     ) -> DispatchResult {
         ProposalStatus::<T>::insert(proposal_id, consensus_result.clone());
-        T::VoteStatusNotifier::on_voting_completed(
-            proposal.external_ref,
-            consensus_result.clone(),
-        )?;
-
-        Self::deposit_event(Event::VotingEnded {
-            proposal_id,
-            external_ref: proposal.external_ref,
-            consensus_result,
-        });
 
         // If this was an internal proposal, activate the next one in the queue
         if let ProposalSource::Internal(_) = proposal.source {
@@ -77,6 +66,20 @@ impl<T: Config> Pallet<T> {
                 });
             }
         }
+
+        T::WatchtowerHooks::on_voting_completed(
+            proposal_id,
+            &proposal.external_ref,
+            &consensus_result,
+        );
+
+        ProposalsToRemove::<T>::insert(proposal_id, ());
+
+        Self::deposit_event(Event::VotingEnded {
+            proposal_id,
+            external_ref: proposal.external_ref,
+            consensus_result,
+        });
 
         Ok(())
     }
@@ -100,5 +103,10 @@ impl<T: Config> Pallet<T> {
         }
 
         Ok(())
+    }
+
+    pub fn proposal_expired(proposal: &Proposal<T>) -> bool {
+        let current_block = <frame_system::Pallet<T>>::block_number();
+        current_block >= proposal.end_at.unwrap_or(0u32.into())
     }
 }

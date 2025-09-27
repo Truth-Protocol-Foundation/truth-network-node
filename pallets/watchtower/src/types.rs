@@ -24,15 +24,13 @@ pub fn to_proposal<T: Config>(
     request: ProposalRequest,
     proposer: Option<T::AccountId>,
 ) -> Result<Proposal<T>, Error<T>> {
-    let vote_duration: u32 = request
-        .vote_duration
-        .unwrap_or(T::MinVotingPeriod::get().saturated_into::<u32>());
-
-    if vote_duration < T::MinVotingPeriod::get().saturated_into::<u32>() {
+    let min_vote_duration = MinVotingPeriod::<T>::get().saturated_into::<u32>();
+    let vote_duration: u32 = request.vote_duration.unwrap_or(min_vote_duration);
+    if vote_duration < min_vote_duration {
         return Err(Error::<T>::VotingPeriodTooShort);
     }
 
-    Ok(Proposal {
+    let proposal = Proposal {
         title: BoundedVec::try_from(request.title).map_err(|_| Error::<T>::InvalidTitle)?,
         payload: to_payload(request.payload)?,
         threshold: request.threshold,
@@ -44,7 +42,13 @@ pub fn to_proposal<T: Config>(
         vote_duration,
         // This gets updated when the proposal is activated
         end_at: None,
-    })
+    };
+
+    if !proposal.is_valid() {
+        return Err(Error::<T>::InvalidProposal);
+    }
+
+    Ok(proposal)
 }
 
 pub fn to_payload<T: Config>(raw: RawPayload) -> Result<Payload<T>, Error<T>> {
@@ -88,19 +92,9 @@ pub struct Proposal<T: Config> {
 }
 
 impl<T: Config> Proposal<T> {
-    pub fn generate_id(self) -> ProposalId {
+    pub fn generate_id(&self) -> ProposalId {
         // External ref is unique globally, so we can use it to generate a unique id
-        let data = (
-            self.title,
-            self.payload,
-            self.threshold,
-            self.source,
-            self.decision_rule,
-            self.external_ref,
-            self.created_at,
-            self.vote_duration,
-        )
-            .encode();
+        let data = (self.external_ref, self.created_at, self.vote_duration).encode();
         let hash = sp_io::hashing::blake2_256(&data);
         ProposalId::from(hash)
     }
@@ -108,7 +102,8 @@ impl<T: Config> Proposal<T> {
     pub fn is_valid(&self) -> bool {
         let base_is_valid = !self.title.is_empty() &&
             self.external_ref != H256::zero() &&
-            self.vote_duration >= T::MinVotingPeriod::get().saturated_into::<u32>();
+            self.vote_duration >= MinVotingPeriod::<T>::get().saturated_into::<u32>() &&
+            self.threshold <= Perbill::one();
 
         let payload_valid = match &self.payload {
             Payload::Inline(data) =>
@@ -126,7 +121,7 @@ pub trait NodesInterface<AccountId, SignerId> {
     fn is_authorized_watchtower(who: &AccountId) -> bool;
 
     /// Check if the given account owns watchtower nodes
-    fn is_authorized_owner(who: &AccountId) -> bool;
+    fn is_watchtower_owner(who: &AccountId) -> bool;
 
     /// Get the count of authorized watchtowers without fetching the full list
     fn get_authorized_watchtowers_count() -> u32;
@@ -141,18 +136,13 @@ pub trait NodesInterface<AccountId, SignerId> {
     fn get_node_from_local_signing_keys() -> Option<(AccountId, SignerId)>;
 }
 
-pub trait VoteStatusNotifier {
-    fn on_voting_completed(external_ref: H256, status: ProposalStatusEnum) -> DispatchResult;
-}
-
-impl VoteStatusNotifier for () {
-    fn on_voting_completed(_external_ref: H256, _status: ProposalStatusEnum) -> DispatchResult {
-        Ok(())
-    }
-}
-
 #[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, Default)]
 pub struct Vote {
     pub ayes: u32,
     pub nays: u32,
+}
+
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq)]
+pub enum AdminConfig<BlockNumber> {
+    MinVotingPeriod(BlockNumber),
 }

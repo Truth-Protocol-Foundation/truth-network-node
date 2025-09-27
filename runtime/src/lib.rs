@@ -910,15 +910,13 @@ impl pallet_watchtower::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type WeightInfo = ();
-    type VoteStatusNotifier = ();
     type Watchtowers = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
     type WatchtowerHooks = SummaryWatchtower;
-    type MinVotingPeriod = ConstU32<20>;
-    type MaxTitleLen = ConstU32<500>;
-    type MaxInlineLen = ConstU32<2000>;
-    type MaxUriLen = ConstU32<1000>;
+    type MaxTitleLen = ConstU32<512>;
+    type MaxInlineLen = ConstU32<4080>;
+    type MaxUriLen = ConstU32<1020>;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type SignedTxLifetime = ConstU32<64>;
@@ -1797,7 +1795,7 @@ impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeN
         pallet_node_manager::NodeRegistry::<Runtime>::contains_key(node)
     }
 
-    fn is_authorized_owner(who: &AccountId) -> bool {
+    fn is_watchtower_owner(who: &AccountId) -> bool {
         pallet_node_manager::OwnedNodes::<Runtime>::iter_prefix(&who).next().is_some()
     }
 

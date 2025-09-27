@@ -219,27 +219,24 @@ pub mod pallet {
             }
         }
 
-        fn on_consensus_reached(
+        fn on_voting_completed(
             proposal_id: ProposalId,
             external_ref: &H256,
-            approved: bool,
-        ) -> DispatchResult {
-            log::warn!("Summary Watchtower: Consensus reached on proposal {:?} with external ref {:?} and approval status {:?}",
+            result: &ProposalStatusEnum,
+        ){
+            log::warn!("Summary Watchtower: Voting completed on proposal {:?} with external ref {:?} and approval status {:?}",
                 proposal_id,
                 external_ref,
-                approved
+                result
             );
-
-            Ok(())
         }
 
-        fn on_cancelled(proposal_id: ProposalId, external_ref: &H256) -> DispatchResult {
+        fn on_cancelled(proposal_id: ProposalId, external_ref: &H256) {
             log::warn!(
                 "Summary Watchtower: Proposal {:?} with external ref {:?} was cancelled",
                 proposal_id,
                 external_ref
             );
-            Ok(())
         }
     }
 }
