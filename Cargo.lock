@@ -6262,7 +6262,7 @@ dependencies = [
  "hex",
  "log",
  "pallet-avn",
- "pallet-summary",
+ "pallet-balances",
  "pallet-timestamp",
  "parity-scale-codec 3.6.9",
  "parking_lot 0.12.2",

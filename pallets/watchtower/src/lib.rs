@@ -42,9 +42,12 @@ pub mod proxy;
 pub mod types;
 pub mod vote;
 pub use types::*;
-
 pub mod queue;
 pub use queue::*;
+
+#[cfg(test)]
+#[path = "tests/mock.rs"]
+mod mock;
 
 pub use pallet::*;
 #[frame_support::pallet]
@@ -390,7 +393,7 @@ pub mod pallet {
             );
             let current_block = <frame_system::Pallet<T>>::block_number();
             ensure!(
-                current_block >= proposal.end_at.unwrap_or(0u32.into()),
+                Self::proposal_expired(current_block, &proposal),
                 Error::<T>::ProposalVotingPeriodNotEnded
             );
 
@@ -447,32 +450,29 @@ pub mod pallet {
         fn on_initialize(now: BlockNumberFor<T>) -> Weight {
             let mut total_weight: Weight = Weight::zero();
             // Check if the active proposal has expired and finalise it if needed
+            // TODO: benchmarks active_proposal_expiry_status and use that weight
             total_weight = total_weight.saturating_add(T::DbWeight::get().reads(1));
-            let Some(proposal_id) = ActiveInternalProposal::<T>::get() else {
-                return total_weight;
+
+            if let Some((proposal_id, active_proposal, expired)) =
+                Self::active_proposal_expiry_status(now)
+            {
+                if !expired {
+                    return total_weight
+                }
+
+                let result = Self::get_vote_result_on_expiry(proposal_id, &active_proposal);
+                Self::finalise_voting(proposal_id, &active_proposal, result).unwrap_or_else(|e| {
+                    log::error!(
+                        "🪲 Failed to finalise voting for internal proposal {}: {:?}",
+                        proposal_id,
+                        e
+                    );
+                });
+
+                // TODO: compute the weight of the above calls and add to total_weight
+                return total_weight
             };
 
-            // Only proceed if the proposal exists
-            total_weight = total_weight.saturating_add(T::DbWeight::get().reads(1));
-            let Some(active_proposal) = <Proposals<T>>::get(proposal_id) else {
-                return total_weight;
-            };
-
-            // Only finalise if the voting period has ended
-            if now < active_proposal.end_at.unwrap_or(0u32.into()) {
-                return total_weight;
-            }
-
-            let result = Self::get_vote_result_on_expiry(proposal_id, &active_proposal);
-            Self::finalise_voting(proposal_id, &active_proposal, result).unwrap_or_else(|e| {
-                log::error!(
-                    "🪲 Failed to finalise voting for internal proposal {}: {:?}",
-                    proposal_id,
-                    e
-                );
-            });
-
-            // TODO: compute the weight of the above calls and add to total_weight
             total_weight
         }
 
@@ -537,7 +537,8 @@ pub mod pallet {
             );
 
             // Do this before validating vote uniqueness
-            if Self::proposal_expired(&proposal) {
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            if Self::proposal_expired(current_block, &proposal) {
                 // Voting ended but we haven't finalised it yet
                 let result = Self::get_vote_result_on_expiry(proposal_id, &proposal);
                 return Self::finalise_voting(proposal_id, &proposal, result);
@@ -583,7 +584,7 @@ pub mod pallet {
                 vote_weight,
             });
 
-            Self::finalise_voting_if_required(proposal_id, &proposal)
+            Self::finalise_voting_if_required(proposal_id, &proposal, current_block)
         }
 
         fn cleanup_proposals(n: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
