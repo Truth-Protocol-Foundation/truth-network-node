@@ -1,31 +1,21 @@
 use crate::{self as pallet_watchtower, *};
-use common_primitives::constants::{currency::BASE, NODE_MANAGER_PALLET_ID};
 use frame_support::{
     parameter_types,
-    traits::{ConstU32, ConstU64},
+    traits::ConstU32,
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
     PalletId,
 };
 use frame_system::{self as system, EnsureRoot, EnsureSigned};
 pub use parity_scale_codec::alloc::sync::Arc;
-pub use parking_lot::RwLock;
-pub use prediction_market_primitives::test_helper::TestAccount;
-pub use sp_core::{
-    offchain::{
-        testing::{
-            OffchainState, PendingRequest, PoolState, TestOffchainExt, TestTransactionPoolExt,
-        },
-        OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
-    },
-    sr25519, H256,
-};
+pub use prediction_market_primitives::test_helper::{get_account_from_mnemonic, TestAccount};
+pub use sp_core::{crypto::DEV_PHRASE, sr25519, H256};
+
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 pub use sp_runtime::{
     testing::{TestXt, UintAuthorityId},
-    traits::{BlakeTwo256, ConvertInto, IdentityLookup, Verify},
+    traits::{BlakeTwo256, IdentityLookup, Verify},
     BuildStorage, Perbill,
 };
-use sp_state_machine::BasicExternalities;
 use std::cell::RefCell;
 
 pub type Signature = sr25519::Signature;
@@ -43,10 +33,6 @@ frame_support::construct_runtime!(
         Watchtower: pallet_watchtower::{Pallet, Call, Storage, Event<T>},
     }
 );
-
-parameter_types! {
-    pub const RewardPotId: PalletId = NODE_MANAGER_PALLET_ID;
-}
 
 impl Config for TestRuntime {
     type RuntimeEvent = RuntimeEvent;
@@ -145,7 +131,7 @@ impl pallet_timestamp::Config for TestRuntime {
 }
 
 pub fn watchtower_1() -> AccountId {
-    TestAccount::new([11u8; 32]).account_id()
+    get_account_from_mnemonic(DEV_PHRASE)
 }
 pub fn watchtower_2() -> AccountId {
     TestAccount::new([12u8; 32]).account_id()

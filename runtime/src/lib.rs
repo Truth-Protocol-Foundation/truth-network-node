@@ -1792,6 +1792,11 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 pub struct RuntimeNodeManager;
 impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager {
     fn is_authorized_watchtower(node: &AccountId) -> bool {
+        #[cfg(feature = "runtime-benchmarks")]
+        {
+            return true;
+        }
+
         pallet_node_manager::NodeRegistry::<Runtime>::contains_key(node)
     }
 

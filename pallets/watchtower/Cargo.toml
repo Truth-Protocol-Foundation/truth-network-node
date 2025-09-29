@@ -32,6 +32,7 @@ pallet-avn = { workspace = true }
 sp-avn-common = { workspace = true }
 common-primitives = { workspace = true }
 prediction-market-primitives = { workspace = true }
+sp-application-crypto = { workspace = true }
 
 [dev-dependencies]
 sp-application-crypto = { workspace = true }
