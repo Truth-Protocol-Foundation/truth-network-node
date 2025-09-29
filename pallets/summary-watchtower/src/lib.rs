@@ -208,7 +208,7 @@ pub mod pallet {
             match &proposal.source {
                 // it source is Internal(ProposalType::Anchor) or Internal(ProposalType::Summary)
                 // then process it
-                ProposalSource::Internal(internalType) => match internalType {
+                ProposalSource::Internal(internal_type) => match internal_type {
                     ProposalType::Anchor | ProposalType::Summary => {
                         log::warn!("Summary Watchtower: New proposal submitted: {:?}", proposal);
                         Self::process_proposal(None, proposal_id, proposal)
@@ -223,7 +223,7 @@ pub mod pallet {
             proposal_id: ProposalId,
             external_ref: &H256,
             result: &ProposalStatusEnum,
-        ){
+        ) {
             log::warn!("Summary Watchtower: Voting completed on proposal {:?} with external ref {:?} and approval status {:?}",
                 proposal_id,
                 external_ref,

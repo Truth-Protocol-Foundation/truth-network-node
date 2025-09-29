@@ -14,7 +14,7 @@ use frame_support::{
     traits::{IsSubType, IsType},
     weights::WeightMeter,
 };
-use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, WeightInfo};
+use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*};
 use parity_scale_codec::{Decode, Encode};
 pub use sp_avn_common::{verify_signature, watchtower::*, InnerCallValidator, Proof};
 use sp_core::{MaxEncodedLen, H256};
@@ -45,15 +45,21 @@ pub use types::*;
 pub mod queue;
 pub use queue::*;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+pub mod default_weights;
+pub use default_weights::WeightInfo;
+
 #[cfg(test)]
-#[path = "tests/mock.rs"]
-mod mock;
+#[path = "tests/add_proposal.rs"]
+mod add_proposal;
 #[cfg(test)]
 #[path = "tests/admin.rs"]
 mod admin;
 #[cfg(test)]
-#[path = "tests/add_proposal.rs"]
-mod add_proposal;
+#[path = "tests/mock.rs"]
+mod mock;
 #[cfg(test)]
 #[path = "tests/voting.rs"]
 mod voting;
@@ -390,7 +396,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(5)]
-        #[pallet::weight(0)]
+        #[pallet::weight(<T as Config>::WeightInfo::finalise_proposal())]
         pub fn finalise_proposal(origin: OriginFor<T>, proposal_id: ProposalId) -> DispatchResult {
             // Anyone can call this to finalise voting
             ensure_signed(origin)?;
@@ -406,15 +412,14 @@ pub mod pallet {
                 Error::<T>::ProposalVotingPeriodNotEnded
             );
 
-            let result = Self::get_vote_result_on_expiry(proposal_id, &proposal);
-            Self::finalise_voting(proposal_id, &proposal, result)?;
+            Self::finalise_expired_voting(proposal_id, &proposal)?;
 
             Ok(())
         }
 
         /// Set admin configurations
         #[pallet::call_index(6)]
-        #[pallet::weight(0)]
+        #[pallet::weight(<T as Config>::WeightInfo::set_admin_config_voting())]
         pub fn set_admin_config(
             origin: OriginFor<T>,
             config: AdminConfig<BlockNumberFor<T>>,
@@ -425,7 +430,7 @@ pub mod pallet {
                 AdminConfig::MinVotingPeriod(period) => {
                     <MinVotingPeriod<T>>::mutate(|p| *p = period);
                     Self::deposit_event(Event::MinVotingPeriodSet { new_period: period });
-                    return Ok(Some(Weight::zero()).into())
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_voting()).into());
                 },
             }
         }
@@ -460,7 +465,8 @@ pub mod pallet {
             let mut total_weight: Weight = Weight::zero();
             // Check if the active proposal has expired and finalise it if needed
             // TODO: benchmarks active_proposal_expiry_status and use that weight
-            total_weight = total_weight.saturating_add(T::DbWeight::get().reads(1));
+            total_weight = total_weight
+                .saturating_add(<T as Config>::WeightInfo::active_proposal_expiry_status());
 
             if let Some((proposal_id, active_proposal, expired)) =
                 Self::active_proposal_expiry_status(now)
@@ -469,8 +475,7 @@ pub mod pallet {
                     return total_weight
                 }
 
-                let result = Self::get_vote_result_on_expiry(proposal_id, &active_proposal);
-                Self::finalise_voting(proposal_id, &active_proposal, result).unwrap_or_else(|e| {
+                Self::finalise_expired_voting(proposal_id, &active_proposal).unwrap_or_else(|e| {
                     log::error!(
                         "🪲 Failed to finalise voting for internal proposal {}: {:?}",
                         proposal_id,
@@ -478,7 +483,8 @@ pub mod pallet {
                     );
                 });
 
-                // TODO: compute the weight of the above calls and add to total_weight
+                total_weight = total_weight
+                    .saturating_add(<T as Config>::WeightInfo::finalise_expired_voting());
                 return total_weight
             };
 
@@ -508,20 +514,23 @@ pub mod pallet {
             ensure!(!Proposals::<T>::contains_key(proposal_id), Error::<T>::DuplicateProposal);
 
             let current_block = <frame_system::Pallet<T>>::block_number();
-
+            let proposal_active: bool;
             if let ProposalSource::Internal(_) = proposal.source {
                 if ActiveInternalProposal::<T>::get().is_none() {
                     proposal.end_at =
                         Some(current_block.saturating_add(proposal.vote_duration.into()));
                     ActiveInternalProposal::<T>::put(proposal_id);
                     ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
+                    proposal_active = true;
                 } else {
                     Self::enqueue(proposal_id)?;
                     ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Queued);
+                    proposal_active = false;
                 }
             } else {
                 proposal.end_at = Some(current_block.saturating_add(proposal.vote_duration.into()));
                 ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
+                proposal_active = true;
             }
 
             Proposals::<T>::insert(proposal_id, &proposal);
@@ -529,7 +538,9 @@ pub mod pallet {
 
             Self::deposit_event(Event::ProposalSubmitted { proposal_id, external_ref });
 
-            T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
+            if proposal_active {
+                T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
+            }
 
             Ok(())
         }
@@ -549,8 +560,7 @@ pub mod pallet {
             let current_block = <frame_system::Pallet<T>>::block_number();
             if Self::proposal_expired(current_block, &proposal) {
                 // Voting ended but we haven't finalised it yet
-                let result = Self::get_vote_result_on_expiry(proposal_id, &proposal);
-                return Self::finalise_voting(proposal_id, &proposal, result);
+                return Self::finalise_expired_voting(proposal_id, &proposal);
             }
 
             ensure!(!Voters::<T>::contains_key(proposal_id, voter), Error::<T>::AlreadyVoted);
@@ -596,7 +606,7 @@ pub mod pallet {
             Self::finalise_voting_if_required(proposal_id, &proposal, current_block)
         }
 
-        fn cleanup_proposals(n: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
+        fn cleanup_proposals(_n: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             let mut meter = WeightMeter::with_limit(remaining_weight);
             let dbw = <T as frame_system::Config>::DbWeight::get();
             const MAX_VOTERS: usize = 250;

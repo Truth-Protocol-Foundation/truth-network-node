@@ -44,26 +44,35 @@ impl<T: Config> Pallet<T> {
         }
     }
 
+    pub fn finalise_expired_voting(
+        proposal_id: ProposalId,
+        proposal: &Proposal<T>,
+    ) -> DispatchResult {
+        let consensus_result = Self::get_vote_result_on_expiry(proposal_id, proposal);
+        Self::finalise_voting(proposal_id, proposal, consensus_result)
+    }
+
     pub fn finalise_voting(
         proposal_id: ProposalId,
         proposal: &Proposal<T>,
         consensus_result: ProposalStatusEnum,
     ) -> DispatchResult {
         ProposalStatus::<T>::insert(proposal_id, consensus_result.clone());
-
         // If this was an internal proposal, activate the next one in the queue
         if let ProposalSource::Internal(_) = proposal.source {
             ActiveInternalProposal::<T>::kill();
             if let Ok(next_proposal_id) = Self::dequeue() {
                 ActiveInternalProposal::<T>::put(next_proposal_id);
                 ProposalStatus::<T>::insert(next_proposal_id, ProposalStatusEnum::Active);
-                Proposals::<T>::mutate(next_proposal_id, |p_opt| {
-                    if let Some(p) = p_opt {
-                        p.end_at = Some(
-                            frame_system::Pallet::<T>::block_number() + p.vote_duration.into(),
-                        );
-                    }
-                });
+                // Try to mutate and fetch the proposal in one storage access
+                let updated_proposal = Proposals::<T>::try_mutate(next_proposal_id, |p_opt| {
+                    let p = p_opt.as_mut().ok_or(Error::<T>::ProposalNotFound)?;
+                    p.end_at =
+                        Some(frame_system::Pallet::<T>::block_number() + p.vote_duration.into());
+                    Ok::<_, Error<T>>(p.clone())
+                })?;
+
+                T::WatchtowerHooks::on_proposal_submitted(next_proposal_id, updated_proposal)?;
             }
         }
 
@@ -107,7 +116,9 @@ impl<T: Config> Pallet<T> {
         current_block >= proposal.end_at.unwrap_or(0u32.into())
     }
 
-    pub fn active_proposal_expiry_status(now: BlockNumberFor<T>) -> Option<(ProposalId, Proposal<T>, bool)> {
+    pub fn active_proposal_expiry_status(
+        now: BlockNumberFor<T>,
+    ) -> Option<(ProposalId, Proposal<T>, bool)> {
         let Some(proposal_id) = ActiveInternalProposal::<T>::get() else {
             return None;
         };

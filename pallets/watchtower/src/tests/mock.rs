@@ -1,6 +1,11 @@
 use crate::{self as pallet_watchtower, *};
 use common_primitives::constants::{currency::BASE, NODE_MANAGER_PALLET_ID};
-use frame_support::{parameter_types, weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight}, traits::{ConstU32, ConstU64}, PalletId};
+use frame_support::{
+    parameter_types,
+    traits::{ConstU32, ConstU64},
+    weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
+    PalletId,
+};
 use frame_system::{self as system, EnsureRoot, EnsureSigned};
 pub use parity_scale_codec::alloc::sync::Arc;
 pub use parking_lot::RwLock;
@@ -80,10 +85,10 @@ parameter_types! {
     pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
     pub const ChallengePeriod: u64 = 2;
 
-	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_parts(2u64 * WEIGHT_REF_TIME_PER_SECOND, u64::MAX),
-		);
+    pub BlockWeights: frame_system::limits::BlockWeights =
+        frame_system::limits::BlockWeights::simple_max(
+            Weight::from_parts(2u64 * WEIGHT_REF_TIME_PER_SECOND, u64::MAX),
+        );
 }
 
 impl system::Config for TestRuntime {
@@ -232,24 +237,8 @@ impl ExtBuilder {
             .unwrap()
             .into();
 
-        Self {
-            storage,
-        }
+        Self { storage }
     }
-
-    pub fn with_genesis_config(mut self) -> Self {
-        // let _ = pallet_node_manager::GenesisConfig::<TestRuntime> {
-        //     _phantom: Default::default(),
-        //     reward_period: 200u32,
-        //     max_batch_size: 10u32,
-        //     heartbeat_period: 5u32,
-        //     reward_amount: 20 * BASE,
-        // }
-        // .assimilate_storage(&mut self.storage);
-        self
-    }
-
-
 
     pub fn as_externality(self) -> sp_io::TestExternalities {
         let keystore = MemoryKeystore::new();
@@ -298,12 +287,13 @@ impl NodesInterface<AccountId, UintAuthorityId> for TestNodeManager {
     }
 
     fn get_node_from_local_signing_keys() -> Option<(AccountId, UintAuthorityId)> {
-        let maybe_watchtower_1 = AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().first().unwrap().clone());
+        let maybe_watchtower_1 =
+            AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().first().unwrap().clone());
         let watchtower_1 = watchtower_1();
         assert!(watchtower_1 == maybe_watchtower_1);
         Some((
             watchtower_1,
-            NODE_SIGNING_KEYS.with(|keys| keys.borrow().get(&watchtower_1).unwrap().clone())
+            NODE_SIGNING_KEYS.with(|keys| keys.borrow().get(&watchtower_1).unwrap().clone()),
         ))
     }
 
@@ -325,5 +315,11 @@ impl EnsureOrigin<RuntimeOrigin> for EnsureExternalProposerOrRoot {
             Ok(who) => Ok(Some(who)),
             Err(o) => EnsureRoot::<AccountId>::try_origin(o).map(|_| None),
         }
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+        use frame_benchmarking::whitelisted_caller;
+        Ok(RuntimeOrigin::signed(whitelisted_caller()))
     }
 }
