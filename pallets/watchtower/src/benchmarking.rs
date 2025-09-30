@@ -132,11 +132,48 @@ fn into_bytes<T: Config>(account: &SignerId) -> [u8; 32] {
     return vector;
 }
 
+fn setup_votes<T: Config>(proposal_id: ProposalId, vote_count: u32) {
+    Votes::<T>::mutate(proposal_id, |v| {
+        v.ayes = vote_count;
+        v.nays = vote_count;
+    });
+
+    for i in 0..vote_count {
+        let voter: T::AccountId = account("voter", i, 0);
+        Voters::<T>::insert(proposal_id, &voter, true);
+    }
+}
+
 benchmarks! {
     submit_external_proposal {
         let signer: T::AccountId = account("signer", 0, 0);
         let proposal_request = create_proposal_request::<T>(1, 1u32, false);
         let external_ref = proposal_request.external_ref;
+    }: submit_external_proposal(RawOrigin::Signed(signer), proposal_request)
+    verify {
+        assert!(ExternalRef::<T>::contains_key(external_ref));
+
+        let proposal_id = ExternalRef::<T>::get(external_ref);
+        assert!(ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active);
+        assert_last_event::<T>(
+            Event::ProposalSubmitted { proposal_id, external_ref }.into()
+        );
+    }
+
+    signed_submit_external_proposal {
+        let (signer_key, signer) = get_voter::<T>();
+        let proposal_request = create_proposal_request::<T>(1, 1u32, false);
+        let external_ref = proposal_request.external_ref;
+        let relayer: T::AccountId = account("relayer", 11, 11);
+        let now = frame_system::Pallet::<T>::block_number();
+        let signed_payload = Pallet::<T>::encode_signed_submit_external_proposal_params(
+            &relayer.clone(),
+            &proposal_request,
+            &now,
+        );
+
+        let signature = signer_key.sign(&signed_payload).ok_or("Error signing proof")?;
+        let proof = get_proof::<T>(&relayer.clone(), &signer, signature.into());
     }: submit_external_proposal(RawOrigin::Signed(signer), proposal_request)
     verify {
         assert!(ExternalRef::<T>::contains_key(external_ref));
@@ -160,6 +197,26 @@ benchmarks! {
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
         assert_last_event::<T>(
             Event::VoteSubmitted { proposal_id, voter, aye, vote_weight: 1 }.into()
+        );
+    }
+
+    vote_end_proposal {
+        let aye = true;
+        let (_, voter) = get_voter::<T>();
+
+        let proposal_id = H256::repeat_byte(3);
+        let proposal = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
+        // Add some votes to be above the threshold
+        setup_votes::<T>(proposal_id, 9u32);
+    }: vote(RawOrigin::Signed(voter.clone()), proposal_id, aye)
+    verify {
+        assert!(Votes::<T>::contains_key(proposal_id));
+        assert!(Voters::<T>::contains_key(proposal_id, &voter));
+        assert_last_event::<T>(
+            Event::VotingEnded {
+                proposal_id,
+                external_ref: proposal.external_ref,
+                consensus_result: ProposalStatusEnum::Resolved { passed: true }}.into()
         );
     }
 
@@ -188,6 +245,55 @@ benchmarks! {
             Event::VoteSubmitted { proposal_id, voter, aye, vote_weight: 1 }.into()
         );
     }
+
+    signed_vote_end_proposal {
+        let (voter_key, voter) = get_voter::<T>();
+        let aye = true;
+        let relayer: T::AccountId = account("relayer", 11, 11);
+        let now = frame_system::Pallet::<T>::block_number();
+        let proposal_id = H256::repeat_byte(3);
+        let proposal = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
+
+        let signed_payload = Pallet::<T>::encode_signed_submit_vote_params(
+            &relayer.clone(),
+            &proposal_id,
+            &aye,
+            &now,
+        );
+
+        let signature = voter_key.sign(&signed_payload).ok_or("Error signing proof")?;
+        let proof = get_proof::<T>(&relayer.clone(), &voter, signature.into());
+
+         // Add some votes to be above the threshold
+        setup_votes::<T>(proposal_id, 9u32);
+    }: signed_vote(RawOrigin::Signed(voter.clone()), proposal_id, aye, now, proof)
+    verify {
+        assert!(Votes::<T>::contains_key(proposal_id));
+        assert!(Voters::<T>::contains_key(proposal_id, &voter));
+        assert_last_event::<T>(
+            Event::VotingEnded {
+                proposal_id,
+                external_ref: proposal.external_ref,
+                consensus_result: ProposalStatusEnum::Resolved { passed: true }}.into()
+        );
+    }
+
+    // unsigned_vote {
+    //     let (voter_key, voter) = get_voter::<T>();
+    //     let aye = true;
+    //     let proposal_id = H256::repeat_byte(3);
+    //     let _ = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
+
+    //     let proof =  &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, aye, &voter).encode();
+    //     let signature = voter_key.sign(&proof).ok_or("Error signing proof")?;
+    // }: unsigned_vote(RawOrigin::Signed(voter.clone()), proposal_id, aye, voter, signature)
+    // verify {
+    //     assert!(Votes::<T>::contains_key(proposal_id));
+    //     assert!(Voters::<T>::contains_key(proposal_id, &voter));
+    //     assert_last_event::<T>(
+    //         Event::VoteSubmitted { proposal_id, voter, aye, vote_weight: 1 }.into()
+    //     );
+    // }
 
     finalise_proposal {
         let signer: T::AccountId = account("signer", 0, 0);
