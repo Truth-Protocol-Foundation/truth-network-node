@@ -25,12 +25,12 @@ use sp_api::impl_runtime_apis;
 use sp_arithmetic::FixedU128;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, One},
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, DispatchResult, FixedPointNumber, Percent, RuntimeAppPublic,
+    ApplyExtrinsicResult, FixedPointNumber, Percent, RuntimeAppPublic,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -1797,6 +1797,7 @@ impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeN
             return true;
         }
 
+        #[cfg(not(feature = "runtime-benchmarks"))]
         pallet_node_manager::NodeRegistry::<Runtime>::contains_key(node)
     }
 
@@ -1805,6 +1806,13 @@ impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeN
     }
 
     fn get_node_signing_key(node: &AccountId) -> Option<NodeManagerKeyId> {
+        #[cfg(feature = "runtime-benchmarks")]
+        {
+            let bytes = node.encode();
+            return NodeManagerKeyId::decode(&mut bytes.as_slice()).ok();
+        }
+
+        #[cfg(not(feature = "runtime-benchmarks"))]
         pallet_node_manager::NodeRegistry::<Runtime>::get(node)
             .map(|node_info| node_info.signing_key)
     }
@@ -1818,6 +1826,12 @@ impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeN
     }
 
     fn get_authorized_watchtowers_count() -> u32 {
+        #[cfg(feature = "runtime-benchmarks")]
+        {
+            return 10u32;
+        }
+
+        #[cfg(not(feature = "runtime-benchmarks"))]
         pallet_node_manager::TotalRegisteredNodes::<Runtime>::get()
     }
 }

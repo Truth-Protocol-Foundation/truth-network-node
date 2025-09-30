@@ -2,16 +2,12 @@
 use frame_support::{
     dispatch::DispatchResult,
     pallet_prelude::*,
-    traits::{IsSubType, IsType},
+    //traits::{IsSubType, IsType},
 };
 use frame_system::{
-    ensure_none,
-    offchain::{SendTransactionTypes, SubmitTransaction},
     pallet_prelude::*,
     WeightInfo,
 };
-
-use sp_runtime::{traits::Hash, RuntimeAppPublic, SaturatedConversion};
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
@@ -22,18 +18,16 @@ use alloc::{
     vec,
 };
 
-use hex;
-use log;
 use parity_scale_codec::{Decode, Encode};
 pub use sp_avn_common::{watchtower::*, RootId, RootRange};
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
-    traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
+    traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned, Hash},
     transaction_validity::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
         ValidTransaction,
     },
-    Perbill,
+    Perbill, SaturatedConversion,
 };
 use sp_std::prelude::*;
 
@@ -49,7 +43,7 @@ pub mod pallet {
     pub struct Pallet<T>(_);
 
     #[pallet::config]
-    pub trait Config: SendTransactionTypes<Call<Self>> + frame_system::Config {
+    pub trait Config: frame_system::Config {
         type RuntimeEvent: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>
             + Clone
@@ -80,7 +74,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         #[pallet::call_index(0)]
         #[pallet::weight(0)]
-        pub fn submit_root_for_validation(origin: OriginFor<T>, duration: u32) -> DispatchResult {
+        pub fn submit_root_for_validation(_origin: OriginFor<T>, duration: u32) -> DispatchResult {
             let current_block = <frame_system::Pallet<T>>::block_number();
             let external_ref: T::Hash = T::Hashing::hash_of(&current_block);
             let inner_payload = RootId::<BlockNumberFor<T>>::new(
@@ -101,12 +95,14 @@ pub mod pallet {
 
             T::WatchtowerInterface::submit_proposal(None, x.clone())?;
 
+            Self::deposit_event(Event::SummaryProposalSubmitted { external_ref: H256::from_slice(&external_ref.as_ref()) });
+
             Ok(())
         }
 
         #[pallet::call_index(1)]
         #[pallet::weight(0)]
-        pub fn submit_external_proposal(origin: OriginFor<T>, duration: u32) -> DispatchResult {
+        pub fn submit_external_proposal(_origin: OriginFor<T>, duration: u32) -> DispatchResult {
             let current_block = <frame_system::Pallet<T>>::block_number();
             let external_ref: T::Hash = T::Hashing::hash_of(&current_block);
             let inner_payload = RootId::<BlockNumberFor<T>>::new(

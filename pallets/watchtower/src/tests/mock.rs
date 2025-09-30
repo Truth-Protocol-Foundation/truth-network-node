@@ -7,12 +7,12 @@ use frame_support::{
 };
 use frame_system::{self as system, EnsureRoot, EnsureSigned};
 pub use parity_scale_codec::alloc::sync::Arc;
-pub use prediction_market_primitives::test_helper::{get_account_from_mnemonic, TestAccount};
+pub use prediction_market_primitives::test_helper::{get_test_account_from_mnemonic, TestAccount};
 pub use sp_core::{crypto::DEV_PHRASE, sr25519, H256};
 
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 pub use sp_runtime::{
-    testing::{TestXt, UintAuthorityId},
+    testing::TestXt,
     traits::{BlakeTwo256, IdentityLookup, Verify},
     BuildStorage, Perbill,
 };
@@ -23,6 +23,7 @@ pub type AccountId = <Signature as Verify>::Signer;
 pub type Extrinsic = TestXt<RuntimeCall, ()>;
 
 type Block = frame_system::mocking::MockBlock<TestRuntime>;
+type SignerId = pallet_node_manager::sr25519::AuthorityId;
 
 frame_support::construct_runtime!(
     pub enum TestRuntime
@@ -37,7 +38,7 @@ frame_support::construct_runtime!(
 impl Config for TestRuntime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
-    type SignerId = UintAuthorityId;
+    type SignerId = SignerId;
     type Public = AccountId;
     type Signature = Signature;
     type WeightInfo = ();
@@ -131,7 +132,7 @@ impl pallet_timestamp::Config for TestRuntime {
 }
 
 pub fn watchtower_1() -> AccountId {
-    get_account_from_mnemonic(DEV_PHRASE)
+    get_test_account_from_mnemonic(DEV_PHRASE).account_id()
 }
 pub fn watchtower_2() -> AccountId {
     TestAccount::new([12u8; 32]).account_id()
@@ -171,6 +172,14 @@ pub fn watchtower_owner_3() -> AccountId {
     TestAccount::new([33u8; 32]).account_id()
 }
 
+pub fn get_signing_key_for_wt_1() -> SignerId {
+    get_test_account_from_mnemonic(DEV_PHRASE).public_key().into()
+}
+
+pub fn signing_key(index: u8) -> SignerId {
+    TestAccount::new([index; 32]).public_key().into()
+}
+
 thread_local! {
     pub static AUTHORIZED_WATCHTOWERS: RefCell<Vec<AccountId>> = RefCell::new(vec![
         watchtower_1(),
@@ -185,19 +194,19 @@ thread_local! {
         watchtower_10(),
     ]);
 
-    pub static NODE_SIGNING_KEYS: RefCell<std::collections::HashMap<AccountId, UintAuthorityId>> =
+    pub static NODE_SIGNING_KEYS: RefCell<std::collections::HashMap<AccountId, SignerId>> =
         RefCell::new({
             let mut keys = std::collections::HashMap::new();
-            keys.insert(watchtower_1(), UintAuthorityId(1));
-            keys.insert(watchtower_2(), UintAuthorityId(2));
-            keys.insert(watchtower_3(), UintAuthorityId(3));
-            keys.insert(watchtower_4(), UintAuthorityId(4));
-            keys.insert(watchtower_5(), UintAuthorityId(5));
-            keys.insert(watchtower_6(), UintAuthorityId(6));
-            keys.insert(watchtower_7(), UintAuthorityId(7));
-            keys.insert(watchtower_8(), UintAuthorityId(8));
-            keys.insert(watchtower_9(), UintAuthorityId(9));
-            keys.insert(watchtower_10(), UintAuthorityId(10));
+            keys.insert(watchtower_1(), get_signing_key_for_wt_1());
+            keys.insert(watchtower_2(), signing_key(2));
+            keys.insert(watchtower_3(), signing_key(3));
+            keys.insert(watchtower_4(), signing_key(4));
+            keys.insert(watchtower_5(), signing_key(5));
+            keys.insert(watchtower_6(), signing_key(6));
+            keys.insert(watchtower_7(), signing_key(7));
+            keys.insert(watchtower_8(), signing_key(8));
+            keys.insert(watchtower_9(), signing_key(9));
+            keys.insert(watchtower_10(), signing_key(10));
             keys
         });
 
@@ -259,7 +268,7 @@ pub(crate) fn roll_one_block() -> u64 {
 }
 
 pub struct TestNodeManager;
-impl NodesInterface<AccountId, UintAuthorityId> for TestNodeManager {
+impl NodesInterface<AccountId, SignerId> for TestNodeManager {
     fn is_authorized_watchtower(node: &AccountId) -> bool {
         AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().contains(node))
     }
@@ -268,11 +277,11 @@ impl NodesInterface<AccountId, UintAuthorityId> for TestNodeManager {
         NODE_OWNERS.with(|keys| keys.borrow().contains_key(who))
     }
 
-    fn get_node_signing_key(node: &AccountId) -> Option<UintAuthorityId> {
+    fn get_node_signing_key(node: &AccountId) -> Option<SignerId> {
         NODE_SIGNING_KEYS.with(|keys| keys.borrow().get(node).cloned())
     }
 
-    fn get_node_from_local_signing_keys() -> Option<(AccountId, UintAuthorityId)> {
+    fn get_node_from_local_signing_keys() -> Option<(AccountId, SignerId)> {
         let maybe_watchtower_1 =
             AUTHORIZED_WATCHTOWERS.with(|w| w.borrow().first().unwrap().clone());
         let watchtower_1 = watchtower_1();

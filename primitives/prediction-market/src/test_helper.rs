@@ -34,6 +34,11 @@ pub fn get_account_from_mnemonic(mnemonic: &str) -> TestAccountIdPK {
     return TestAccount::new(seed).account_id()
 }
 
+pub fn get_test_account_from_mnemonic(mnemonic: &str) -> TestAccount {
+    let seed = sr25519::Pair::from_phrase(mnemonic, None).unwrap().1;
+    return TestAccount::new(seed)
+}
+
 pub fn get_account(index: u8) -> TestAccountIdPK {
     TestAccount::new([index; 32]).account_id()
 }

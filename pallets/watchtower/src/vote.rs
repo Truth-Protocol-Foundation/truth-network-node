@@ -18,7 +18,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn get_consensus_result(result: bool) -> ProposalStatusEnum {
+    pub fn get_proposal_status(result: bool) -> ProposalStatusEnum {
         if result {
             ProposalStatusEnum::Resolved { passed: true }
         } else {
@@ -93,23 +93,18 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub fn finalise_voting_if_required(
+    pub fn get_finalised_consensus_result(
         proposal_id: ProposalId,
         proposal: &Proposal<T>,
         current_block: BlockNumberFor<T>,
-    ) -> DispatchResult {
-        let mut consensus_result = None;
-        if let Some(consensus) = Self::threshold_achieved(proposal_id, proposal.threshold) {
-            consensus_result = Some(Self::get_consensus_result(consensus));
+    ) -> Option<ProposalStatusEnum> {
+        if let Some(result) = Self::threshold_achieved(proposal_id, proposal.threshold) {
+            Some(Self::get_proposal_status(result))
         } else if Self::proposal_expired(current_block, proposal) {
-            consensus_result = Some(Self::get_vote_result_on_expiry(proposal_id, proposal));
+            Some(Self::get_vote_result_on_expiry(proposal_id, proposal))
+        } else {
+            None
         }
-
-        if let Some(consensus_result) = consensus_result {
-            Self::finalise_voting(proposal_id, proposal, consensus_result)?;
-        }
-
-        Ok(())
     }
 
     pub fn proposal_expired(current_block: BlockNumberFor<T>, proposal: &Proposal<T>) -> bool {

@@ -287,7 +287,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(1)]
-        #[pallet::weight(0)]
+        #[pallet::weight(<T as Config>::WeightInfo::signed_submit_external_proposal())]
         pub fn signed_submit_external_proposal(
             origin: OriginFor<T>,
             proposal: ProposalRequest,
@@ -323,22 +323,37 @@ pub mod pallet {
         }
 
         #[pallet::call_index(2)]
-        #[pallet::weight(<T as Config>::WeightInfo::vote())]
-        pub fn vote(origin: OriginFor<T>, proposal_id: ProposalId, aye: bool) -> DispatchResult {
+        #[pallet::weight(
+            <T as Config>::WeightInfo::vote()
+            .max(<T as Config>::WeightInfo::vote_end_proposal())
+        )]
+        pub fn vote(
+            origin: OriginFor<T>,
+            proposal_id: ProposalId,
+            aye: bool,
+        ) -> DispatchResultWithPostInfo {
             let owner = ensure_signed(origin)?;
-            Self::process_vote(&owner, proposal_id, aye)?;
-            Ok(())
+            let finalised = Self::process_vote(&owner, proposal_id, aye)?;
+
+            if finalised {
+                Ok(Some(<T as Config>::WeightInfo::vote_end_proposal()).into())
+            } else {
+                Ok(Some(<T as Config>::WeightInfo::vote()).into())
+            }
         }
 
         #[pallet::call_index(3)]
-        #[pallet::weight(0)]
+        #[pallet::weight(
+            <T as Config>::WeightInfo::signed_vote()
+            .max(<T as Config>::WeightInfo::signed_vote_end_proposal())
+        )]
         pub fn signed_vote(
             origin: OriginFor<T>,
             proposal_id: ProposalId,
             aye: bool,
             block_number: BlockNumberFor<T>,
             proof: Proof<T::Signature, T::AccountId>,
-        ) -> DispatchResult {
+        ) -> DispatchResultWithPostInfo {
             let owner = ensure_signed(origin)?;
             ensure!(owner == proof.signer, Error::<T>::SenderIsNotSigner);
             ensure!(
@@ -360,20 +375,27 @@ pub mod pallet {
                 Error::<T>::UnauthorizedSignedTransaction
             );
 
-            Self::process_vote(&owner, proposal_id, aye)?;
+            let finalised = Self::process_vote(&owner, proposal_id, aye)?;
 
-            Ok(())
+            if finalised {
+                Ok(Some(<T as Config>::WeightInfo::signed_vote_end_proposal()).into())
+            } else {
+                Ok(Some(<T as Config>::WeightInfo::signed_vote()).into())
+            }
         }
 
         #[pallet::call_index(4)]
-        #[pallet::weight(0)]
+        #[pallet::weight(
+            <T as Config>::WeightInfo::unsigned_vote()
+            .max(<T as Config>::WeightInfo::unsigned_vote_end_proposal())
+        )]
         pub fn unsigned_vote(
             origin: OriginFor<T>,
             proposal_id: ProposalId,
             aye: bool,
             watchtower: T::AccountId,
             signature: <T::SignerId as RuntimeAppPublic>::Signature,
-        ) -> DispatchResult {
+        ) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
 
             let voter_signing_key = match T::Watchtowers::get_node_signing_key(&watchtower) {
@@ -388,11 +410,14 @@ pub mod pallet {
             ) {
                 return Err(Error::<T>::UnauthorizedUnsignedTransaction.into())
             }
-            // We allow unsigned votes for both internal and external proposals.
-            // For now we expect that only internal proposals should be voted on by the OCW but it
-            // might change in the future.
-            Self::process_vote(&watchtower, proposal_id, aye)?;
-            Ok(())
+
+            let finalised = Self::process_vote(&watchtower, proposal_id, aye)?;
+
+            if finalised {
+                Ok(Some(<T as Config>::WeightInfo::unsigned_vote_end_proposal()).into())
+            } else {
+                Ok(Some(<T as Config>::WeightInfo::unsigned_vote()).into())
+            }
         }
 
         #[pallet::call_index(5)]
@@ -461,36 +486,6 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_initialize(now: BlockNumberFor<T>) -> Weight {
-            let mut total_weight: Weight = Weight::zero();
-            // Check if the active proposal has expired and finalise it if needed
-            // TODO: benchmarks active_proposal_expiry_status and use that weight
-            total_weight = total_weight
-                .saturating_add(<T as Config>::WeightInfo::active_proposal_expiry_status());
-
-            if let Some((proposal_id, active_proposal, expired)) =
-                Self::active_proposal_expiry_status(now)
-            {
-                if !expired {
-                    return total_weight
-                }
-
-                Self::finalise_expired_voting(proposal_id, &active_proposal).unwrap_or_else(|e| {
-                    log::error!(
-                        "🪲 Failed to finalise voting for internal proposal {}: {:?}",
-                        proposal_id,
-                        e
-                    );
-                });
-
-                total_weight = total_weight
-                    .saturating_add(<T as Config>::WeightInfo::finalise_expired_voting());
-                return total_weight
-            };
-
-            total_weight
-        }
-
         fn on_idle(n: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             Self::cleanup_proposals(n, remaining_weight)
         }
@@ -549,7 +544,7 @@ pub mod pallet {
             voter: &T::AccountId,
             proposal_id: ProposalId,
             aye: bool,
-        ) -> DispatchResult {
+        ) -> Result<bool, DispatchError> {
             let proposal = Proposals::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotFound)?;
             ensure!(
                 ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active,
@@ -560,7 +555,8 @@ pub mod pallet {
             let current_block = <frame_system::Pallet<T>>::block_number();
             if Self::proposal_expired(current_block, &proposal) {
                 // Voting ended but we haven't finalised it yet
-                return Self::finalise_expired_voting(proposal_id, &proposal);
+                Self::finalise_expired_voting(proposal_id, &proposal)?;
+                return Ok(true);
             }
 
             ensure!(!Voters::<T>::contains_key(proposal_id, voter), Error::<T>::AlreadyVoted);
@@ -603,15 +599,55 @@ pub mod pallet {
                 vote_weight,
             });
 
-            Self::finalise_voting_if_required(proposal_id, &proposal, current_block)
+            if let Some(result) =
+                Self::get_finalised_consensus_result(proposal_id, &proposal, current_block)
+            {
+                // Consensus has been reached, finalise voting
+                Self::finalise_voting(proposal_id, &proposal, result)?;
+                return Ok(true);
+            }
+
+            Ok(false)
         }
 
-        fn cleanup_proposals(_n: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
+        fn cleanup_proposals(now: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             let mut meter = WeightMeter::with_limit(remaining_weight);
             let dbw = <T as frame_system::Config>::DbWeight::get();
             const MAX_VOTERS: usize = 250;
 
-            // Check if we have enough weight to read the keys
+            // Check if the active proposal has expired and finalise it if needed
+            if meter
+                .try_consume(<T as Config>::WeightInfo::active_proposal_expiry_status())
+                .is_err()
+            {
+                return meter.consumed()
+            }
+
+            if let Some((proposal_id, active_proposal, expired)) =
+                Self::active_proposal_expiry_status(now)
+            {
+                if expired {
+                    if meter
+                        .try_consume(<T as Config>::WeightInfo::finalise_expired_voting())
+                        .is_err()
+                    {
+                        return meter.consumed()
+                    }
+                    Self::finalise_expired_voting(proposal_id, &active_proposal).unwrap_or_else(
+                        |e| {
+                            log::error!(
+                                "🪲 Failed to finalise active proposal {}: {:?}",
+                                proposal_id,
+                                e
+                            );
+                        },
+                    );
+                } else {
+                    return meter.consumed();
+                }
+            };
+
+            // Now remove any completed proposals
             if meter.try_consume(dbw.reads(1)).is_err() {
                 return meter.consumed()
             }

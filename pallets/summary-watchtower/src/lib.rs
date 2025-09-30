@@ -5,13 +5,11 @@ use frame_support::{
     traits::{IsSubType, IsType},
 };
 use frame_system::{
-    ensure_none,
-    offchain::{SendTransactionTypes, SubmitTransaction},
+    offchain::{ SendTransactionTypes, /*SubmitTransaction*/ },
     pallet_prelude::*,
     WeightInfo,
 };
 
-use sp_runtime::RuntimeAppPublic;
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
@@ -22,12 +20,11 @@ use alloc::{
     vec,
 };
 
-use hex;
 use log;
-use pallet_watchtower::{NodesInterface, Payload, Proposal};
-use parity_scale_codec::{Decode, Encode};
+use pallet_watchtower::{Payload, Proposal};
+use parity_scale_codec::Decode;
 pub use sp_avn_common::{watchtower::*, RootId, RootRange};
-use sp_core::{MaxEncodedLen, H256};
+use sp_core::H256;
 pub use sp_runtime::{
     traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
     transaction_validity::{
@@ -99,7 +96,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         #[pallet::call_index(0)]
         #[pallet::weight(0)]
-        pub fn test(origin: OriginFor<T>) -> DispatchResult {
+        pub fn test(_origin: OriginFor<T>) -> DispatchResult {
             Ok(())
         }
     }
@@ -131,7 +128,7 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         fn process_proposal(
-            proposer: Option<T::AccountId>,
+            _proposer: Option<T::AccountId>,
             proposal_id: ProposalId,
             proposal: Proposal<T>,
         ) -> DispatchResult {
