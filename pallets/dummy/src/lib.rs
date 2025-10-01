@@ -4,10 +4,7 @@ use frame_support::{
     pallet_prelude::*,
     //traits::{IsSubType, IsType},
 };
-use frame_system::{
-    pallet_prelude::*,
-    WeightInfo,
-};
+use frame_system::{pallet_prelude::*, WeightInfo};
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
@@ -22,7 +19,7 @@ use parity_scale_codec::{Decode, Encode};
 pub use sp_avn_common::{watchtower::*, RootId, RootRange};
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
-    traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned, Hash},
+    traits::{AtLeast32Bit, Dispatchable, Hash, ValidateUnsigned},
     transaction_validity::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
         ValidTransaction,

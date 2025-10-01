@@ -6263,6 +6263,7 @@ dependencies = [
  "log",
  "pallet-avn",
  "pallet-balances",
+ "pallet-node-manager",
  "pallet-timestamp",
  "parity-scale-codec 3.6.9",
  "parking_lot 0.12.2",

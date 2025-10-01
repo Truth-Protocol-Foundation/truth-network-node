@@ -135,7 +135,7 @@ pub mod pallet {
             // decode payload as inline with rootId. So something like: Payload::Inline(rootId)
 
             let root_id = match &proposal.payload {
-                Payload::Inline(data) =>
+                Payload::Inline(data) => {
                     match RootId::<BlockNumberFor<T>>::decode(&mut &data[..]) {
                         Ok(root_id) => root_id,
                         Err(_) => {
@@ -145,7 +145,8 @@ pub mod pallet {
                             );
                             return Err(Error::<T>::InvalidSummaryProposal.into());
                         },
-                    },
+                    }
+                },
                 _ => {
                     log::error!(
                         "Summary Watchtower: URI payloads are not supported for proposal {:?}",

@@ -150,7 +150,7 @@ benchmarks! {
         let proposal_id = ExternalRef::<T>::get(external_ref);
         assert!(ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active);
         assert_last_event::<T>(
-            Event::ProposalSubmitted { proposal_id, external_ref }.into()
+            Event::ProposalSubmitted { proposal_id, external_ref, status: ProposalStatusEnum::Active }.into()
         );
     }
 
@@ -175,7 +175,7 @@ benchmarks! {
         let proposal_id = ExternalRef::<T>::get(external_ref);
         assert!(ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active);
         assert_last_event::<T>(
-            Event::ProposalSubmitted { proposal_id, external_ref }.into()
+            Event::ProposalSubmitted { proposal_id, external_ref, status: ProposalStatusEnum::Active }.into()
         );
     }
 

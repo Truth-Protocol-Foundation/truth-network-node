@@ -46,10 +46,10 @@ impl Config for TestRuntime {
     type Watchtowers = TestNodeManager;
     type WatchtowerHooks = ();
     type SignedTxLifetime = ConstU32<5>;
-    type MaxTitleLen = ConstU32<256>;
-    type MaxInlineLen = ConstU32<1024>;
-    type MaxUriLen = ConstU32<512>;
-    type MaxInternalProposalLen = ConstU32<2048>;
+    type MaxTitleLen = ConstU32<512>;
+    type MaxInlineLen = ConstU32<8192>;
+    type MaxUriLen = ConstU32<2040>;
+    type MaxInternalProposalLen = ConstU32<100>;
 }
 
 parameter_types! {

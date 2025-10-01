@@ -915,12 +915,12 @@ impl pallet_watchtower::Config for Runtime {
     type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
     type WatchtowerHooks = SummaryWatchtower;
     type MaxTitleLen = ConstU32<512>;
-    type MaxInlineLen = ConstU32<4080>;
-    type MaxUriLen = ConstU32<1020>;
+    type MaxInlineLen = ConstU32<8192>;
+    type MaxUriLen = ConstU32<2040>;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type SignedTxLifetime = ConstU32<64>;
-    type MaxInternalProposalLen = ConstU32<1024>;
+    type MaxInternalProposalLen = ConstU32<4096>;
 }
 
 // Prediction market

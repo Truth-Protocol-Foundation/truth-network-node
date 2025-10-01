@@ -203,7 +203,11 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// A new proposal has been submitted
-        ProposalSubmitted { proposal_id: ProposalId, external_ref: H256 },
+        ProposalSubmitted {
+            proposal_id: ProposalId,
+            external_ref: H256,
+            status: ProposalStatusEnum,
+        },
         /// A vote has been cast on a proposal
         VoteSubmitted { voter: T::AccountId, proposal_id: ProposalId, aye: bool, vote_weight: u32 },
         /// Consensus has been reached on a proposal
@@ -270,6 +274,8 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+        // We don't want external users to add internal proposals to avoid
+        // DOSing the internal proposal queue.
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::submit_external_proposal())]
         pub fn submit_external_proposal(
@@ -509,33 +515,31 @@ pub mod pallet {
             ensure!(!Proposals::<T>::contains_key(proposal_id), Error::<T>::DuplicateProposal);
 
             let current_block = <frame_system::Pallet<T>>::block_number();
-            let proposal_active: bool;
+            let status: ProposalStatusEnum;
             if let ProposalSource::Internal(_) = proposal.source {
                 if ActiveInternalProposal::<T>::get().is_none() {
                     proposal.end_at =
                         Some(current_block.saturating_add(proposal.vote_duration.into()));
                     ActiveInternalProposal::<T>::put(proposal_id);
-                    ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
-                    proposal_active = true;
+                    status = ProposalStatusEnum::Active;
                 } else {
                     Self::enqueue(proposal_id)?;
-                    ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Queued);
-                    proposal_active = false;
+                    status = ProposalStatusEnum::Queued;
                 }
             } else {
                 proposal.end_at = Some(current_block.saturating_add(proposal.vote_duration.into()));
-                ProposalStatus::<T>::insert(proposal_id, ProposalStatusEnum::Active);
-                proposal_active = true;
+                status = ProposalStatusEnum::Active;
             }
 
+            ProposalStatus::<T>::insert(proposal_id, &status);
             Proposals::<T>::insert(proposal_id, &proposal);
             ExternalRef::<T>::insert(external_ref, proposal_id);
 
-            Self::deposit_event(Event::ProposalSubmitted { proposal_id, external_ref });
-
-            if proposal_active {
+            if status == ProposalStatusEnum::Active {
                 T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
             }
+
+            Self::deposit_event(Event::ProposalSubmitted { proposal_id, external_ref, status });
 
             Ok(())
         }

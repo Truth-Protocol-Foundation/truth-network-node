@@ -43,6 +43,8 @@ pallet-timestamp = { workspace = true }
 prediction-market-primitives = { workspace = true, features=["mock"]}
 parking_lot = {  workspace = true }
 pallet-balances = { workspace = true, features=["insecure_zero_ed", "default"] }
+pallet-node-manager = { workspace = true, features=["default"] }
+test-case = { workspace = true }
 
 [features]
 default = ["std"]
