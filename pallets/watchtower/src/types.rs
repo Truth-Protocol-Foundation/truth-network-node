@@ -23,6 +23,7 @@ pub enum Payload<T: Config> {
 pub fn to_proposal<T: Config>(
     request: ProposalRequest,
     proposer: Option<T::AccountId>,
+    current_block: BlockNumberFor<T>,
 ) -> Result<Proposal<T>, Error<T>> {
     let min_vote_duration = MinVotingPeriod::<T>::get().saturated_into::<u32>();
     let vote_duration: u32 = request.vote_duration.unwrap_or(min_vote_duration);
@@ -44,7 +45,7 @@ pub fn to_proposal<T: Config>(
         end_at: None,
     };
 
-    if !proposal.is_valid() {
+    if !proposal.is_valid(current_block) {
         return Err(Error::<T>::InvalidProposal);
     }
 
@@ -99,11 +100,12 @@ impl<T: Config> Proposal<T> {
         ProposalId::from(hash)
     }
 
-    pub fn is_valid(&self) -> bool {
+    pub fn is_valid(&self, current_block: BlockNumberFor<T>) -> bool {
         let base_is_valid = !self.title.is_empty() &&
             self.external_ref != H256::zero() &&
             self.vote_duration >= MinVotingPeriod::<T>::get().saturated_into::<u32>() &&
-            self.threshold <= Perbill::one();
+            self.threshold <= Perbill::one() &&
+            self.created_at <= current_block;
 
         let payload_valid = match &self.payload {
             Payload::Inline(data) =>

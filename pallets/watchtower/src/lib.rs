@@ -502,8 +502,9 @@ pub mod pallet {
             proposer: Option<T::AccountId>,
             proposal_request: ProposalRequest,
         ) -> DispatchResult {
+            let current_block = <frame_system::Pallet<T>>::block_number();
             // Proposal is validated before creating it.
-            let mut proposal = to_proposal::<T>(proposal_request, proposer)?;
+            let mut proposal = to_proposal::<T>(proposal_request, proposer, current_block)?;
 
             let external_ref = proposal.external_ref;
             ensure!(
@@ -514,7 +515,6 @@ pub mod pallet {
             let proposal_id = proposal.generate_id();
             ensure!(!Proposals::<T>::contains_key(proposal_id), Error::<T>::DuplicateProposal);
 
-            let current_block = <frame_system::Pallet<T>>::block_number();
             let status: ProposalStatusEnum;
             if let ProposalSource::Internal(_) = proposal.source {
                 if ActiveInternalProposal::<T>::get().is_none() {

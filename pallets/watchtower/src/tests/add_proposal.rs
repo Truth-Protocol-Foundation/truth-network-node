@@ -229,9 +229,25 @@ mod internally_adding_proposal {
     }
 }
 
-mod fails_when {
+mod adding_proposal_fails_when {
     use super::*;
     use test_case::test_case;
+
+    #[test_case(RawPayload::Uri(b"test".to_vec()), ProposalSource::External; "external")]
+    #[test_case(RawPayload::Inline(b"test".to_vec()), ProposalSource::Internal(ProposalType::Summary); "internal")]
+    fn created_at_is_in_the_future(payload: RawPayload, source: ProposalSource) {
+        let mut ext = ExtBuilder::build_default().as_externality();
+        ext.execute_with(|| {
+            let mut context = Context::default();
+            context.created_at = 10u32; // Future block
+            let internal_proposal = context.build_request(payload, source);
+
+            assert_noop!(
+                Watchtower::submit_proposal(None, internal_proposal.clone()),
+                Error::<TestRuntime>::InvalidProposal
+            );
+        });
+    }
 
     #[test_case(RawPayload::Uri(b"test".to_vec()), ProposalSource::External; "external")]
     #[test_case(RawPayload::Inline(b"test".to_vec()), ProposalSource::Internal(ProposalType::Summary); "internal")]
@@ -300,6 +316,74 @@ mod fails_when {
                 assert_noop!(
                     Watchtower::submit_proposal(None, proposal.clone()),
                     Error::<TestRuntime>::InvalidTitle
+                );
+            }
+        });
+    }
+
+    #[test_case(RawPayload::Uri(b"test".to_vec()), ProposalSource::External; "external")]
+    #[test_case(RawPayload::Inline(b"test".to_vec()), ProposalSource::Internal(ProposalType::Summary); "internal")]
+    fn title_empty(payload: RawPayload, source: ProposalSource) {
+        let mut ext = ExtBuilder::build_default().as_externality();
+        ext.execute_with(|| {
+            let mut context = Context::default();
+            context.title = vec![];
+            let proposal = context.build_request(payload.clone(), source.clone());
+
+            if source == ProposalSource::External {
+                assert_noop!(
+                    Watchtower::submit_external_proposal(RawOrigin::Root.into(), proposal.clone()),
+                    Error::<TestRuntime>::InvalidProposal
+                );
+            } else {
+                assert_noop!(
+                    Watchtower::submit_proposal(None, proposal.clone()),
+                    Error::<TestRuntime>::InvalidProposal
+                );
+            }
+        });
+    }
+
+    #[test_case(RawPayload::Uri(b"test".to_vec()), ProposalSource::External; "external")]
+    #[test_case(RawPayload::Inline(b"test".to_vec()), ProposalSource::Internal(ProposalType::Summary); "internal")]
+    fn external_ref_empty(payload: RawPayload, source: ProposalSource) {
+        let mut ext = ExtBuilder::build_default().as_externality();
+        ext.execute_with(|| {
+            let mut context = Context::default();
+            context.external_ref = H256::zero();
+            let proposal = context.build_request(payload.clone(), source.clone());
+
+            if source == ProposalSource::External {
+                assert_noop!(
+                    Watchtower::submit_external_proposal(RawOrigin::Root.into(), proposal.clone()),
+                    Error::<TestRuntime>::InvalidProposal
+                );
+            } else {
+                assert_noop!(
+                    Watchtower::submit_proposal(None, proposal.clone()),
+                    Error::<TestRuntime>::InvalidProposal
+                );
+            }
+        });
+    }
+
+    #[test_case(RawPayload::Uri(vec![]), ProposalSource::External; "external")]
+    #[test_case(RawPayload::Inline(vec![]), ProposalSource::Internal(ProposalType::Summary); "internal")]
+    fn empty_bytes(payload: RawPayload, source: ProposalSource) {
+        let mut ext = ExtBuilder::build_default().as_externality();
+        ext.execute_with(|| {
+            let mut context = Context::default();
+            let proposal = context.build_request(payload.clone(), source.clone());
+
+            if source == ProposalSource::External {
+                assert_noop!(
+                    Watchtower::submit_external_proposal(RawOrigin::Root.into(), proposal.clone()),
+                    Error::<TestRuntime>::InvalidProposal
+                );
+            } else {
+                assert_noop!(
+                    Watchtower::submit_proposal(None, proposal.clone()),
+                    Error::<TestRuntime>::InvalidProposal
                 );
             }
         });
