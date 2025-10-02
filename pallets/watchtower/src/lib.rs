@@ -704,6 +704,24 @@ pub mod pallet {
             meter.consumed()
         }
     }
+
+    impl<T: Config> WatchtowerInterface for Pallet<T> {
+        type AccountId = T::AccountId;
+
+        fn get_proposal_status(proposal_id: ProposalId) -> ProposalStatusEnum {
+            ProposalStatus::<T>::get(proposal_id)
+        }
+
+        fn get_proposer(proposal_id: ProposalId) -> Option<Self::AccountId> {
+            Proposals::<T>::get(proposal_id).map(|proposal| proposal.proposer)?
+        }
+
+        fn submit_proposal(
+            proposer: Option<Self::AccountId>,
+            proposal: ProposalRequest,
+        ) -> DispatchResult {
+            Self::add_proposal(proposer, proposal)
+        }
     }
 
     impl<T: Config> InnerCallValidator for Pallet<T> {

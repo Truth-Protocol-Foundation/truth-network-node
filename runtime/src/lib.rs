@@ -42,6 +42,7 @@ pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
 
 pub use prediction_market_primitives::{constants::*, types::*};
+pub use sp_avn_common::watchtower::{ProposalId, WatchtowerHooks};
 
 pub use common_primitives::{
     constants::{
@@ -1729,5 +1730,52 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 
     fn get_events_to_migrate() -> Option<BoundedVec<EventMigration, ProcessingBatchBound>> {
         EthereumEvents::get_events_to_migrate()
+    }
+}
+
+pub struct RuntimeNodeManager;
+impl pallet_watchtower::NodesInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager {
+    fn is_authorized_watchtower(node: &AccountId) -> bool {
+        #[cfg(feature = "runtime-benchmarks")]
+        {
+            return true;
+        }
+
+        #[cfg(not(feature = "runtime-benchmarks"))]
+        pallet_node_manager::NodeRegistry::<Runtime>::contains_key(node)
+    }
+
+    fn is_watchtower_owner(who: &AccountId) -> bool {
+        pallet_node_manager::OwnedNodes::<Runtime>::iter_prefix(&who).next().is_some()
+    }
+
+    fn get_node_signing_key(node: &AccountId) -> Option<NodeManagerKeyId> {
+        #[cfg(feature = "runtime-benchmarks")]
+        {
+            let bytes = node.encode();
+            return NodeManagerKeyId::decode(&mut bytes.as_slice()).ok();
+        }
+
+        #[cfg(not(feature = "runtime-benchmarks"))]
+        pallet_node_manager::NodeRegistry::<Runtime>::get(node)
+            .map(|node_info| node_info.signing_key)
+    }
+
+    fn get_node_from_local_signing_keys() -> Option<(AccountId, NodeManagerKeyId)> {
+        pallet_node_manager::Pallet::<Runtime>::get_node_from_signing_key()
+    }
+
+    fn get_watchtower_voting_weight(owner: &AccountId) -> u32 {
+        pallet_node_manager::OwnedNodesCount::<Runtime>::get(owner)
+    }
+
+    fn get_authorized_watchtowers_count() -> u32 {
+        #[cfg(feature = "runtime-benchmarks")]
+        {
+            return 10u32;
+        }
+
+        #[cfg(not(feature = "runtime-benchmarks"))]
+        pallet_node_manager::TotalRegisteredNodes::<Runtime>::get()
     }
 }
