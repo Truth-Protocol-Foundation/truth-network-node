@@ -133,6 +133,24 @@ impl EnsureOrigin<RuntimeOrigin> for EnsureConfigAdmin {
     }
 }
 
+pub struct EnsureExternalProposerOrRoot;
+impl EnsureOrigin<RuntimeOrigin> for EnsureExternalProposerOrRoot {
+    type Success = Option<AccountId>;
+
+    fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+        match EnsureSigned::<AccountId>::try_origin(o) {
+            Ok(who) => Ok(Some(who)),
+            Err(o) => EnsureRoot::<AccountId>::try_origin(o).map(|_| None),
+        }
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+        use frame_benchmarking::whitelisted_caller;
+        Ok(RuntimeOrigin::signed(whitelisted_caller()))
+    }
+}
+
 pub type EnsureAdminOrRoot = EitherOfDiverse<EnsureConfigAdmin, EnsureRoot<AccountId>>;
 
 // Accounts protected from being deleted due to a too low amount of funds.
@@ -873,6 +891,23 @@ impl pallet_config::Config for Runtime {
     type WeightInfo = pallet_config::default_weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_watchtower::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = pallet_watchtower::default_weights::SubstrateWeight<Runtime>;
+    type Watchtowers = RuntimeNodeManager;
+    type SignerId = NodeManagerKeyId;
+    type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
+    type WatchtowerHooks = ();
+    type MaxTitleLen = ConstU32<512>;
+    type MaxInlineLen = ConstU32<8192>;
+    type MaxUriLen = ConstU32<2040>;
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
+    type SignedTxLifetime = ConstU32<64>;
+    type MaxInternalProposalLen = ConstU32<4096>;
+}
+
 // Prediction market
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 
@@ -1317,6 +1352,7 @@ construct_runtime!(
         AnchorSummary: pallet_summary::<Instance2> = 26,
         NodeManager: pallet_node_manager = 27,
         PalletConfig: pallet_config = 28,
+        Watchtower: pallet_watchtower = 29,
 
         // Prediction Market pallets
         AdvisoryCommittee: pallet_collective::<Instance1>::{Call, Config<T>, Event<T>, Origin<T>, Pallet, Storage} = 30,
@@ -1397,6 +1433,7 @@ mod benches {
         [pallet_nft_manager, NftManager]
         [pallet_node_manager, NodeManager]
         [pallet_config, PalletConfig]
+        [pallet_watchtower, Watchtower]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
         [pallet_proxy, Proxy]
