@@ -140,8 +140,8 @@ pub trait NodesInterface<AccountId, SignerId> {
 
 #[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, Default)]
 pub struct Vote {
-    pub ayes: u32,
-    pub nays: u32,
+    pub in_favors: u32,
+    pub againsts: u32,
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq)]

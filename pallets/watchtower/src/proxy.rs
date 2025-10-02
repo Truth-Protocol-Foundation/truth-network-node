@@ -18,10 +18,10 @@ impl<T: Config> Pallet<T> {
     pub fn encode_signed_submit_vote_params(
         relayer: &T::AccountId,
         proposal_id: &ProposalId,
-        aye: &bool,
+        in_favor: &bool,
         block_number: &BlockNumberFor<T>,
     ) -> Vec<u8> {
-        (SIGNED_SUBMIT_VOTE_CONTEXT, relayer.clone(), proposal_id, aye, block_number).encode()
+        (SIGNED_SUBMIT_VOTE_CONTEXT, relayer.clone(), proposal_id, in_favor, block_number).encode()
     }
 
     pub fn offchain_signature_is_valid<D: Encode>(

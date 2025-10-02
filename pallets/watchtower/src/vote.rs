@@ -9,9 +9,9 @@ impl<T: Config> Pallet<T> {
         }
 
         let min_votes = threshold.mul_ceil(total_voters);
-        if vote.ayes >= min_votes {
+        if vote.in_favors >= min_votes {
             Some(true)
-        } else if vote.nays >= min_votes {
+        } else if vote.againsts >= min_votes {
             Some(false)
         } else {
             None
@@ -34,7 +34,8 @@ impl<T: Config> Pallet<T> {
             ProposalSource::Internal(_) => ProposalStatusEnum::Expired,
             ProposalSource::External => {
                 let votes = Votes::<T>::get(proposal_id);
-                if proposal.decision_rule == DecisionRule::SimpleMajority && votes.ayes > votes.nays
+                if proposal.decision_rule == DecisionRule::SimpleMajority &&
+                    votes.in_favors > votes.againsts
                 {
                     ProposalStatusEnum::Resolved { passed: true }
                 } else {

@@ -106,12 +106,12 @@ pub mod pallet {
         fn offchain_worker(block_number: BlockNumberFor<T>) {
             log::debug!(target: "runtime::watchtower::ocw", "Watchtower OCW running for block {:?}", block_number);
 
-            // let aye = true;
+            // let in_favor = true;
             // let proposal_id: ProposalId = H256::repeat_byte(1);
 
             // let call = pallet_watchtower::Call::internal_vote {
             //     proposal_id,
-            //     aye,
+            //     in_favor,
             //     voter: Default::default(),
             //     signature: Default::default()
             // };

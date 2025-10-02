@@ -6,78 +6,6 @@ use crate::{mock::*, *};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::RawOrigin;
 use sp_core::Get;
-use sp_runtime::traits::Hash;
-
-#[derive(Clone)]
-struct Context {
-    pub title: Vec<u8>,
-    pub payload: RawPayload,
-    pub threshold: Perbill,
-    pub source: ProposalSource,
-    pub decision_rule: DecisionRule,
-    pub external_ref: H256,
-    pub created_at: u32,
-    pub vote_duration: Option<u32>,
-}
-
-impl Default for Context {
-    fn default() -> Self {
-        let external_ref = H256::repeat_byte(1);
-        Context {
-            title: "Test Proposal".as_bytes().to_vec(),
-            external_ref,
-            threshold: Perbill::from_percent(50),
-            payload: RawPayload::Inline(external_ref.encode()),
-            source: ProposalSource::Internal(ProposalType::Summary),
-            decision_rule: DecisionRule::SimpleMajority,
-            vote_duration: Some(
-                MinVotingPeriod::<TestRuntime>::get().saturated_into::<u32>() + 1u32,
-            ),
-            created_at: 1u32,
-        }
-    }
-}
-
-impl Context {
-    pub fn build_internal_request(&self, payload: Vec<u8>) -> ProposalRequest {
-        ProposalRequest {
-            title: self.title.clone(),
-            external_ref: self.external_ref,
-            threshold: self.threshold,
-            payload: RawPayload::Inline(payload),
-            source: self.source.clone(),
-            decision_rule: self.decision_rule.clone(),
-            created_at: self.created_at,
-            vote_duration: self.vote_duration,
-        }
-    }
-
-    pub fn build_external_request(&self, uri: Vec<u8>) -> ProposalRequest {
-        ProposalRequest {
-            title: self.title.clone(),
-            external_ref: self.external_ref,
-            threshold: self.threshold,
-            payload: RawPayload::Uri(uri),
-            source: ProposalSource::External,
-            decision_rule: self.decision_rule.clone(),
-            created_at: self.created_at,
-            vote_duration: self.vote_duration,
-        }
-    }
-
-    pub fn build_request(&self, payload: RawPayload, source: ProposalSource) -> ProposalRequest {
-        ProposalRequest {
-            title: self.title.clone(),
-            external_ref: self.external_ref,
-            threshold: self.threshold,
-            payload,
-            source,
-            decision_rule: self.decision_rule.clone(),
-            created_at: self.created_at,
-            vote_duration: self.vote_duration,
-        }
-    }
-}
 
 mod adding_external_proposal {
     use super::*;
@@ -372,7 +300,7 @@ mod adding_proposal_fails_when {
     fn empty_bytes(payload: RawPayload, source: ProposalSource) {
         let mut ext = ExtBuilder::build_default().as_externality();
         ext.execute_with(|| {
-            let mut context = Context::default();
+            let context = Context::default();
             let proposal = context.build_request(payload.clone(), source.clone());
 
             if source == ProposalSource::External {
@@ -393,7 +321,7 @@ mod adding_proposal_fails_when {
     fn inline_payload_too_long() {
         let mut ext = ExtBuilder::build_default().as_externality();
         ext.execute_with(|| {
-            let mut context = Context::default();
+            let context = Context::default();
             let max_inline_len: u32 =
                 <<TestRuntime as crate::Config>::MaxInlineLen as Get<u32>>::get();
             let payload = vec![b'A'; max_inline_len as usize + 1];
@@ -410,7 +338,7 @@ mod adding_proposal_fails_when {
     fn uri_too_long() {
         let mut ext = ExtBuilder::build_default().as_externality();
         ext.execute_with(|| {
-            let mut context = Context::default();
+            let context = Context::default();
             let max_uri_len: u32 = <<TestRuntime as crate::Config>::MaxUriLen as Get<u32>>::get();
             let uri = vec![b'A'; max_uri_len as usize + 1];
             let external_proposal = context.build_external_request(uri.clone());

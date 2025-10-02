@@ -176,7 +176,7 @@ pub mod pallet {
         ProposalId,
         Blake2_128Concat,
         T::AccountId, // Voter
-        bool,         // voted aye or nay
+        bool,         // voted in_favor or against
         ValueQuery,
     >;
 
@@ -209,7 +209,12 @@ pub mod pallet {
             status: ProposalStatusEnum,
         },
         /// A vote has been cast on a proposal
-        VoteSubmitted { voter: T::AccountId, proposal_id: ProposalId, aye: bool, vote_weight: u32 },
+        VoteSubmitted {
+            voter: T::AccountId,
+            proposal_id: ProposalId,
+            in_favor: bool,
+            vote_weight: u32,
+        },
         /// Consensus has been reached on a proposal
         VotingEnded {
             proposal_id: ProposalId,
@@ -270,6 +275,10 @@ pub mod pallet {
         ProposalVotingPeriodNotEnded,
         /// The voting period is shorter than the minimum allowed
         VotingPeriodTooShort,
+        /// The proposal state doesn't match the active proposal state
+        CorruptedState,
+        /// This proposal cannot be voted on with an unsigned transaction
+        InvalidProposalForUnsignedVote,
     }
 
     #[pallet::call]
@@ -336,10 +345,10 @@ pub mod pallet {
         pub fn vote(
             origin: OriginFor<T>,
             proposal_id: ProposalId,
-            aye: bool,
+            in_favor: bool,
         ) -> DispatchResultWithPostInfo {
             let owner = ensure_signed(origin)?;
-            let finalised = Self::process_vote(&owner, proposal_id, aye)?;
+            let finalised = Self::process_vote(&owner, proposal_id, in_favor)?;
 
             if finalised {
                 Ok(Some(<T as Config>::WeightInfo::vote_end_proposal()).into())
@@ -356,7 +365,7 @@ pub mod pallet {
         pub fn signed_vote(
             origin: OriginFor<T>,
             proposal_id: ProposalId,
-            aye: bool,
+            in_favor: bool,
             block_number: BlockNumberFor<T>,
             proof: Proof<T::Signature, T::AccountId>,
         ) -> DispatchResultWithPostInfo {
@@ -372,7 +381,7 @@ pub mod pallet {
             let signed_payload = Self::encode_signed_submit_vote_params(
                 &proof.relayer,
                 &proposal_id,
-                &aye,
+                &in_favor,
                 &block_number,
             );
 
@@ -381,7 +390,7 @@ pub mod pallet {
                 Error::<T>::UnauthorizedSignedTransaction
             );
 
-            let finalised = Self::process_vote(&owner, proposal_id, aye)?;
+            let finalised = Self::process_vote(&owner, proposal_id, in_favor)?;
 
             if finalised {
                 Ok(Some(<T as Config>::WeightInfo::signed_vote_end_proposal()).into())
@@ -398,11 +407,17 @@ pub mod pallet {
         pub fn unsigned_vote(
             origin: OriginFor<T>,
             proposal_id: ProposalId,
-            aye: bool,
+            in_favor: bool,
             watchtower: T::AccountId,
             signature: <T::SignerId as RuntimeAppPublic>::Signature,
         ) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
+
+            // Only Active internal proposals can be voted on with unsigned txs
+            ensure!(
+                ActiveInternalProposal::<T>::get() == Some(proposal_id),
+                Error::<T>::InvalidProposalForUnsignedVote
+            );
 
             let voter_signing_key = match T::Watchtowers::get_node_signing_key(&watchtower) {
                 Some(key) => key,
@@ -410,14 +425,14 @@ pub mod pallet {
             };
 
             if !Self::offchain_signature_is_valid(
-                &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, aye, &watchtower),
+                &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, in_favor, &watchtower),
                 &voter_signing_key,
                 &signature,
             ) {
                 return Err(Error::<T>::UnauthorizedUnsignedTransaction.into())
             }
 
-            let finalised = Self::process_vote(&watchtower, proposal_id, aye)?;
+            let finalised = Self::process_vote(&watchtower, proposal_id, in_favor)?;
 
             if finalised {
                 Ok(Some(<T as Config>::WeightInfo::unsigned_vote_end_proposal()).into())
@@ -473,7 +488,7 @@ pub mod pallet {
 
         fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
             match call {
-                Call::unsigned_vote { proposal_id, aye: _, watchtower, signature: _ } => {
+                Call::unsigned_vote { proposal_id, in_favor: _, watchtower, signature: _ } => {
                     if T::Watchtowers::is_authorized_watchtower(watchtower) == false {
                         return InvalidTransaction::Custom(INVALID_WATCHTOWER).into()
                     }
@@ -547,7 +562,7 @@ pub mod pallet {
         fn process_vote(
             voter: &T::AccountId,
             proposal_id: ProposalId,
-            aye: bool,
+            in_favor: bool,
         ) -> Result<bool, DispatchError> {
             let proposal = Proposals::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotFound)?;
             ensure!(
@@ -573,6 +588,12 @@ pub mod pallet {
                         Error::<T>::UnauthorizedVoter
                     );
 
+                    // This should not happen but just in case (defensive programming)
+                    ensure!(
+                        ActiveInternalProposal::<T>::get() == Some(proposal_id),
+                        Error::<T>::CorruptedState
+                    );
+
                     vote_weight = 1;
                 },
                 ProposalSource::External => {
@@ -587,19 +608,19 @@ pub mod pallet {
                 },
             };
 
-            Voters::<T>::insert(proposal_id, voter, aye);
+            Voters::<T>::insert(proposal_id, voter, in_favor);
             Votes::<T>::mutate(proposal_id, |vote| {
-                if aye {
-                    vote.ayes = vote.ayes.saturating_add(vote_weight);
+                if in_favor {
+                    vote.in_favors = vote.in_favors.saturating_add(vote_weight);
                 } else {
-                    vote.nays = vote.nays.saturating_add(vote_weight);
+                    vote.againsts = vote.againsts.saturating_add(vote_weight);
                 }
             });
 
             Self::deposit_event(Event::VoteSubmitted {
                 voter: voter.clone(),
                 proposal_id,
-                aye,
+                in_favor,
                 vote_weight,
             });
 

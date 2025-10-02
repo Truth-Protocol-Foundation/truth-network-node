@@ -3,7 +3,6 @@ use frame_support::{
     parameter_types,
     traits::ConstU32,
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
-    PalletId,
 };
 use frame_system::{self as system, EnsureRoot, EnsureSigned};
 pub use parity_scale_codec::alloc::sync::Arc;
@@ -131,8 +130,12 @@ impl pallet_timestamp::Config for TestRuntime {
     type WeightInfo = ();
 }
 
+pub fn get_default_voter() -> TestAccount {
+    get_test_account_from_mnemonic(DEV_PHRASE)
+}
+
 pub fn watchtower_1() -> AccountId {
-    get_test_account_from_mnemonic(DEV_PHRASE).account_id()
+    get_default_voter().account_id()
 }
 pub fn watchtower_2() -> AccountId {
     TestAccount::new([12u8; 32]).account_id()
@@ -173,11 +176,15 @@ pub fn watchtower_owner_3() -> AccountId {
 }
 
 pub fn get_signing_key_for_wt_1() -> SignerId {
-    get_test_account_from_mnemonic(DEV_PHRASE).public_key().into()
+    get_default_voter().public_key().into()
 }
 
 pub fn signing_key(index: u8) -> SignerId {
     TestAccount::new([index; 32]).public_key().into()
+}
+
+pub fn random_user() -> AccountId {
+    TestAccount::new([99u8; 32]).account_id()
 }
 
 thread_local! {
@@ -316,5 +323,74 @@ impl EnsureOrigin<RuntimeOrigin> for EnsureExternalProposerOrRoot {
     fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
         use frame_benchmarking::whitelisted_caller;
         Ok(RuntimeOrigin::signed(whitelisted_caller()))
+    }
+}
+
+#[derive(Clone)]
+pub struct Context {
+    pub title: Vec<u8>,
+    pub threshold: Perbill,
+    pub source: ProposalSource,
+    pub decision_rule: DecisionRule,
+    pub external_ref: H256,
+    pub created_at: u32,
+    pub vote_duration: Option<u32>,
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        let external_ref = H256::repeat_byte(1);
+        Context {
+            title: "Test Proposal".as_bytes().to_vec(),
+            external_ref,
+            threshold: Perbill::from_percent(50),
+            source: ProposalSource::Internal(ProposalType::Summary),
+            decision_rule: DecisionRule::SimpleMajority,
+            vote_duration: Some(
+                MinVotingPeriod::<TestRuntime>::get().saturated_into::<u32>() + 1u32,
+            ),
+            created_at: 1u32,
+        }
+    }
+}
+
+impl Context {
+    pub fn build_internal_request(&self, payload: Vec<u8>) -> ProposalRequest {
+        ProposalRequest {
+            title: self.title.clone(),
+            external_ref: self.external_ref,
+            threshold: self.threshold,
+            payload: RawPayload::Inline(payload),
+            source: self.source.clone(),
+            decision_rule: self.decision_rule.clone(),
+            created_at: self.created_at,
+            vote_duration: self.vote_duration,
+        }
+    }
+
+    pub fn build_external_request(&self, uri: Vec<u8>) -> ProposalRequest {
+        ProposalRequest {
+            title: self.title.clone(),
+            external_ref: self.external_ref,
+            threshold: self.threshold,
+            payload: RawPayload::Uri(uri),
+            source: ProposalSource::External,
+            decision_rule: self.decision_rule.clone(),
+            created_at: self.created_at,
+            vote_duration: self.vote_duration,
+        }
+    }
+
+    pub fn build_request(&self, payload: RawPayload, source: ProposalSource) -> ProposalRequest {
+        ProposalRequest {
+            title: self.title.clone(),
+            external_ref: self.external_ref,
+            threshold: self.threshold,
+            payload,
+            source,
+            decision_rule: self.decision_rule.clone(),
+            created_at: self.created_at,
+            vote_duration: self.vote_duration,
+        }
     }
 }

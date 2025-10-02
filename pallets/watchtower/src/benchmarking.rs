@@ -128,8 +128,8 @@ fn into_bytes<T: Config>(account: &T::SignerId) -> [u8; 32] {
 
 fn setup_votes<T: Config>(proposal_id: ProposalId, vote_count: u32) {
     Votes::<T>::mutate(proposal_id, |v| {
-        v.ayes = vote_count;
-        v.nays = vote_count;
+        v.in_favors = vote_count;
+        v.againsts = vote_count;
     });
 
     for i in 0..vote_count {
@@ -180,29 +180,29 @@ benchmarks! {
     }
 
     vote {
-        let aye = true;
+        let in_favor = true;
         let (_, voter) = get_voter::<T>();
 
         let proposal_id = H256::repeat_byte(3);
         let _ = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
-    }: vote(RawOrigin::Signed(voter.clone()), proposal_id, aye)
+    }: vote(RawOrigin::Signed(voter.clone()), proposal_id, in_favor)
     verify {
         assert!(Votes::<T>::contains_key(proposal_id));
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
         assert_last_event::<T>(
-            Event::VoteSubmitted { proposal_id, voter, aye, vote_weight: 1 }.into()
+            Event::VoteSubmitted { proposal_id, voter, in_favor, vote_weight: 1 }.into()
         );
     }
 
     vote_end_proposal {
-        let aye = true;
+        let in_favor = true;
         let (_, voter) = get_voter::<T>();
 
         let proposal_id = H256::repeat_byte(3);
         let proposal = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
         // Add some votes to be above the threshold
         setup_votes::<T>(proposal_id, 9u32);
-    }: vote(RawOrigin::Signed(voter.clone()), proposal_id, aye)
+    }: vote(RawOrigin::Signed(voter.clone()), proposal_id, in_favor)
     verify {
         assert!(Votes::<T>::contains_key(proposal_id));
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
@@ -216,7 +216,7 @@ benchmarks! {
 
     signed_vote {
         let (voter_key, voter) = get_voter::<T>();
-        let aye = true;
+        let in_favor = true;
         let relayer: T::AccountId = account("relayer", 11, 11);
         let now = frame_system::Pallet::<T>::block_number();
         let proposal_id = H256::repeat_byte(3);
@@ -225,24 +225,24 @@ benchmarks! {
         let signed_payload = Pallet::<T>::encode_signed_submit_vote_params(
             &relayer.clone(),
             &proposal_id,
-            &aye,
+            &in_favor,
             &now,
         );
 
         let signature = voter_key.sign(&signed_payload).unwrap().encode();
         let proof = get_proof::<T>(&relayer.clone(), &voter, &signature);
-    }: signed_vote(RawOrigin::Signed(voter.clone()), proposal_id, aye, now, proof)
+    }: signed_vote(RawOrigin::Signed(voter.clone()), proposal_id, in_favor, now, proof)
     verify {
         assert!(Votes::<T>::contains_key(proposal_id));
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
         assert_last_event::<T>(
-            Event::VoteSubmitted { proposal_id, voter, aye, vote_weight: 1 }.into()
+            Event::VoteSubmitted { proposal_id, voter, in_favor, vote_weight: 1 }.into()
         );
     }
 
     signed_vote_end_proposal {
         let (voter_key, voter) = get_voter::<T>();
-        let aye = true;
+        let in_favor = true;
         let relayer: T::AccountId = account("relayer", 11, 11);
         let now = frame_system::Pallet::<T>::block_number();
         let proposal_id = H256::repeat_byte(3);
@@ -251,7 +251,7 @@ benchmarks! {
         let signed_payload = Pallet::<T>::encode_signed_submit_vote_params(
             &relayer.clone(),
             &proposal_id,
-            &aye,
+            &in_favor,
             &now,
         );
 
@@ -260,7 +260,7 @@ benchmarks! {
 
         // Add some votes to be above the threshold
         setup_votes::<T>(proposal_id, 9u32);
-    }: signed_vote(RawOrigin::Signed(voter.clone()), proposal_id, aye, now, proof)
+    }: signed_vote(RawOrigin::Signed(voter.clone()), proposal_id, in_favor, now, proof)
     verify {
         assert!(Votes::<T>::contains_key(proposal_id));
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
@@ -274,32 +274,32 @@ benchmarks! {
 
     unsigned_vote {
         let (voter_key, voter) = get_voter::<T>();
-        let aye = true;
+        let in_favor = true;
         let proposal_id = H256::repeat_byte(3);
         let _ = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
 
-        let proof =  &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, aye, &voter).encode();
+        let proof =  &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, in_favor, &voter).encode();
         let signature = voter_key.sign(&proof).unwrap();
-    }: unsigned_vote(RawOrigin::None, proposal_id, aye, voter.clone(), signature.into())
+    }: unsigned_vote(RawOrigin::None, proposal_id, in_favor, voter.clone(), signature.into())
     verify {
         assert!(Votes::<T>::contains_key(proposal_id));
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
         assert_last_event::<T>(
-            Event::VoteSubmitted { proposal_id, voter, aye, vote_weight: 1 }.into()
+            Event::VoteSubmitted { proposal_id, voter, in_favor, vote_weight: 1 }.into()
         );
     }
 
     unsigned_vote_end_proposal {
         let (voter_key, voter) = get_voter::<T>();
-        let aye = true;
+        let in_favor = true;
         let proposal_id = H256::repeat_byte(3);
         let proposal = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
 
-        let proof =  &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, aye, &voter).encode();
+        let proof =  &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, in_favor, &voter).encode();
         let signature = voter_key.sign(&proof).unwrap();
         // Add some votes to be above the threshold
         setup_votes::<T>(proposal_id, 9u32);
-    }: unsigned_vote(RawOrigin::None, proposal_id, aye, voter.clone(), signature.into())
+    }: unsigned_vote(RawOrigin::None, proposal_id, in_favor, voter.clone(), signature.into())
     verify {
         assert!(Votes::<T>::contains_key(proposal_id));
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
