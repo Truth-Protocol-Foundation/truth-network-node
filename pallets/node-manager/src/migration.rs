@@ -31,13 +31,11 @@ impl<T: Config> OnRuntimeUpgrade for OwnedNodesUpgrade<T> {
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        let count = OwnedNodesCount::<T>::iter().count() as u32;
-        assert_eq!(count, 0);
-        Ok(())
+        Ok(vec![])
     }
 
     #[cfg(feature = "try-runtime")]
-    fn post_upgrade(input: Vec<u8>) -> Result<(), TryRuntimeError> {
+    fn post_upgrade(_input: Vec<u8>) -> Result<(), TryRuntimeError> {
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
@@ -52,12 +50,26 @@ impl<T: Config> OnRuntimeUpgrade for OwnedNodesUpgrade<T> {
 }
 
 fn populate_owned_nodes_count<T: Config>() -> Weight {
-    let mut count = 0u64;
+    use sp_std::collections::btree_map::BTreeMap;
+
+    let mut owned_nodes: BTreeMap<T::AccountId, u32> = BTreeMap::new();
+    let mut reads: u64 = 0;
+    let mut writes: u64 = 0;
+
     for (owner, _node_id) in OwnedNodes::<T>::iter_keys() {
-        count = count.saturating_add(1);
-        OwnedNodesCount::<T>::mutate(&owner, |c| *c = c.saturating_add(1));
+        reads = reads.saturating_add(1);
+        owned_nodes.entry(owner).and_modify(|c| *c = c.saturating_add(1)).or_insert(1);
     }
 
-    log::info!("✅ Populated OwnedNodesCount for {:?} node owners", count);
-    return T::DbWeight::get().reads_writes(count + 1, count + 1);
+    for (owner, count) in owned_nodes.into_iter() {
+        OwnedNodesCount::<T>::insert(&owner, count);
+        writes = writes.saturating_add(1);
+    }
+
+    STORAGE_VERSION.put::<Pallet<T>>();
+    writes = writes.saturating_add(1);
+
+    log::info!("✅ Populated OwnedNodesCount for {} owners", writes.saturating_sub(1));
+
+    T::DbWeight::get().reads_writes(reads, writes)
 }
