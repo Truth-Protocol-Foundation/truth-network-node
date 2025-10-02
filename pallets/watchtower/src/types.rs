@@ -71,3 +71,7 @@ impl<T: Config> Proposal<T> {
         base_is_valid && payload_valid
     }
 }
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq)]
+pub enum AdminConfig<BlockNumber> {
+    MinVotingPeriod(BlockNumber),
+}

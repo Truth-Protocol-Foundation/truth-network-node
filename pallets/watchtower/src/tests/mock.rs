@@ -1,0 +1,153 @@
+use crate::{self as pallet_watchtower, *};
+use frame_support::{
+    parameter_types,
+    traits::ConstU32,
+    weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
+};
+use frame_system::{self as system, EnsureRoot, EnsureSigned};
+pub use parity_scale_codec::alloc::sync::Arc;
+pub use prediction_market_primitives::test_helper::{get_test_account_from_mnemonic, TestAccount};
+pub use sp_core::{crypto::DEV_PHRASE, sr25519, H256};
+
+use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
+pub use sp_runtime::{
+    testing::TestXt,
+    traits::{BlakeTwo256, IdentityLookup, Verify},
+    BuildStorage, Perbill,
+};
+use std::cell::RefCell;
+
+pub type Signature = sr25519::Signature;
+pub type AccountId = <Signature as Verify>::Signer;
+pub type Extrinsic = TestXt<RuntimeCall, ()>;
+
+type Block = frame_system::mocking::MockBlock<TestRuntime>;
+type SignerId = pallet_node_manager::sr25519::AuthorityId;
+
+frame_support::construct_runtime!(
+    pub enum TestRuntime
+    {
+        System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        Watchtower: pallet_watchtower::{Pallet, Call, Storage, Event<T>},
+    }
+);
+
+impl Config for TestRuntime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
+    type MaxTitleLen = ConstU32<512>;
+    type MaxInlineLen = ConstU32<8192>;
+    type MaxUriLen = ConstU32<2040>;
+    type MaxInternalProposalLen = ConstU32<100>;
+}
+
+parameter_types! {
+    pub const Period: u64 = 1;
+    pub const Offset: u64 = 0;
+}
+
+impl<LocalCall> system::offchain::SendTransactionTypes<LocalCall> for TestRuntime
+where
+    RuntimeCall: From<LocalCall>,
+{
+    type OverarchingCall = RuntimeCall;
+    type Extrinsic = Extrinsic;
+}
+
+parameter_types! {
+    pub const BlockHashCount: u64 = 250;
+    pub const MaximumBlockWeight: Weight = Weight::from_parts(1024 as u64, 0);
+    pub const MaximumBlockLength: u32 = 2 * 1024;
+    pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+    pub const ChallengePeriod: u64 = 2;
+
+    pub BlockWeights: frame_system::limits::BlockWeights =
+        frame_system::limits::BlockWeights::simple_max(
+            Weight::from_parts(2u64 * WEIGHT_REF_TIME_PER_SECOND, u64::MAX),
+        );
+}
+
+impl system::Config for TestRuntime {
+    type BaseCallFilter = frame_support::traits::Everything;
+    type BlockWeights = ();
+    type BlockLength = ();
+    type DbWeight = ();
+    type RuntimeOrigin = RuntimeOrigin;
+    type Nonce = u64;
+    type RuntimeCall = RuntimeCall;
+    type Hash = H256;
+    type Hashing = BlakeTwo256;
+    type AccountId = AccountId;
+    type Lookup = IdentityLookup<Self::AccountId>;
+    type Block = Block;
+    type RuntimeEvent = RuntimeEvent;
+    type BlockHashCount = BlockHashCount;
+    type Version = ();
+    type PalletInfo = PalletInfo;
+    type AccountData = pallet_balances::AccountData<u128>;
+    type OnNewAccount = ();
+    type OnKilledAccount = ();
+    type SystemWeightInfo = ();
+    type SS58Prefix = ();
+    type OnSetCode = ();
+    type MaxConsumers = frame_support::traits::ConstU32<16>;
+}
+
+parameter_types! {
+    pub const ExistentialDeposit: u64 = 0u64;
+}
+
+impl pallet_balances::Config for TestRuntime {
+    type MaxLocks = ();
+    type Balance = u128;
+    type DustRemoval = ();
+    type RuntimeEvent = RuntimeEvent;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type MaxReserves = ();
+    type ReserveIdentifier = [u8; 8];
+    type WeightInfo = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type FreezeIdentifier = ();
+    type MaxHolds = ConstU32<0>;
+    type MaxFreezes = ConstU32<0>;
+}
+
+impl pallet_timestamp::Config for TestRuntime {
+    type Moment = u64;
+    type OnTimestampSet = ();
+    type MinimumPeriod = frame_support::traits::ConstU64<12000>;
+    type WeightInfo = ();
+}
+
+pub struct ExtBuilder {
+    pub storage: sp_runtime::Storage,
+}
+
+impl ExtBuilder {
+    pub fn build_default() -> Self {
+        let storage = frame_system::GenesisConfig::<TestRuntime>::default()
+            .build_storage()
+            .unwrap()
+            .into();
+
+        Self { storage }
+    }
+
+    pub fn as_externality(self) -> sp_io::TestExternalities {
+        let keystore = MemoryKeystore::new();
+
+        let mut ext = sp_io::TestExternalities::from(self.storage);
+        ext.register_extension(KeystoreExt(Arc::new(keystore)));
+        // Events do not get emitted on block 0, so we increment the block here
+        ext.execute_with(|| {
+            frame_system::Pallet::<TestRuntime>::set_block_number(1u32.into());
+        });
+        ext
+    }
+}
+
+
