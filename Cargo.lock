@@ -6195,6 +6195,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-watchtower"
+version = "1.15.0"
+dependencies = [
+ "common-primitives",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "log",
+ "pallet-avn",
+ "pallet-balances",
+ "pallet-node-manager",
+ "pallet-timestamp",
+ "parity-scale-codec 3.6.9",
+ "parking_lot 0.12.2",
+ "prediction-market-primitives",
+ "scale-info",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-avn-common",
+ "sp-core",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.1.0)",
+ "test-case",
+]
+
+[[package]]
 name = "parity-db"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10584,6 +10614,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-utility",
+ "pallet-watchtower",
  "parity-scale-codec 3.6.9",
  "prediction-market-primitives",
  "scale-info",
