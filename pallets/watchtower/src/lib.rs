@@ -16,6 +16,7 @@ use frame_support::{
 };
 use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*};
 use parity_scale_codec::{Decode, Encode};
+pub use sp_avn_common::{verify_signature, watchtower::*, InnerCallValidator, Proof};
 use sp_core::{MaxEncodedLen, H256};
 pub use sp_runtime::{
     traits::{AtLeast32Bit, Dispatchable, ValidateUnsigned},
@@ -32,6 +33,18 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+pub mod proxy;
+pub mod types;
+pub use types::*;
+pub mod queue;
+pub use queue::*;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+pub mod default_weights;
+pub use default_weights::WeightInfo;
+
 
 pub use pallet::*;
 #[frame_support::pallet]
@@ -62,10 +75,35 @@ pub mod pallet {
             Success = Option<Self::AccountId>,
         >;
 
+        /// The SignerId type used in Watchtowers
+        type SignerId: Member + Parameter + sp_runtime::RuntimeAppPublic + Ord + MaxEncodedLen;
+
+        /// A type that can be used to verify signatures
+        type Public: IdentifyAccount<AccountId = Self::AccountId>;
+
+        /// The signature type used by accounts/transactions.
+        #[cfg(not(feature = "runtime-benchmarks"))]
+        type Signature: Verify<Signer = Self::Public> + Member + Decode + Encode + TypeInfo;
+
+        #[cfg(feature = "runtime-benchmarks")]
+        type Signature: Verify<Signer = Self::Public>
+            + Member
+            + Decode
+            + Encode
+            + TypeInfo
+            + From<sp_core::sr25519::Signature>;
+
+
         /// Hooks for other pallets to implement custom logic on certain events
         type WatchtowerHooks: WatchtowerHooks<Proposal<Self>>;
+
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
+
+        /// The lifetime (in blocks) of a signed transaction.
+        #[pallet::constant]
+        type SignedTxLifetime: Get<u32>;
+
         /// Maximum proposal title length
         #[pallet::constant]
         type MaxTitleLen: Get<u32>;
@@ -150,6 +188,12 @@ pub mod pallet {
         QueueCorruptState,
         /// Inner proposal queue is empty
         QueueEmpty,
+        /// The signature on the call has expired
+        SignedTransactionExpired,
+        /// The sender of the signed tx is not the same as the signer in the proof
+        SenderIsNotSigner,
+        /// The proof on the call is not valid
+        UnauthorizedSignedTransaction,
     }
 
     #[pallet::call]
@@ -172,6 +216,41 @@ pub mod pallet {
             Ok(())
         }
 
+        #[pallet::call_index(1)]
+        #[pallet::weight(<T as Config>::WeightInfo::signed_submit_external_proposal())]
+        pub fn signed_submit_external_proposal(
+            origin: OriginFor<T>,
+            proposal: ProposalRequest,
+            block_number: BlockNumberFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+        ) -> DispatchResult {
+            let proposer = T::ExternalProposerOrigin::ensure_origin(origin)?;
+            ensure!(
+                matches!(proposal.source, ProposalSource::External),
+                Error::<T>::InvalidProposalSource
+            );
+            ensure!(proposer == Some(proof.signer.clone()), Error::<T>::SenderIsNotSigner);
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
+
+            // Create and verify the signed payload
+            let signed_payload = Self::encode_signed_submit_external_proposal_params(
+                &proof.relayer,
+                &proposal,
+                &block_number,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            Self::add_proposal(proposer, proposal)?;
+            Ok(())
+        }
         /// Set admin configurations
         #[pallet::call_index(6)]
         #[pallet::weight(<T as Config>::WeightInfo::set_admin_config_voting())]
@@ -235,6 +314,22 @@ pub mod pallet {
             Self::deposit_event(Event::ProposalSubmitted { proposal_id, external_ref, status });
 
             Ok(())
+        }
+    }
+
+    impl<T: Config> InnerCallValidator for Pallet<T> {
+        type Call = <T as Config>::RuntimeCall;
+
+        fn signature_is_valid(call: &Box<Self::Call>) -> bool {
+            if let Some((proof, signed_payload)) = Self::get_encoded_call_param(call) {
+                return verify_signature::<T::Signature, T::AccountId>(
+                    &proof,
+                    &signed_payload.as_slice(),
+                )
+                .is_ok();
+            }
+
+            return false;
         }
     }
 }
