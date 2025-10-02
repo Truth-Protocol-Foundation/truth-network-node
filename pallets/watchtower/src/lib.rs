@@ -58,6 +58,18 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
+        /// Maximum proposal title length
+        #[pallet::constant]
+        type MaxTitleLen: Get<u32>;
+
+        /// Maximum length of inline proposal data
+        #[pallet::constant]
+        type MaxInlineLen: Get<u32>;
+
+        /// Maximum length of URI for proposals
+        #[pallet::constant]
+        type MaxUriLen: Get<u32>;
+
         /// Maximum length of Internal proposals
         #[pallet::constant]
         type MaxInternalProposalLen: Get<u32>;
@@ -67,9 +79,23 @@ pub mod pallet {
     pub fn DefaultVotingPeriod<T: Config>() -> BlockNumberFor<T> {
         DEFAULT_VOTING_PERIOD_BLOCKS.into()
     }
+    #[pallet::storage]
+    #[pallet::getter(fn id_by_external_ref)]
+    pub type ExternalRef<T: Config> = StorageMap<_, Blake2_128Concat, H256, ProposalId, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn proposals)]
+    pub type Proposals<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalId, Proposal<T>, OptionQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_status)]
+    pub type ProposalStatus<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalId, ProposalStatusEnum, ValueQuery>;
     /// The currently active internal proposal being voted on, if any
     #[pallet::storage]
     pub type ActiveInternalProposal<T: Config> = StorageValue<_, ProposalId, OptionQuery>;
+
     #[pallet::storage] // ring slots: physical index -> item id
     pub type InternalProposalQueue<T: Config> =
         StorageMap<_, Blake2_128Concat, (QueueId, u32), ProposalId, OptionQuery>;
@@ -87,7 +113,12 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
-
+        /// The title is too large
+        InvalidTitle,
+        /// The payload is too large for inline storage
+        InvalidInlinePayload,
+        /// The payload URI is too large
+        InvalidUri,
         /// Inner proposal queue is full
         InnerProposalQueueFull,
         /// Inner proposal queue is corrupt
