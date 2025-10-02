@@ -58,8 +58,27 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
+        /// Maximum length of Internal proposals
+        #[pallet::constant]
+        type MaxInternalProposalLen: Get<u32>;
     }
 
+    #[pallet::type_value]
+    pub fn DefaultVotingPeriod<T: Config>() -> BlockNumberFor<T> {
+        DEFAULT_VOTING_PERIOD_BLOCKS.into()
+    }
+    /// The currently active internal proposal being voted on, if any
+    #[pallet::storage]
+    pub type ActiveInternalProposal<T: Config> = StorageValue<_, ProposalId, OptionQuery>;
+    #[pallet::storage] // ring slots: physical index -> item id
+    pub type InternalProposalQueue<T: Config> =
+        StorageMap<_, Blake2_128Concat, (QueueId, u32), ProposalId, OptionQuery>;
+
+    #[pallet::storage] // next to pop
+    pub type Head<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    #[pallet::storage] // next free slot to push
+    pub type Tail<T: Config> = StorageValue<_, u64, ValueQuery>;
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -69,6 +88,12 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
 
+        /// Inner proposal queue is full
+        InnerProposalQueueFull,
+        /// Inner proposal queue is corrupt
+        QueueCorruptState,
+        /// Inner proposal queue is empty
+        QueueEmpty,
     }
 
     #[pallet::call]
