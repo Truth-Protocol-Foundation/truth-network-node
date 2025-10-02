@@ -118,6 +118,26 @@ impl<T: Config> Proposal<T> {
     }
 }
 
+pub trait NodesInterface<AccountId, SignerId> {
+    /// Check if the given account is an authorized watchtower
+    fn is_authorized_watchtower(who: &AccountId) -> bool;
+
+    /// Check if the given account owns watchtower nodes
+    fn is_watchtower_owner(who: &AccountId) -> bool;
+
+    /// Get the count of authorized watchtowers without fetching the full list
+    fn get_authorized_watchtowers_count() -> u32;
+
+    /// Get the voting weight of a given watchtower
+    fn get_watchtower_voting_weight(who: &AccountId) -> u32;
+
+    /// Get the signing key for a given watchtower account
+    fn get_node_signing_key(node: &AccountId) -> Option<SignerId>;
+
+    /// Get a local watchtower account and its signing key, if available on this node
+    fn get_node_from_local_signing_keys() -> Option<(AccountId, SignerId)>;
+}
+
 #[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, Default)]
 pub struct Vote {
     pub in_favors: u32,
