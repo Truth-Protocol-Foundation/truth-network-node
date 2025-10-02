@@ -271,6 +271,45 @@ benchmarks! {
                 consensus_result: ProposalStatusEnum::Resolved { passed: true }}.into()
         );
     }
+
+    unsigned_vote {
+        let (voter_key, voter) = get_voter::<T>();
+        let in_favor = true;
+        let proposal_id = H256::repeat_byte(3);
+        let _ = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
+
+        let proof =  &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, in_favor, &voter).encode();
+        let signature = voter_key.sign(&proof).unwrap();
+    }: unsigned_vote(RawOrigin::None, proposal_id, in_favor, voter.clone(), signature.into())
+    verify {
+        assert!(Votes::<T>::contains_key(proposal_id));
+        assert!(Voters::<T>::contains_key(proposal_id, &voter));
+        assert_last_event::<T>(
+            Event::VoteSubmitted { proposal_id, voter, in_favor, vote_weight: 1 }.into()
+        );
+    }
+
+    unsigned_vote_end_proposal {
+        let (voter_key, voter) = get_voter::<T>();
+        let in_favor = true;
+        let proposal_id = H256::repeat_byte(3);
+        let proposal = set_active_proposal::<T>(proposal_id, 1u32, 50u32);
+
+        let proof =  &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, in_favor, &voter).encode();
+        let signature = voter_key.sign(&proof).unwrap();
+        // Add some votes to be above the threshold
+        setup_votes::<T>(proposal_id, 9u32);
+    }: unsigned_vote(RawOrigin::None, proposal_id, in_favor, voter.clone(), signature.into())
+    verify {
+        assert!(Votes::<T>::contains_key(proposal_id));
+        assert!(Voters::<T>::contains_key(proposal_id, &voter));
+        assert_last_event::<T>(
+            Event::VotingEnded {
+                proposal_id,
+                external_ref: proposal.external_ref,
+                consensus_result: ProposalStatusEnum::Resolved { passed: true }}.into()
+        );
+    }
     set_admin_config_voting {
         let new_period: BlockNumberFor<T> = 36u32.into();
         let config = AdminConfig::MinVotingPeriod(new_period);

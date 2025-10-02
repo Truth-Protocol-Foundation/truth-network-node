@@ -34,6 +34,10 @@ use sp_std::prelude::*;
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
+pub const WATCHTOWER_UNSIGNED_VOTE_CONTEXT: &'static [u8] = b"wt_unsigned_vote";
+pub const WATCHTOWER_FINALISE_PROPOSAL_CONTEXT: &'static [u8] = b"wt_finalise_proposal";
+pub const INVALID_WATCHTOWER: u8 = 2;
+
 pub mod proxy;
 pub mod types;
 pub mod vote;
@@ -242,6 +246,10 @@ pub mod pallet {
         AlreadyVoted,
         /// The signing key of the voter could not be found
         VoterSigningKeyNotFound,
+        /// The signature on the unsigned transaction is not valid
+        UnauthorizedUnsignedTransaction,
+        /// This proposal cannot be voted on with an unsigned transaction
+        InvalidProposalForUnsignedVote,
     }
 
     #[pallet::call]
@@ -299,6 +307,7 @@ pub mod pallet {
             Self::add_proposal(proposer, proposal)?;
             Ok(())
         }
+
         #[pallet::call_index(2)]
         #[pallet::weight(
             <T as Config>::WeightInfo::vote()
@@ -360,6 +369,49 @@ pub mod pallet {
                 Ok(Some(<T as Config>::WeightInfo::signed_vote()).into())
             }
         }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(
+            <T as Config>::WeightInfo::unsigned_vote()
+            .max(<T as Config>::WeightInfo::unsigned_vote_end_proposal())
+        )]
+        pub fn unsigned_vote(
+            origin: OriginFor<T>,
+            proposal_id: ProposalId,
+            in_favor: bool,
+            watchtower: T::AccountId,
+            signature: <T::SignerId as RuntimeAppPublic>::Signature,
+        ) -> DispatchResultWithPostInfo {
+            ensure_none(origin)?;
+
+            // Only Active internal proposals can be voted on with unsigned txs
+            ensure!(
+                ActiveInternalProposal::<T>::get() == Some(proposal_id),
+                Error::<T>::InvalidProposalForUnsignedVote
+            );
+
+            let voter_signing_key = match T::Watchtowers::get_node_signing_key(&watchtower) {
+                Some(key) => key,
+                None => return Err(Error::<T>::VoterSigningKeyNotFound.into()),
+            };
+
+            if !Self::offchain_signature_is_valid(
+                &(WATCHTOWER_UNSIGNED_VOTE_CONTEXT, proposal_id, in_favor, &watchtower),
+                &voter_signing_key,
+                &signature,
+            ) {
+                return Err(Error::<T>::UnauthorizedUnsignedTransaction.into())
+            }
+
+            let finalised = Self::process_vote(&watchtower, proposal_id, in_favor)?;
+
+            if finalised {
+                Ok(Some(<T as Config>::WeightInfo::unsigned_vote_end_proposal()).into())
+            } else {
+                Ok(Some(<T as Config>::WeightInfo::unsigned_vote()).into())
+            }
+        }
+
         /// Set admin configurations
         #[pallet::call_index(6)]
         #[pallet::weight(<T as Config>::WeightInfo::set_admin_config_voting())]
@@ -378,6 +430,30 @@ pub mod pallet {
             }
         }
     }
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            match call {
+                Call::unsigned_vote { proposal_id, in_favor: _, watchtower, signature: _ } => {
+                    if T::Watchtowers::is_authorized_watchtower(watchtower) == false {
+                        return InvalidTransaction::Custom(INVALID_WATCHTOWER).into()
+                    }
+
+                    ValidTransaction::with_tag_prefix("wt_unsignedVote")
+                        .priority(TransactionPriority::MAX)
+                        .and_provides((watchtower, proposal_id))
+                        .longevity(64_u64)
+                        .propagate(true)
+                        .build()
+                },
+                _ => InvalidTransaction::Call.into(),
+            }
+        }
+    }
+
     impl<T: Config> Pallet<T> {
         fn add_proposal(
             proposer: Option<T::AccountId>,
