@@ -10,7 +10,6 @@ pub mod asset_registry;
 pub mod fees;
 pub mod third_party_weights;
 use asset_registry::CustomAssetProcessor;
-
 use codec::{Decode, Encode, MaxEncodedLen};
 use core::cmp::Ordering;
 use orml_traits::parameter_type_with_key;
@@ -749,6 +748,8 @@ parameter_types! {
 
     pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
         RuntimeBlockWeights::get().max_block;
+
+    pub const RequireWatchtowerValidation: bool = true;
 }
 
 /// Used the compare the privilege of an origin inside the scheduler.
@@ -807,6 +808,7 @@ parameter_types! {
     pub const EthAutoSubmitSummaries: bool = true;
     pub const AvnAutoSubmitSummaries: bool = false;
     pub const AvnInstanceId: u8 = 2u8;
+
 }
 
 pub type EthSummary = pallet_summary::Instance1;
@@ -820,6 +822,8 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
+    type RequireExternalValidation = RequireWatchtowerValidation;
+    type ExternalNotifier = pallet_watchtower::ExternalNotifier<Runtime>;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -833,6 +837,8 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
+    type RequireExternalValidation = RequireWatchtowerValidation;
+    type ExternalNotifier = pallet_watchtower::ExternalNotifier<Runtime>;
 }
 
 impl pallet_authors_manager::Config for Runtime {
@@ -859,6 +865,16 @@ impl pallet_node_manager::Config for Runtime {
     type WeightInfo = pallet_node_manager::default_weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_watchtower::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = pallet_watchtower::default_weights::SubstrateWeight<Runtime>;
+    type VoteStatusNotifier = pallet_summary::RuntimeVoteStatusNotifier<Runtime>;
+    type NodeManager = RuntimeNodeManager;
+    type SignerId = NodeManagerKeyId;
+    type MinVotingPeriod = MinVotingPeriod;
+}
+
 impl pallet_utility::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -882,6 +898,7 @@ parameter_types! {
     pub const AdvisoryCommitteeMaxProposals: u32 = 255;
     pub const AdvisoryCommitteeMotionDuration: BlockNumber = 3 * BLOCKS_PER_DAY;
     pub MaxProposalWeight: Weight = Perbill::from_percent(50) * RuntimeBlockWeights::get().max_block;
+    pub const MinVotingPeriod: BlockNumber = 10u32;
 }
 
 impl pallet_collective::Config<AdvisoryCommitteeInstance> for Runtime {
@@ -1316,6 +1333,7 @@ construct_runtime!(
         AnchorSummary: pallet_summary::<Instance2> = 26,
         NodeManager: pallet_node_manager = 27,
         PalletConfig: pallet_config = 28,
+        Watchtower: pallet_watchtower = 29,
 
         // Prediction Market pallets
         AdvisoryCommittee: pallet_collective::<Instance1>::{Call, Config<T>, Event<T>, Origin<T>, Pallet, Storage} = 30,
@@ -1396,6 +1414,7 @@ mod benches {
         [pallet_nft_manager, NftManager]
         [pallet_node_manager, NodeManager]
         [pallet_config, PalletConfig]
+        [pallet_watchtower, Watchtower]
         // [pallet_eth_bridge, EthBridge]
         [pallet_multisig, Multisig]
         [pallet_proxy, Proxy]
@@ -1729,5 +1748,25 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 
     fn get_events_to_migrate() -> Option<BoundedVec<EventMigration, ProcessingBatchBound>> {
         EthereumEvents::get_events_to_migrate()
+    }
+}
+
+pub struct RuntimeNodeManager;
+impl pallet_watchtower::NodeManagerInterface<AccountId, NodeManagerKeyId> for RuntimeNodeManager {
+    fn is_authorized_watchtower(who: &AccountId) -> bool {
+        pallet_node_manager::NodeRegistry::<Runtime>::contains_key(who)
+    }
+
+    fn get_node_signing_key(node: &AccountId) -> Option<NodeManagerKeyId> {
+        pallet_node_manager::NodeRegistry::<Runtime>::get(node)
+            .map(|node_info| node_info.signing_key)
+    }
+
+    fn get_node_from_local_signing_keys() -> Option<(AccountId, NodeManagerKeyId)> {
+        pallet_node_manager::Pallet::<Runtime>::get_node_from_signing_key()
+    }
+
+    fn get_authorized_watchtowers_count() -> u32 {
+        pallet_node_manager::TotalRegisteredNodes::<Runtime>::get()
     }
 }
