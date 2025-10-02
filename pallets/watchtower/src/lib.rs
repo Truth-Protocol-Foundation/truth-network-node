@@ -79,6 +79,11 @@ pub mod pallet {
     pub fn DefaultVotingPeriod<T: Config>() -> BlockNumberFor<T> {
         DEFAULT_VOTING_PERIOD_BLOCKS.into()
     }
+
+    #[pallet::storage]
+    pub type MinVotingPeriod<T: Config> =
+        StorageValue<_, BlockNumberFor<T>, ValueQuery, DefaultVotingPeriod<T>>;
+
     #[pallet::storage]
     #[pallet::getter(fn id_by_external_ref)]
     pub type ExternalRef<T: Config> = StorageMap<_, Blake2_128Concat, H256, ProposalId, ValueQuery>;
@@ -105,10 +110,13 @@ pub mod pallet {
 
     #[pallet::storage] // next free slot to push
     pub type Tail<T: Config> = StorageValue<_, u64, ValueQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
 
+        /// Minimum voting period has been updated
+        MinVotingPeriodSet { new_period: BlockNumberFor<T> },
     }
 
     #[pallet::error]
@@ -130,5 +138,22 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
 
+        /// Set admin configurations
+        #[pallet::call_index(6)]
+        #[pallet::weight(<T as Config>::WeightInfo::set_admin_config_voting())]
+        pub fn set_admin_config(
+            origin: OriginFor<T>,
+            config: AdminConfig<BlockNumberFor<T>>,
+        ) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
+
+            match config {
+                AdminConfig::MinVotingPeriod(period) => {
+                    <MinVotingPeriod<T>>::mutate(|p| *p = period);
+                    Self::deposit_event(Event::MinVotingPeriodSet { new_period: period });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_voting()).into());
+                },
+            }
+        }
     }
 }
