@@ -56,6 +56,14 @@ pub mod pallet {
             + IsSubType<Call<Self>>
             + From<Call<Self>>;
 
+        /// Access control for “external” (non-pallet-originated) proposals.
+        type ExternalProposerOrigin: EnsureOrigin<
+            Self::RuntimeOrigin,
+            Success = Option<Self::AccountId>,
+        >;
+
+        /// Hooks for other pallets to implement custom logic on certain events
+        type WatchtowerHooks: WatchtowerHooks<Proposal<Self>>;
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
         /// Maximum proposal title length
@@ -114,7 +122,12 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-
+        /// A new proposal has been submitted
+        ProposalSubmitted {
+            proposal_id: ProposalId,
+            external_ref: H256,
+            status: ProposalStatusEnum,
+        },
         /// Minimum voting period has been updated
         MinVotingPeriodSet { new_period: BlockNumberFor<T> },
     }
@@ -127,6 +140,10 @@ pub mod pallet {
         InvalidInlinePayload,
         /// The payload URI is too large
         InvalidUri,
+        /// A proposal with the same external_ref already exists
+        DuplicateExternalRef,
+        /// A proposal with the same id already exists
+        DuplicateProposal,
         /// Inner proposal queue is full
         InnerProposalQueueFull,
         /// Inner proposal queue is corrupt
@@ -137,6 +154,23 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+        // We don't want external users to add internal proposals to avoid
+        // DOSing the internal proposal queue.
+        #[pallet::call_index(0)]
+        #[pallet::weight(<T as Config>::WeightInfo::submit_external_proposal())]
+        pub fn submit_external_proposal(
+            origin: OriginFor<T>,
+            proposal: ProposalRequest,
+        ) -> DispatchResult {
+            let proposer = T::ExternalProposerOrigin::ensure_origin(origin)?;
+            ensure!(
+                matches!(proposal.source, ProposalSource::External),
+                Error::<T>::InvalidProposalSource
+            );
+
+            Self::add_proposal(proposer, proposal)?;
+            Ok(())
+        }
 
         /// Set admin configurations
         #[pallet::call_index(6)]
@@ -154,6 +188,53 @@ pub mod pallet {
                     return Ok(Some(<T as Config>::WeightInfo::set_admin_config_voting()).into());
                 },
             }
+        }
+    }
+    impl<T: Config> Pallet<T> {
+        fn add_proposal(
+            proposer: Option<T::AccountId>,
+            proposal_request: ProposalRequest,
+        ) -> DispatchResult {
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            // Proposal is validated before creating it.
+            let mut proposal = to_proposal::<T>(proposal_request, proposer, current_block)?;
+
+            let external_ref = proposal.external_ref;
+            ensure!(
+                !ExternalRef::<T>::contains_key(external_ref),
+                Error::<T>::DuplicateExternalRef
+            );
+
+            let proposal_id = proposal.generate_id();
+            ensure!(!Proposals::<T>::contains_key(proposal_id), Error::<T>::DuplicateProposal);
+
+            let status: ProposalStatusEnum;
+            if let ProposalSource::Internal(_) = proposal.source {
+                if ActiveInternalProposal::<T>::get().is_none() {
+                    proposal.end_at =
+                        Some(current_block.saturating_add(proposal.vote_duration.into()));
+                    ActiveInternalProposal::<T>::put(proposal_id);
+                    status = ProposalStatusEnum::Active;
+                } else {
+                    Self::enqueue(proposal_id)?;
+                    status = ProposalStatusEnum::Queued;
+                }
+            } else {
+                proposal.end_at = Some(current_block.saturating_add(proposal.vote_duration.into()));
+                status = ProposalStatusEnum::Active;
+            }
+
+            ProposalStatus::<T>::insert(proposal_id, &status);
+            Proposals::<T>::insert(proposal_id, &proposal);
+            ExternalRef::<T>::insert(external_ref, proposal_id);
+
+            if status == ProposalStatusEnum::Active {
+                T::WatchtowerHooks::on_proposal_submitted(proposal_id, proposal)?;
+            }
+
+            Self::deposit_event(Event::ProposalSubmitted { proposal_id, external_ref, status });
+
+            Ok(())
         }
     }
 }
