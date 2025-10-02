@@ -99,6 +99,7 @@ orml-traits = { workspace = true }
 pallet-pm-eth-asset-registry = { workspace = true }
 pallet-pm-hybrid-router = { workspace = true }
 pallet-pm-order-book = { workspace = true }
+pallet-watchtower = { workspace = true }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/polkadot-sdk", optional = true , branch = "release-polkadot-v1.1.0" }
@@ -165,6 +166,7 @@ std = [
 	"pallet-config/std",
 	"pallet-authors-manager/std",
 	"pallet-node-manager/std",
+	"pallet-watchtower/std",
 
 	# Prediction market pallets
 	"prediction-market-primitives/std",
@@ -215,6 +217,7 @@ runtime-benchmarks = [
 	# Tnf pallets
 	"pallet-config/runtime-benchmarks",
 	"pallet-node-manager/runtime-benchmarks",
+	"pallet-watchtower/runtime-benchmarks",
 
 	#Prediction maket pallet
 	"pallet-pm-authorized/runtime-benchmarks",
@@ -264,6 +267,7 @@ try-runtime = [
 	"pallet-config/try-runtime",
 	"pallet-authors-manager/try-runtime",
 	"pallet-node-manager/try-runtime",
+	"pallet-watchtower/try-runtime",
 
 	# Prediction market pallets
 	"pallet-collective/try-runtime",
