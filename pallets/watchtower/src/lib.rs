@@ -33,8 +33,10 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+pub const DEFAULT_VOTING_PERIOD_BLOCKS: u32 = 100;
 pub mod proxy;
 pub mod types;
+pub mod vote;
 pub use types::*;
 pub mod queue;
 pub use queue::*;
@@ -93,6 +95,8 @@ pub mod pallet {
             + TypeInfo
             + From<sp_core::sr25519::Signature>;
 
+        /// Interface for accessing registered watchtowers
+        type Watchtowers: NodesInterface<Self::AccountId, Self::SignerId>;
 
         /// Hooks for other pallets to implement custom logic on certain events
         type WatchtowerHooks: WatchtowerHooks<Proposal<Self>>;
@@ -143,6 +147,23 @@ pub mod pallet {
     #[pallet::getter(fn proposal_status)]
     pub type ProposalStatus<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalId, ProposalStatusEnum, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn votes)]
+    pub type Votes<T: Config> = StorageMap<_, Blake2_128Concat, ProposalId, Vote, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn voters)]
+    pub type Voters<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        ProposalId,
+        Blake2_128Concat,
+        T::AccountId, // Voter
+        bool,         // voted in_favor or against
+        ValueQuery,
+    >;
+
     /// The currently active internal proposal being voted on, if any
     #[pallet::storage]
     pub type ActiveInternalProposal<T: Config> = StorageValue<_, ProposalId, OptionQuery>;
@@ -166,6 +187,19 @@ pub mod pallet {
             external_ref: H256,
             status: ProposalStatusEnum,
         },
+        /// A vote has been cast on a proposal
+        VoteSubmitted {
+            voter: T::AccountId,
+            proposal_id: ProposalId,
+            in_favor: bool,
+            vote_weight: u32,
+        },
+        /// Consensus has been reached on a proposal
+        VotingEnded {
+            proposal_id: ProposalId,
+            external_ref: H256,
+            consensus_result: ProposalStatusEnum,
+        },
         /// Minimum voting period has been updated
         MinVotingPeriodSet { new_period: BlockNumberFor<T> },
     }
@@ -178,6 +212,10 @@ pub mod pallet {
         InvalidInlinePayload,
         /// The payload URI is too large
         InvalidUri,
+        /// The proposal is not valid
+        InvalidProposal,
+        /// The proposal source is not valid for the chosen extrinsic
+        InvalidProposalSource,
         /// A proposal with the same external_ref already exists
         DuplicateExternalRef,
         /// A proposal with the same id already exists
@@ -194,6 +232,16 @@ pub mod pallet {
         SenderIsNotSigner,
         /// The proof on the call is not valid
         UnauthorizedSignedTransaction,
+        /// The proposal was not found
+        ProposalNotFound,
+        /// The voter is not an authorized watchtower
+        UnauthorizedVoter,
+        /// The proposal is not currently active
+        ProposalNotActive,
+        /// The voter has already voted
+        AlreadyVoted,
+        /// The signing key of the voter could not be found
+        VoterSigningKeyNotFound,
     }
 
     #[pallet::call]
@@ -250,6 +298,67 @@ pub mod pallet {
 
             Self::add_proposal(proposer, proposal)?;
             Ok(())
+        }
+        #[pallet::call_index(2)]
+        #[pallet::weight(
+            <T as Config>::WeightInfo::vote()
+            .max(<T as Config>::WeightInfo::vote_end_proposal())
+        )]
+        pub fn vote(
+            origin: OriginFor<T>,
+            proposal_id: ProposalId,
+            in_favor: bool,
+        ) -> DispatchResultWithPostInfo {
+            let owner = ensure_signed(origin)?;
+            let finalised = Self::process_vote(&owner, proposal_id, in_favor)?;
+
+            if finalised {
+                Ok(Some(<T as Config>::WeightInfo::vote_end_proposal()).into())
+            } else {
+                Ok(Some(<T as Config>::WeightInfo::vote()).into())
+            }
+        }
+
+        #[pallet::call_index(3)]
+        #[pallet::weight(
+            <T as Config>::WeightInfo::signed_vote()
+            .max(<T as Config>::WeightInfo::signed_vote_end_proposal())
+        )]
+        pub fn signed_vote(
+            origin: OriginFor<T>,
+            proposal_id: ProposalId,
+            in_favor: bool,
+            block_number: BlockNumberFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
+        ) -> DispatchResultWithPostInfo {
+            let owner = ensure_signed(origin)?;
+            ensure!(owner == proof.signer, Error::<T>::SenderIsNotSigner);
+            ensure!(
+                block_number.saturating_add(T::SignedTxLifetime::get().into()) >
+                    frame_system::Pallet::<T>::block_number(),
+                Error::<T>::SignedTransactionExpired
+            );
+
+            // Create and verify the signed payload
+            let signed_payload = Self::encode_signed_submit_vote_params(
+                &proof.relayer,
+                &proposal_id,
+                &in_favor,
+                &block_number,
+            );
+
+            ensure!(
+                verify_signature::<T::Signature, T::AccountId>(&proof, &signed_payload).is_ok(),
+                Error::<T>::UnauthorizedSignedTransaction
+            );
+
+            let finalised = Self::process_vote(&owner, proposal_id, in_favor)?;
+
+            if finalised {
+                Ok(Some(<T as Config>::WeightInfo::signed_vote_end_proposal()).into())
+            } else {
+                Ok(Some(<T as Config>::WeightInfo::signed_vote()).into())
+            }
         }
         /// Set admin configurations
         #[pallet::call_index(6)]
@@ -314,6 +423,82 @@ pub mod pallet {
             Self::deposit_event(Event::ProposalSubmitted { proposal_id, external_ref, status });
 
             Ok(())
+        }
+
+        fn process_vote(
+            voter: &T::AccountId,
+            proposal_id: ProposalId,
+            in_favor: bool,
+        ) -> Result<bool, DispatchError> {
+            let proposal = Proposals::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotFound)?;
+            ensure!(
+                ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active,
+                Error::<T>::ProposalNotActive
+            );
+
+            // Do this before validating vote uniqueness
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            if Self::proposal_expired(current_block, &proposal) {
+                // Voting ended but we haven't finalised it yet
+                Self::finalise_expired_voting(proposal_id, &proposal)?;
+                return Ok(true);
+            }
+
+            ensure!(!Voters::<T>::contains_key(proposal_id, voter), Error::<T>::AlreadyVoted);
+
+            let vote_weight;
+            match proposal.source {
+                ProposalSource::Internal(_) => {
+                    ensure!(
+                        T::Watchtowers::is_authorized_watchtower(voter),
+                        Error::<T>::UnauthorizedVoter
+                    );
+
+                    // This should not happen but just in case (defensive programming)
+                    ensure!(
+                        ActiveInternalProposal::<T>::get() == Some(proposal_id),
+                        Error::<T>::CorruptedState
+                    );
+
+                    vote_weight = 1;
+                },
+                ProposalSource::External => {
+                    ensure!(
+                        T::Watchtowers::is_watchtower_owner(voter),
+                        Error::<T>::UnauthorizedVoter
+                    );
+
+                    vote_weight = T::Watchtowers::get_watchtower_voting_weight(voter);
+                    // This should not happen but just in case
+                    ensure!(vote_weight > 0, Error::<T>::UnauthorizedVoter);
+                },
+            };
+
+            Voters::<T>::insert(proposal_id, voter, in_favor);
+            Votes::<T>::mutate(proposal_id, |vote| {
+                if in_favor {
+                    vote.in_favors = vote.in_favors.saturating_add(vote_weight);
+                } else {
+                    vote.againsts = vote.againsts.saturating_add(vote_weight);
+                }
+            });
+
+            Self::deposit_event(Event::VoteSubmitted {
+                voter: voter.clone(),
+                proposal_id,
+                in_favor,
+                vote_weight,
+            });
+
+            if let Some(result) =
+                Self::get_finalised_consensus_result(proposal_id, &proposal, current_block)
+            {
+                // Consensus has been reached, finalise voting
+                Self::finalise_voting(proposal_id, &proposal, result)?;
+                return Ok(true);
+            }
+
+            Ok(false)
         }
     }
 
