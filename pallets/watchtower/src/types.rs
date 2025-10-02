@@ -117,6 +117,13 @@ impl<T: Config> Proposal<T> {
         base_is_valid && payload_valid
     }
 }
+
+#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, Default)]
+pub struct Vote {
+    pub in_favors: u32,
+    pub againsts: u32,
+}
+
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq)]
 pub enum AdminConfig<BlockNumber> {
     MinVotingPeriod(BlockNumber),
