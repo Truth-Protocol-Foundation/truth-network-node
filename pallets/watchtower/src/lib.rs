@@ -248,6 +248,12 @@ pub mod pallet {
         VoterSigningKeyNotFound,
         /// The signature on the unsigned transaction is not valid
         UnauthorizedUnsignedTransaction,
+        /// The voting period for the proposal has not yet ended
+        ProposalVotingPeriodNotEnded,
+        /// The voting period is shorter than the minimum allowed
+        VotingPeriodTooShort,
+        /// The proposal state doesn't match the active proposal state
+        CorruptedState,
         /// This proposal cannot be voted on with an unsigned transaction
         InvalidProposalForUnsignedVote,
     }
@@ -410,6 +416,28 @@ pub mod pallet {
             } else {
                 Ok(Some(<T as Config>::WeightInfo::unsigned_vote()).into())
             }
+        }
+
+        #[pallet::call_index(5)]
+        #[pallet::weight(<T as Config>::WeightInfo::finalise_proposal())]
+        pub fn finalise_proposal(origin: OriginFor<T>, proposal_id: ProposalId) -> DispatchResult {
+            // Anyone can call this to finalise voting
+            ensure_signed(origin)?;
+
+            let proposal = Proposals::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotFound)?;
+            ensure!(
+                ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Active,
+                Error::<T>::ProposalNotActive
+            );
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            ensure!(
+                Self::proposal_expired(current_block, &proposal),
+                Error::<T>::ProposalVotingPeriodNotEnded
+            );
+
+            Self::finalise_expired_voting(proposal_id, &proposal)?;
+
+            Ok(())
         }
 
         /// Set admin configurations
