@@ -182,6 +182,11 @@ pub mod pallet {
     #[pallet::storage] // next free slot to push
     pub type Tail<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+    /// Completed or Expired proposals that need to be removed from storage.
+    #[pallet::storage]
+    pub type ProposalsToRemove<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalId, (), OptionQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -204,6 +209,8 @@ pub mod pallet {
             external_ref: H256,
             consensus_result: ProposalStatusEnum,
         },
+        /// A completed or expired proposal has been cleaned from storage
+        ProposalCleaned { proposal_id: ProposalId },
         /// Minimum voting period has been updated
         MinVotingPeriodSet { new_period: BlockNumberFor<T> },
     }
@@ -482,6 +489,13 @@ pub mod pallet {
         }
     }
 
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_idle(n: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
+            Self::cleanup_proposals(n, remaining_weight)
+        }
+    }
+
     impl<T: Config> Pallet<T> {
         fn add_proposal(
             proposer: Option<T::AccountId>,
@@ -604,6 +618,92 @@ pub mod pallet {
 
             Ok(false)
         }
+
+        fn cleanup_proposals(now: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
+            let mut meter = WeightMeter::with_limit(remaining_weight);
+            let dbw = <T as frame_system::Config>::DbWeight::get();
+            const MAX_VOTERS: usize = 250;
+
+            // Check if the active proposal has expired and finalise it if needed
+            if meter
+                .try_consume(<T as Config>::WeightInfo::active_proposal_expiry_status())
+                .is_err()
+            {
+                return meter.consumed()
+            }
+
+            if let Some((proposal_id, active_proposal, expired)) =
+                Self::active_proposal_expiry_status(now)
+            {
+                if expired {
+                    if meter
+                        .try_consume(<T as Config>::WeightInfo::finalise_expired_voting())
+                        .is_err()
+                    {
+                        return meter.consumed()
+                    }
+                    Self::finalise_expired_voting(proposal_id, &active_proposal).unwrap_or_else(
+                        |e| {
+                            log::error!(
+                                "🪲 Failed to finalise active proposal {}: {:?}",
+                                proposal_id,
+                                e
+                            );
+                        },
+                    );
+                } else {
+                    return meter.consumed();
+                }
+            };
+
+            // Now remove any completed proposals
+            if meter.try_consume(dbw.reads(1)).is_err() {
+                return meter.consumed()
+            }
+
+            let Some(proposal_id) = ProposalsToRemove::<T>::iter_keys().next() else {
+                // Nothing to clean
+                return meter.consumed();
+            };
+
+            // Avoid deleting while iterating. Its safer to do it in 2 steps
+            let mut to_delete: Vec<T::AccountId> = Vec::new();
+            for (who, _) in Voters::<T>::iter_prefix(&proposal_id).take(MAX_VOTERS) {
+                // read for this item
+                if meter.try_consume(dbw.reads(1)).is_err() {
+                    break;
+                }
+                to_delete.push(who);
+            }
+
+            for who in to_delete.iter() {
+                if meter.try_consume(dbw.writes(1)).is_err() {
+                    break;
+                }
+                Voters::<T>::remove(&proposal_id, who);
+            }
+
+            // Check if we have finished removing all votes
+            if meter.try_consume(dbw.reads(1)).is_err() {
+                return meter.consumed()
+            }
+
+            if Voters::<T>::iter_prefix(proposal_id).next().is_none() {
+                // We have removed all votes, now we can remove the proposal and its data
+                if meter.try_consume(dbw.writes(4)).is_err() {
+                    return meter.consumed()
+                }
+
+                Proposals::<T>::remove(proposal_id);
+                Votes::<T>::remove(proposal_id);
+                ProposalsToRemove::<T>::remove(proposal_id);
+
+                Self::deposit_event(Event::ProposalCleaned { proposal_id });
+            }
+
+            meter.consumed()
+        }
+    }
     }
 
     impl<T: Config> InnerCallValidator for Pallet<T> {
