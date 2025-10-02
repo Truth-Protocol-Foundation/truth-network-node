@@ -20,6 +20,52 @@ pub enum Payload<T: Config> {
     Uri(BoundedVec<u8, T::MaxUriLen>),
 }
 
+pub fn to_proposal<T: Config>(
+    request: ProposalRequest,
+    proposer: Option<T::AccountId>,
+    current_block: BlockNumberFor<T>,
+) -> Result<Proposal<T>, Error<T>> {
+    let min_vote_duration = MinVotingPeriod::<T>::get().saturated_into::<u32>();
+    let vote_duration: u32 = request.vote_duration.unwrap_or(min_vote_duration);
+    if vote_duration < min_vote_duration {
+        return Err(Error::<T>::VotingPeriodTooShort);
+    }
+
+    let proposal = Proposal {
+        title: BoundedVec::try_from(request.title).map_err(|_| Error::<T>::InvalidTitle)?,
+        payload: to_payload(request.payload)?,
+        threshold: request.threshold,
+        source: request.source,
+        decision_rule: request.decision_rule,
+        external_ref: request.external_ref,
+        proposer,
+        created_at: BlockNumberFor::<T>::from(request.created_at),
+        vote_duration,
+        // This gets updated when the proposal is activated
+        end_at: None,
+    };
+
+    if !proposal.is_valid(current_block) {
+        return Err(Error::<T>::InvalidProposal);
+    }
+
+    Ok(proposal)
+}
+
+pub fn to_payload<T: Config>(raw: RawPayload) -> Result<Payload<T>, Error<T>> {
+    match raw {
+        RawPayload::Inline(data) => {
+            let bounded =
+                BoundedVec::try_from(data).map_err(|_| Error::<T>::InvalidInlinePayload)?;
+            Ok(Payload::Inline(bounded))
+        },
+        RawPayload::Uri(data) => {
+            let bounded = BoundedVec::try_from(data).map_err(|_| Error::<T>::InvalidUri)?;
+            Ok(Payload::Uri(bounded))
+        },
+    }
+}
+
 #[derive(
     Encode,
     Decode,
