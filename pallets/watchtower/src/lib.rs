@@ -51,6 +51,18 @@ mod benchmarking;
 pub mod default_weights;
 pub use default_weights::WeightInfo;
 
+#[cfg(test)]
+#[path = "tests/add_proposal.rs"]
+mod add_proposal;
+#[cfg(test)]
+#[path = "tests/admin.rs"]
+mod admin;
+#[cfg(test)]
+#[path = "tests/mock.rs"]
+mod mock;
+#[cfg(test)]
+#[path = "tests/voting.rs"]
+mod voting;
 
 pub use pallet::*;
 #[frame_support::pallet]
