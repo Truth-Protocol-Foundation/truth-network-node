@@ -72,7 +72,7 @@ use sp_std::prelude::*;
 
 const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
 pub const SIGNED_DEREGISTER_NODE_CONTEXT: &[u8] = b"deregister_node";
 pub const MAX_NODES_TO_DEREGISTER: u32 = 64;
@@ -137,6 +137,11 @@ pub mod pallet {
         (),
         OptionQuery,
     >;
+
+    /// Count of nodes owned by an account.
+    #[pallet::storage]
+    pub type OwnedNodesCount<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
     /// The admin account that can register new nodes
     #[pallet::storage]
@@ -896,6 +901,7 @@ pub mod pallet {
 
                 <NodeRegistry<T>>::remove(node);
                 <OwnedNodes<T>>::remove(owner, node);
+                <OwnedNodesCount<T>>::mutate(owner, |count| *count = count.saturating_sub(1));
                 <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_sub(1));
 
                 Self::deposit_event(Event::NodeDeregistered {
@@ -922,6 +928,7 @@ pub mod pallet {
             ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
 
             <OwnedNodes<T>>::insert(&owner, &node, ());
+            <OwnedNodesCount<T>>::mutate(&owner, |count| *count = count.saturating_add(1));
             <NodeRegistry<T>>::insert(
                 &node,
                 NodeInfo::<T::SignerId, T::AccountId>::new(owner.clone(), signing_key),
