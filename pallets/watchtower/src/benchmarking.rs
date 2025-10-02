@@ -310,6 +310,21 @@ benchmarks! {
                 consensus_result: ProposalStatusEnum::Resolved { passed: true }}.into()
         );
     }
+
+    finalise_proposal {
+        let signer: T::AccountId = account("signer", 0, 0);
+        let proposal_id = H256::repeat_byte(3);
+        let queued_proposal_id = H256::repeat_byte(7);
+        <frame_system::Pallet<T>>::set_block_number(100u32.into());
+        let _ = set_active_proposal::<T>(proposal_id, 5u32, 50u32);
+        let _ = queue_proposal::<T>(queued_proposal_id, 100u32);
+    }: finalise_proposal(RawOrigin::Signed(signer), proposal_id)
+    verify {
+        assert!(ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Expired);
+        assert!(ProposalStatus::<T>::get(queued_proposal_id) == ProposalStatusEnum::Active);
+        assert!(ActiveInternalProposal::<T>::get() == Some(queued_proposal_id));
+    }
+
     set_admin_config_voting {
         let new_period: BlockNumberFor<T> = 36u32.into();
         let config = AdminConfig::MinVotingPeriod(new_period);
@@ -318,7 +333,43 @@ benchmarks! {
         assert!(<MinVotingPeriod<T>>::get() == new_period);
     }
 
+    active_proposal_expiry_status {
+        <frame_system::Pallet<T>>::set_block_number(100u32.into());
+
+        // Pick internal because it has more logic
+        let proposal_id = H256::repeat_byte(3);
+        let _ = set_active_proposal::<T>(proposal_id, 5u32, 50u32);
+        let now = <frame_system::Pallet<T>>::block_number();
+        let mut id = H256::zero();
+        let mut expired = false;
+    }: {
+        let result = Pallet::<T>::active_proposal_expiry_status(now);
+        let (p_id, _p, p_expired) = result.expect("expired proposal exists");
+        id = p_id;
+        expired = p_expired;
+     }
+    verify {
+        assert!(expired == true);
+        assert!(id == proposal_id);
+    }
+
+    finalise_expired_voting {
+        <frame_system::Pallet<T>>::set_block_number(100u32.into());
+
+        let proposal_id = H256::repeat_byte(12);
+        let active_proposal = set_active_proposal::<T>(proposal_id, 5u32, 50u32);
+
+        let queued_proposal_id = H256::repeat_byte(7);
+        let _ = queue_proposal::<T>(queued_proposal_id, 100u32);
+    }: { let _ = Pallet::<T>::finalise_expired_voting(proposal_id, &active_proposal); }
+    verify {
+        assert!(ProposalStatus::<T>::get(proposal_id) == ProposalStatusEnum::Expired);
+        assert!(ProposalStatus::<T>::get(queued_proposal_id) == ProposalStatusEnum::Active);
+        assert!(ActiveInternalProposal::<T>::get() == Some(queued_proposal_id));
+    }
+
 }
+
 impl_benchmark_test_suite!(
     Pallet,
     crate::mock::ExtBuilder::build_default().as_externality(),
