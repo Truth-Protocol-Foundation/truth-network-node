@@ -181,7 +181,7 @@ impl ProvableProxy<RuntimeCall, Signature, AccountId> for AvnProxyConfig {
             RuntimeCall::Watchtower(pallet_watchtower::Call::signed_submit_external_proposal {
                 proposal: _,
                 block_number: _,
-                proof
+                proof,
             }) => return Some(proof.clone()),
             RuntimeCall::Watchtower(pallet_watchtower::Call::signed_vote {
                 proof,
