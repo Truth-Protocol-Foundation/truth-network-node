@@ -136,7 +136,7 @@ pub fn new_partial(
 
     Ok(sc_service::PartialComponents {
         client,
-        backend: backend.clone(),
+        backend,
         task_manager,
         import_queue,
         keystore_container,
