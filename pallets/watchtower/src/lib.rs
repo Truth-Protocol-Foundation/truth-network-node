@@ -725,7 +725,7 @@ pub mod pallet {
         }
 
         fn get_proposer(proposal_id: ProposalId) -> Option<Self::AccountId> {
-            Proposals::<T>::get(proposal_id).map(|proposal| proposal.proposer)?
+            Proposals::<T>::get(proposal_id)?.proposer
         }
 
         fn submit_proposal(
