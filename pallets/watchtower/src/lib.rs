@@ -542,7 +542,7 @@ pub mod pallet {
                         signature.encode()[0..8].to_vec(),
                     );
                     let provides_tag = unique_payload_for_provides.encode();
-
+                    
                     ValidTransaction::with_tag_prefix("WatchtowerOCW")
                         .priority(TransactionPriority::MAX)
                         .and_provides(vec![provides_tag])
@@ -621,14 +621,11 @@ pub mod pallet {
                 return Ok(());
             }
 
-            // Reject zero/empty root hashes as they provide no meaningful validation target
             if root_hash == sp_core::H256::zero() {
                 return Err(Error::<T>::InvalidVerificationSubmission.into());
             }
 
-            // Calculate and store consensus threshold once when voting starts
             let total_authorized_watchtowers = T::NodeManager::get_authorized_watchtowers_count();
-            // Fixed threshold calculation: (n * 2 + 2) / 3 for proper 2/3 majority
             let required_for_consensus =
                 Self::calculate_consensus_threshold(total_authorized_watchtowers);
 

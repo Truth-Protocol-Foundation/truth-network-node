@@ -19,6 +19,7 @@ members = [
     "macros",
     "node",
     "node/tnf-service",
+    "node/summary-calculation-rpc",
     "pallets/*",
     "runtime",
     "primitives/*",
