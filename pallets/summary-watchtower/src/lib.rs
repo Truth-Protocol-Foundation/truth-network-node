@@ -52,7 +52,10 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config:
-        SendTransactionTypes<Call<Self>> + frame_system::Config + pallet_watchtower::Config + pallet_avn::Config
+        SendTransactionTypes<Call<Self>>
+        + frame_system::Config
+        + pallet_watchtower::Config
+        + pallet_avn::Config
     {
         type RuntimeEvent: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>
@@ -60,6 +63,10 @@ pub mod pallet {
             + Eq
             + PartialEq
             + core::fmt::Debug;
+
+        type RuntimeCall: Parameter
+            + Dispatchable<RuntimeOrigin = <Self as frame_system::Config>::RuntimeOrigin>
+            + From<Call<Self>>;
 
         /// Weight information for extrinsics in this pallet
         type WeightInfo: WeightInfo;
@@ -90,11 +97,13 @@ pub mod pallet {
         FailedToAcquireOcwDbLock,
     }
 
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {}
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         fn offchain_worker(now: BlockNumberFor<T>) {
             log::debug!(target: "runtime::watchtower::ocw", "Watchtower OCW running for block {:?}", now);
-
             let maybe_node_info = T::Watchtowers::get_node_from_local_signing_keys();
             let (watchtower, signing_key) = match maybe_node_info {
                 Some(info) => info,
@@ -104,6 +113,18 @@ pub mod pallet {
             };
 
             if let Some((proposal_id, root_data)) = RootInfo::<T>::get() {
+                let finalised_block = AVN::<T>::get_finalised_block_from_external_service();
+                if let Ok(finalised_block) = finalised_block {
+                    if root_data.root_id.range.to_block > finalised_block {
+                        log::debug!(
+                            "Root data to_block {:?} is greater than finalised block {:?}, skipping validation for now.",
+                            root_data.root_id.range.to_block,
+                            finalised_block
+                        );
+                        return;
+                    }
+                }
+
                 Self::process_pending_validation(
                     proposal_id,
                     root_data,
@@ -131,6 +152,14 @@ pub mod pallet {
                 },
                 _ => return Err(Error::<T>::ExternalPayloadNotSupported.into()),
             };
+
+            let current_block = <frame_system::Pallet<T>>::block_number();
+
+            ensure!(
+                root_id.range.from_block < root_id.range.to_block &&
+                    root_id.range.to_block <= current_block,
+                Error::<T>::InvalidSummaryProposal
+            );
 
             let root_data = RootData::<BlockNumberFor<T>> { root_id: root_id.clone(), root_hash };
             RootInfo::<T>::put((proposal_id, root_data.clone()));
@@ -261,22 +290,23 @@ pub mod pallet {
 
         fn on_voting_completed(
             proposal_id: ProposalId,
-            external_ref: &H256,
-            result: &ProposalStatusEnum,
+            _external_ref: &H256,
+            _result: &ProposalStatusEnum,
         ) {
-            log::warn!("Summary Watchtower: Voting completed on proposal {:?} with external ref {:?} and approval status {:?}",
-                proposal_id,
-                external_ref,
-                result
-            );
+            // If this is our stored proposal, and it is finalised, remove it from storage.
+            if let Some((stored_proposal_id, _)) = RootInfo::<T>::get() {
+                if stored_proposal_id == proposal_id {
+                    RootInfo::<T>::kill();
+                }
+            }
         }
 
         fn on_cancelled(proposal_id: ProposalId, external_ref: &H256) {
-            log::warn!(
-                "Summary Watchtower: Proposal {:?} with external ref {:?} was cancelled",
-                proposal_id,
-                external_ref
-            );
+            if let Some((stored_proposal_id, _)) = RootInfo::<T>::get() {
+                if stored_proposal_id == proposal_id {
+                    RootInfo::<T>::kill();
+                }
+            }
         }
     }
 

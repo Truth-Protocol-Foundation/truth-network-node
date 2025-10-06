@@ -4,7 +4,11 @@ use crate::*;
 pub const OCW_LOCK_PREFIX: &[u8] = b"sum-wt-ocw::lock::";
 
 impl<T: Config> Pallet<T> {
-    pub fn validate_root(now: BlockNumberFor<T>, root_data: &RootData<BlockNumberFor<T>>, proposal_id: &ProposalId) -> Result<bool, String> {
+    pub fn validate_root(
+        now: BlockNumberFor<T>,
+        root_data: &RootData<BlockNumberFor<T>>,
+        proposal_id: &ProposalId,
+    ) -> Result<bool, String> {
         let lock_id = Self::compute_lock_id(now, proposal_id, &root_data);
         let mut lock = AVN::<T>::get_ocw_locker(&lock_id);
 
@@ -27,13 +31,13 @@ impl<T: Config> Pallet<T> {
         from_block: BlockNumberFor<T>,
         to_block: BlockNumberFor<T>,
     ) -> Result<H256, String> {
-        let from_block_u32: u32 = from_block.try_into().map_err(|_| {
-            format!("From_block {:?} too large for u32", from_block)
-        })?;
+        let from_block_u32: u32 = from_block
+            .try_into()
+            .map_err(|_| format!("From_block {:?} too large for u32", from_block))?;
 
-        let to_block_u32: u32 = to_block.try_into().map_err(|_| {
-            format!("To_block {:?} too large for u32", to_block)
-        })?;
+        let to_block_u32: u32 = to_block
+            .try_into()
+            .map_err(|_| format!("To_block {:?} too large for u32", to_block))?;
 
         let mut url_path = "roothash/".to_string();
         url_path.push_str(&from_block_u32.to_string());
@@ -65,7 +69,11 @@ impl<T: Config> Pallet<T> {
         Ok(H256::from_slice(&data))
     }
 
-    fn compute_lock_id(now: BlockNumberFor<T>, proposal_id: &ProposalId, root_data: &RootData<BlockNumberFor<T>>) -> Vec<u8> {
+    fn compute_lock_id(
+        now: BlockNumberFor<T>,
+        proposal_id: &ProposalId,
+        root_data: &RootData<BlockNumberFor<T>>,
+    ) -> Vec<u8> {
         let mut lock_id = OCW_LOCK_PREFIX.to_vec();
         lock_id.extend_from_slice(&proposal_id.encode());
         lock_id.extend_from_slice(&now.encode());
