@@ -159,6 +159,7 @@ pallet-pm-eth-asset-registry = { path = "pallets/eth-asset-registry", default-fe
 pallet-node-manager = { path = "pallets/node-manager", default-features = false }
 pallet-config = { path = "pallets/config", default-features = false }
 pallet-watchtower = { path = "pallets/watchtower", default-features = false }
+pallet-summary-watchtower = { path = "pallets/summary-watchtower", default-features = false }
 
 # Other (client)
 clap = "4.5.4"
