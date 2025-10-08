@@ -39,10 +39,7 @@ impl<T: Config> Pallet<T> {
             .try_into()
             .map_err(|_| format!("To_block {:?} too large for u32", to_block))?;
 
-        let mut url_path = "roothash/".to_string();
-        url_path.push_str(&from_block_u32.to_string());
-        url_path.push_str("/");
-        url_path.push_str(&to_block_u32.to_string());
+        let url_path = format!("roothash/{}/{}", from_block_u32, to_block_u32);
 
         log::debug!("Fetching recalculated root hash using AVN service, path: {}", url_path);
 

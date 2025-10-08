@@ -274,9 +274,9 @@ pub mod pallet {
             match StorageValueRef::persistent(&key).get::<BlockNumberFor<T>>().ok().flatten() {
                 Some(last_submission) => {
                     // Allow BLOCK_INCLUSION_PERIOD blocks for the transaction to be included
-                    return block_number <=
-                        last_submission
-                            .saturating_add(BlockNumberFor::<T>::from(BLOCK_INCLUSION_PERIOD));
+                    let deadline = last_submission
+                        .saturating_add(BlockNumberFor::<T>::from(BLOCK_INCLUSION_PERIOD));
+                    return block_number <= deadline;
                 },
                 _ => false,
             }
