@@ -10635,6 +10635,7 @@ dependencies = [
  "pallet-session",
  "pallet-sudo",
  "pallet-summary",
+ "pallet-summary-watchtower",
  "pallet-timestamp",
  "pallet-token-manager",
  "pallet-transaction-payment",
