@@ -20,7 +20,11 @@ use log;
 pub use pallet_avn::{self as avn};
 use pallet_watchtower::{NodesInterface, Payload, Proposal, WATCHTOWER_UNSIGNED_VOTE_CONTEXT};
 use parity_scale_codec::Decode;
-pub use sp_avn_common::{watchtower::*, RootId, RootRange};
+pub use sp_avn_common::{
+    ocw_lock::{self as OcwLock, OcwStorageError},
+    watchtower::*,
+    RootId, RootRange,
+};
 use sp_core::H256;
 pub use sp_runtime::{
     offchain::storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
@@ -103,7 +107,12 @@ pub mod pallet {
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         fn offchain_worker(now: BlockNumberFor<T>) {
-            log::debug!(target: "runtime::watchtower::ocw", "Watchtower OCW running for block {:?}", now);
+            log::debug!("Watchtower OCW running for block {:?}", now);
+
+            if Self::ocw_already_run(now).is_err() {
+                return;
+            }
+
             let maybe_node_info = T::Watchtowers::get_node_from_local_signing_keys();
             let (watchtower, signing_key) = match maybe_node_info {
                 Some(info) => info,
@@ -272,6 +281,28 @@ pub mod pallet {
                 _ => false,
             }
         }
+
+        pub fn ocw_already_run(block_number: BlockNumberFor<T>) -> Result<(), ()> {
+            // Offchain workers could run multiple times for the same block number (re-orgs...)
+            // so we need to make sure we only run this once per block
+            let caller_id = b"summary_watchtower".to_vec();
+            OcwLock::record_block_run(block_number, caller_id).map_err(|e| match e {
+                OcwStorageError::OffchainWorkerAlreadyRun => {
+                    log::warn!(
+                        "❌ Summary watchtower OCW has already run for block number {:?}",
+                        block_number
+                    );
+                },
+                OcwStorageError::ErrorRecordingOffchainWorkerRun => {
+                    log::error!(
+                        "❌ Unable to record ocw run for block {:?}, skipping",
+                        block_number
+                    );
+                },
+            })?;
+
+            Ok(())
+        }
     }
 
     impl<T: Config> WatchtowerHooks<Proposal<T>> for Pallet<T> {
@@ -301,7 +332,7 @@ pub mod pallet {
             }
         }
 
-        fn on_cancelled(proposal_id: ProposalId, external_ref: &H256) {
+        fn on_cancelled(proposal_id: ProposalId, _external_ref: &H256) {
             if let Some((stored_proposal_id, _)) = RootInfo::<T>::get() {
                 if stored_proposal_id == proposal_id {
                     RootInfo::<T>::kill();
