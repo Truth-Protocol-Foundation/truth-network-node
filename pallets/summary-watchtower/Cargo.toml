@@ -41,6 +41,9 @@ sp-keystore = { workspace = true, features = ["default"]}
 sp-state-machine = { workspace = true }
 pallet-timestamp = { workspace = true }
 parking_lot = {  workspace = true }
+pallet-balances = { workspace = true, features = ["default", "insecure_zero_ed"] }
+pallet-node-manager = { workspace = true, features = ["default"] }
+prediction-market-primitives = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["std"]

@@ -45,6 +45,13 @@ pub type AVN<T> = avn::Pallet<T>;
 
 pub mod root_utils;
 
+#[cfg(test)]
+#[path = "tests/mock.rs"]
+mod mock;
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;
+
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
@@ -86,6 +93,11 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// A summary watchtower proposal was submitted.
         SummaryVerificationRequested {
+            proposal_id: ProposalId,
+            root_data: RootData<BlockNumberFor<T>>,
+        },
+        /// A summary watchtower proposal validation was aborted due to an new proposal being added
+        ProposalValidationAborted {
             proposal_id: ProposalId,
             root_data: RootData<BlockNumberFor<T>>,
         },
@@ -165,16 +177,34 @@ pub mod pallet {
             let current_block = <frame_system::Pallet<T>>::block_number();
 
             ensure!(
-                root_id.range.from_block < root_id.range.to_block &&
+                root_id.range.from_block <= root_id.range.to_block &&
                     root_id.range.to_block <= current_block,
                 Error::<T>::InvalidSummaryProposal
             );
+
+            Self::remove_root_if_needed();
 
             let root_data = RootData::<BlockNumberFor<T>> { root_id: root_id.clone(), root_hash };
             RootInfo::<T>::put((proposal_id, root_data.clone()));
             Self::deposit_event(Event::SummaryVerificationRequested { proposal_id, root_data });
 
             Ok(())
+        }
+
+        fn remove_root_if_needed() {
+            if let Some((id, data)) = RootInfo::<T>::get() {
+                // This should not happen, but if it does, we remove the old proposal
+                log::warn!(
+                    "Aborting validation of proposal {:?}, root data {:?} due to new proposal.",
+                    id,
+                    data
+                );
+                RootInfo::<T>::kill();
+                Self::deposit_event(Event::ProposalValidationAborted {
+                    proposal_id: id,
+                    root_data: data,
+                });
+            }
         }
 
         fn process_pending_validation(

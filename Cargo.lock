@@ -6087,6 +6087,8 @@ dependencies = [
  "hex",
  "log",
  "pallet-avn",
+ "pallet-balances",
+ "pallet-node-manager",
  "pallet-summary",
  "pallet-timestamp",
  "pallet-watchtower",
