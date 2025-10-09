@@ -342,4 +342,10 @@ impl EnsureOrigin<RuntimeOrigin> for EnsureExternalProposerOrRoot {
             Err(o) => EnsureRoot::<AccountId>::try_origin(o).map(|_| None),
         }
     }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+        use frame_benchmarking::whitelisted_caller;
+        Ok(RuntimeOrigin::signed(whitelisted_caller()))
+    }
 }
