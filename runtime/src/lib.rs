@@ -308,7 +308,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 32,
+    spec_version: 33,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -763,6 +763,12 @@ impl pallet_nft_manager::Config for Runtime {
     type WeightInfo = pallet_nft_manager::default_weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_summary_watchtower::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
+}
+
 parameter_types! {
     pub const MaxScheduledPerBlock: u32 = 50;
 
@@ -898,7 +904,7 @@ impl pallet_watchtower::Config for Runtime {
     type Watchtowers = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
-    type WatchtowerHooks = ();
+    type WatchtowerHooks = SummaryWatchtower;
     type MaxTitleLen = ConstU32<512>;
     type MaxInlineLen = ConstU32<8192>;
     type MaxUriLen = ConstU32<2040>;
@@ -1370,6 +1376,7 @@ construct_runtime!(
         Orderbook: pallet_pm_order_book::{Call, Event<T>, Pallet, Storage} = 46,
         HybridRouter: pallet_pm_hybrid_router::{Call, Event<T>, Pallet, Storage} = 47,
         Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 48,
+        SummaryWatchtower: pallet_summary_watchtower::{Pallet, Call, Storage, Event<T>} = 49,
     }
 );
 
