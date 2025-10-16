@@ -96,11 +96,8 @@ pub mod pallet {
             proposal_id: ProposalId,
             root_data: RootData<BlockNumberFor<T>>,
         },
-        /// A summary watchtower proposal validation was aborted due to an new proposal being added
-        ProposalValidationAborted {
-            proposal_id: ProposalId,
-            root_data: RootData<BlockNumberFor<T>>,
-        },
+        /// A summary watchtower proposal validation was replaced before finalization
+        ProposalValidationReplaced { aborted_proposal_id: ProposalId, new_proposal_id: ProposalId },
     }
 
     #[pallet::error]
@@ -182,7 +179,7 @@ pub mod pallet {
                 Error::<T>::InvalidSummaryProposal
             );
 
-            Self::remove_root_if_needed();
+            Self::remove_root_if_needed(proposal_id);
 
             let root_data = RootData::<BlockNumberFor<T>> { root_id: root_id.clone(), root_hash };
             RootInfo::<T>::put((proposal_id, root_data.clone()));
@@ -191,7 +188,7 @@ pub mod pallet {
             Ok(())
         }
 
-        fn remove_root_if_needed() {
+        fn remove_root_if_needed(new_proposal_id: ProposalId) {
             if let Some((id, data)) = RootInfo::<T>::get() {
                 // This should not happen, but if it does, we remove the old proposal
                 log::warn!(
@@ -200,9 +197,9 @@ pub mod pallet {
                     data
                 );
                 RootInfo::<T>::kill();
-                Self::deposit_event(Event::ProposalValidationAborted {
-                    proposal_id: id,
-                    root_data: data,
+                Self::deposit_event(Event::ProposalValidationReplaced {
+                    aborted_proposal_id: id,
+                    new_proposal_id,
                 });
             }
         }
