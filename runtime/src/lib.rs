@@ -832,6 +832,7 @@ parameter_types! {
     pub const EthAutoSubmitSummaries: bool = true;
     pub const AvnAutoSubmitSummaries: bool = false;
     pub const AvnInstanceId: u8 = 2u8;
+    pub const ExternalValidationEnabled: bool = true;
 }
 
 pub type EthSummary = pallet_summary::Instance1;
@@ -845,6 +846,8 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
+    type ExternalValidationEnabled = ExternalValidationEnabled;
+    type ExternalValidator = Watchtower;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -858,6 +861,8 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
+    type ExternalValidationEnabled = ExternalValidationEnabled;
+    type ExternalValidator = Watchtower;
 }
 
 impl pallet_authors_manager::Config for Runtime {
@@ -904,7 +909,11 @@ impl pallet_watchtower::Config for Runtime {
     type Watchtowers = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
-    type WatchtowerHooks = SummaryWatchtower;
+    type WatchtowerHooks = (
+        SummaryWatchtower,
+        pallet_summary::Pallet<Runtime, EthSummary>,
+        pallet_summary::Pallet<Runtime, AvnAnchorSummary>,
+    );
     type MaxTitleLen = ConstU32<512>;
     type MaxInlineLen = ConstU32<8192>;
     type MaxUriLen = ConstU32<2040>;
