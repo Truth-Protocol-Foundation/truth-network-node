@@ -19,6 +19,10 @@ impl TestAccount {
     pub fn key_pair(&self) -> sr25519::Pair {
         return sr25519::Pair::from_seed(&self.seed);
     }
+
+    pub fn public_key(&self) -> sr25519::Public {
+        return self.key_pair().public()
+    }
 }
 
 pub fn get_account_from_seed(seed: [u8; 32]) -> TestAccountIdPK {
@@ -28,6 +32,11 @@ pub fn get_account_from_seed(seed: [u8; 32]) -> TestAccountIdPK {
 pub fn get_account_from_mnemonic(mnemonic: &str) -> TestAccountIdPK {
     let seed = sr25519::Pair::from_phrase(mnemonic, None).unwrap().1;
     return TestAccount::new(seed).account_id()
+}
+
+pub fn get_test_account_from_mnemonic(mnemonic: &str) -> TestAccount {
+    let seed = sr25519::Pair::from_phrase(mnemonic, None).unwrap().1;
+    return TestAccount::new(seed)
 }
 
 pub fn get_account(index: u8) -> TestAccountIdPK {
