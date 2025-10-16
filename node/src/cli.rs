@@ -183,6 +183,7 @@ pub enum Subcommand {
     #[command(subcommand)]
     Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
+    #[cfg(feature = "try-runtime")]
     TryRuntime,
 
     /// Db meta columns information.
