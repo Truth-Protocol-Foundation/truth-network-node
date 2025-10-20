@@ -10114,6 +10114,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
+name = "summary-calculation-rpc"
+version = "1.17.0"
+dependencies = [
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "log",
+ "node-primitives",
+ "parity-scale-codec 3.6.9",
+ "parking_lot 0.12.2",
+ "sc-client-api",
+ "sc-rpc",
+ "scale-info",
+ "serde",
+ "serde_json",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "thiserror",
+ "tnf-service",
+]
+
+[[package]]
 name = "sval"
 version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10577,10 +10600,12 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-offchain",
  "sp-runtime",
  "sp-timestamp",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
+ "summary-calculation-rpc",
  "tnf-node-runtime",
  "tnf-service",
  "try-runtime-cli",
