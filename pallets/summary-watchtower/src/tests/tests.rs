@@ -94,7 +94,10 @@ mod process_new_proposal {
             assert_ok!(SummaryWatchtower::on_proposal_submitted(new_proposal_id, proposal));
 
             System::assert_has_event(RuntimeEvent::SummaryWatchtower(
-                Event::ProposalValidationReplaced { aborted_proposal_id: proposal_id, new_proposal_id },
+                Event::ProposalValidationReplaced {
+                    aborted_proposal_id: proposal_id,
+                    new_proposal_id,
+                },
             ));
 
             System::assert_last_event(RuntimeEvent::SummaryWatchtower(
