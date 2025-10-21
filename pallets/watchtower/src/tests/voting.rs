@@ -5,7 +5,7 @@
 use crate::{mock::*, *};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::RawOrigin;
-use sp_core::{Get, Pair};
+use sp_core::Pair;
 pub use test_case::test_case;
 
 fn sign_vote(voter: TestAccount, msg: &[u8]) -> Signature {
@@ -226,7 +226,7 @@ mod voting_on_proposals {
 }
 
 mod proposal_lifecycle {
-    use super::{test_case, *};
+    use super::*;
 
     #[test]
     fn consensus_can_be_reached_for_internal_proposals() {
