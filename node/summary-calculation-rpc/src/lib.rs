@@ -119,7 +119,9 @@ where
                 jsonrpsee::core::Error::Custom(format!("Error generating tree root: {:?}", e))
             })?;
 
-            let root_bytes = root_hash.0; // Extract [u8; 32] from H256
+            // `root_hash` is of type `H256` from `sp_core`, representing a 256-bit Merkle root hash.
+            // We extract the underlying `[u8; 32]` array for encoding and caching purposes.
+            let root_bytes = root_hash.0;
             (hex::encode(root_bytes), root_bytes)
         } else {
             let empty_root = [0; 32];
