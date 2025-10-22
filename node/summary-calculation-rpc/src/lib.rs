@@ -49,7 +49,7 @@ where
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
-            .unwrap_or(0)
+            .unwrap_or(u64::MAX)
     }
 
     fn get_cached_summary(&self, from_block: u32, to_block: u32) -> Option<[u8; 32]> {
