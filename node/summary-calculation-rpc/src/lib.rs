@@ -61,8 +61,12 @@ where
         let entry: CacheEntry = CacheEntry::decode(&mut &data[..]).ok()?;
         let fresh = Self::now_millis().saturating_sub(entry.timestamp_ms) <= CACHE_TTL_MS;
 
-        if fresh { Some(entry.root) } else { None }
-}
+        if fresh {
+            Some(entry.root)
+        } else {
+            None
+        }
+    }
 
     fn set_cached_summary(&self, from_block: u32, to_block: u32, root: [u8; 32]) {
         if let Some(ref storage_mutex) = self.offchain_storage {
@@ -119,8 +123,9 @@ where
                 jsonrpsee::core::Error::Custom(format!("Error generating tree root: {:?}", e))
             })?;
 
-            // `root_hash` is of type `H256` from `sp_core`, representing a 256-bit Merkle root hash.
-            // We extract the underlying `[u8; 32]` array for encoding and caching purposes.
+            // `root_hash` is of type `H256` from `sp_core`, representing a 256-bit Merkle root
+            // hash. We extract the underlying `[u8; 32]` array for encoding and caching
+            // purposes.
             let root_bytes = root_hash.0;
             (hex::encode(root_bytes), root_bytes)
         } else {
