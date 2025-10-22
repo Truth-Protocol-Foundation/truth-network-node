@@ -53,28 +53,16 @@ where
     }
 
     fn get_cached_summary(&self, from_block: u32, to_block: u32) -> Option<[u8; 32]> {
-        if let Some(ref storage_mutex) = self.offchain_storage {
-            if let Ok(storage) = storage_mutex.lock() {
-                let key = (from_block, to_block).encode();
-                storage.get(CACHE_PREFIX, &key).and_then(|data| {
-                    if let Ok(entry) = CacheEntry::decode(&mut &data[..]) {
-                        let now = Self::now_millis();
-                        if now.saturating_sub(entry.timestamp_ms) <= CACHE_TTL_MS {
-                            Some(entry.root)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                })
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
+        let storage = self.offchain_storage.as_ref()?.lock().ok()?;
+
+        let key = (from_block, to_block).encode();
+        let data = storage.get(CACHE_PREFIX, &key)?;
+
+        let entry: CacheEntry = CacheEntry::decode(&mut &data[..]).ok()?;
+        let fresh = Self::now_millis().saturating_sub(entry.timestamp_ms) <= CACHE_TTL_MS;
+
+        if fresh { Some(entry.root) } else { None }
+}
 
     fn set_cached_summary(&self, from_block: u32, to_block: u32, root: [u8; 32]) {
         if let Some(ref storage_mutex) = self.offchain_storage {
