@@ -59,6 +59,23 @@ impl<T: Config> Pallet<T> {
         consensus_result: ProposalStatusEnum,
     ) -> DispatchResult {
         ProposalStatus::<T>::insert(proposal_id, consensus_result.clone());
+
+        // The order matters here:
+        // - we first call the hook so other pallets cleanup their state
+        // - then emit the event
+        // - finally we add a new active proposal if needed
+        T::WatchtowerHooks::on_voting_completed(
+            proposal_id,
+            &proposal.external_ref,
+            &consensus_result,
+        );
+
+        Self::deposit_event(Event::VotingEnded {
+            proposal_id,
+            external_ref: proposal.external_ref,
+            consensus_result,
+        });
+
         // If this was an internal proposal, activate the next one in the queue
         if let ProposalSource::Internal(_) = proposal.source {
             ActiveInternalProposal::<T>::kill();
@@ -77,19 +94,7 @@ impl<T: Config> Pallet<T> {
             }
         }
 
-        T::WatchtowerHooks::on_voting_completed(
-            proposal_id,
-            &proposal.external_ref,
-            &consensus_result,
-        );
-
         ProposalsToRemove::<T>::insert(proposal_id, ());
-
-        Self::deposit_event(Event::VotingEnded {
-            proposal_id,
-            external_ref: proposal.external_ref,
-            consensus_result,
-        });
 
         Ok(())
     }
