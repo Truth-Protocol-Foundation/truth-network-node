@@ -68,6 +68,8 @@ jobs:
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
+        env:
+          RUSTUP_INIT_SKIP_PATH_CHECK: yes
         with:
           profile: minimal
           toolchain: 1.81.0
@@ -110,6 +112,8 @@ jobs:
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
+        env:
+          RUSTUP_INIT_SKIP_PATH_CHECK: yes
         with:
           profile: minimal
           toolchain: 1.81.0
