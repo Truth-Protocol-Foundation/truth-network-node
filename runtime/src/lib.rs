@@ -527,7 +527,7 @@ impl pallet_avn::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type AuthorityId = AvnId;
     type EthereumPublicKeyChecker = AuthorsManager;
-    type NewSessionHandler = ();
+    type NewSessionHandler = AuthorsManager;
     type DisabledValidatorChecker = ();
     type WeightInfo = pallet_avn::default_weights::SubstrateWeight<Runtime>;
 }
