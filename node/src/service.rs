@@ -258,10 +258,15 @@ pub fn new_full(
     let rpc_extensions_builder = {
         let client = client.clone();
         let pool = transaction_pool.clone();
+        let offchain_storage_for_rpc = backend.offchain_storage();
 
         Box::new(move |deny_unsafe, _| {
-            let deps =
-                crate::rpc::FullDeps { client: client.clone(), pool: pool.clone(), deny_unsafe };
+            let deps = crate::rpc::FullDeps {
+                client: client.clone(),
+                pool: pool.clone(),
+                deny_unsafe,
+                offchain_storage: offchain_storage_for_rpc.clone(),
+            };
             crate::rpc::create_full(deps).map_err(Into::into)
         })
     };
