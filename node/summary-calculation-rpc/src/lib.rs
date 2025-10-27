@@ -23,6 +23,8 @@ const CACHE_PREFIX: &[u8] = b"tnf_summary_cache::v1::";
 
 const CACHE_TTL_MS: u64 = 10 * 60 * 1_000; // 10 minutes
 
+const MAX_SCHEDULE_PERIOD: u32 = 72000 + 1; // truth-network schedule period mainnet value
+
 #[derive(Encode, Decode, Clone, Copy)]
 struct CacheEntry {
     root: [u8; 32],
@@ -97,6 +99,18 @@ where
             return Err(jsonrpsee::core::Error::Custom(format!(
                 "Invalid range: from_block ({}) > to_block ({})",
                 from_block, to_block
+            )));
+        }
+
+        // Maximum allowed block range based on mainnet schedule period (8 hours) + 1
+        // TODO: Ideally we would validate using the schedule period defined in the summary pallet, 
+        //  otherwise we might end up breaking functionality.        
+        let block_range = to_block.saturating_sub(from_block);
+        
+        if block_range > MAX_SCHEDULE_PERIOD {
+            return Err(jsonrpsee::core::Error::Custom(format!(
+                "Block range ({}) exceeds maximum schedule period ({})",
+                block_range, MAX_SCHEDULE_PERIOD
             )));
         }
 
