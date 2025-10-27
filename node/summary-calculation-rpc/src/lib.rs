@@ -103,10 +103,10 @@ where
         }
 
         // Maximum allowed block range based on mainnet schedule period (8 hours) + 1
-        // TODO: Ideally we would validate using the schedule period defined in the summary pallet, 
-        //  otherwise we might end up breaking functionality.        
+        // TODO: Ideally we would validate using the schedule period defined in the summary pallet,
+        //  otherwise we might end up breaking functionality.
         let block_range = to_block.saturating_sub(from_block);
-        
+
         if block_range > MAX_SCHEDULE_PERIOD {
             return Err(jsonrpsee::core::Error::Custom(format!(
                 "Block range ({}) exceeds maximum schedule period ({})",
