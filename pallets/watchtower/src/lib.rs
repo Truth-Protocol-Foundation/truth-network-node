@@ -199,6 +199,10 @@ pub mod pallet {
     pub type ProposalsToRemove<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalId, (), OptionQuery>;
 
+    /// The account that is able to submit proposals
+    #[pallet::storage]
+    pub type AdminAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -225,6 +229,8 @@ pub mod pallet {
         ProposalCleaned { proposal_id: ProposalId },
         /// Minimum voting period has been updated
         MinVotingPeriodSet { new_period: BlockNumberFor<T> },
+        /// Admin account has been updated
+        AdminAccountSet { new_admin: T::AccountId },
     }
 
     #[pallet::error]
@@ -275,6 +281,8 @@ pub mod pallet {
         CorruptedState,
         /// This proposal cannot be voted on with an unsigned transaction
         InvalidProposalForUnsignedVote,
+        /// Admin account is not set
+        AdminAccountNotSet,
     }
 
     #[pallet::call]
@@ -301,9 +309,9 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::signed_submit_external_proposal())]
         pub fn signed_submit_external_proposal(
             origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
             proposal: ProposalRequest,
             block_number: BlockNumberFor<T>,
-            proof: Proof<T::Signature, T::AccountId>,
         ) -> DispatchResult {
             let proposer = T::ExternalProposerOrigin::ensure_origin(origin)?;
             ensure!(
@@ -360,10 +368,10 @@ pub mod pallet {
         )]
         pub fn signed_vote(
             origin: OriginFor<T>,
+            proof: Proof<T::Signature, T::AccountId>,
             proposal_id: ProposalId,
             in_favor: bool,
             block_number: BlockNumberFor<T>,
-            proof: Proof<T::Signature, T::AccountId>,
         ) -> DispatchResultWithPostInfo {
             let owner = ensure_signed(origin)?;
             ensure!(owner == proof.signer, Error::<T>::SenderIsNotSigner);
@@ -464,7 +472,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::set_admin_config_voting())]
         pub fn set_admin_config(
             origin: OriginFor<T>,
-            config: AdminConfig<BlockNumberFor<T>>,
+            config: AdminConfig<BlockNumberFor<T>, T::AccountId>,
         ) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
 
@@ -473,6 +481,11 @@ pub mod pallet {
                     <MinVotingPeriod<T>>::mutate(|p| *p = period);
                     Self::deposit_event(Event::MinVotingPeriodSet { new_period: period });
                     return Ok(Some(<T as Config>::WeightInfo::set_admin_config_voting()).into());
+                },
+                AdminConfig::AdminAccount(admin_account) => {
+                    <AdminAccount<T>>::mutate(|a| *a = Some(admin_account.clone()));
+                    Self::deposit_event(Event::AdminAccountSet { new_admin: admin_account });
+                    return Ok(Some(<T as Config>::WeightInfo::set_admin_config_account()).into());
                 },
             }
         }
@@ -509,6 +522,10 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        pub fn proposal_admin() -> Result<T::AccountId, Error<T>> {
+            Ok(<AdminAccount<T>>::get().ok_or(Error::<T>::AdminAccountNotSet)?)
+        }
+
         fn add_proposal(
             proposer: Option<T::AccountId>,
             proposal_request: ProposalRequest,

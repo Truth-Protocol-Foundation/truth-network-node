@@ -6,7 +6,9 @@ use frame_support::{
 };
 use frame_system::{self as system, EnsureRoot, EnsureSigned};
 pub use parity_scale_codec::alloc::sync::Arc;
-pub use prediction_market_primitives::test_helper::{get_test_account_from_mnemonic, TestAccount};
+pub use prediction_market_primitives::test_helper::{
+    get_account_from_seed, get_test_account_from_mnemonic, TestAccount,
+};
 pub use sp_core::{crypto::DEV_PHRASE, sr25519, H256};
 
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};

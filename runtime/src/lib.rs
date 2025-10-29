@@ -136,11 +136,21 @@ impl EnsureOrigin<RuntimeOrigin> for EnsureConfigAdmin {
 pub struct EnsureExternalProposerOrRoot;
 impl EnsureOrigin<RuntimeOrigin> for EnsureExternalProposerOrRoot {
     type Success = Option<AccountId>;
-
+    // If the config admin is not set, assume we can allow anyone to submit an external proposal
     fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+        if EnsureRoot::<AccountId>::try_origin(o.clone()).is_ok() {
+            return Ok(None);
+        }
+
         match EnsureSigned::<AccountId>::try_origin(o) {
-            Ok(who) => Ok(Some(who)),
-            Err(o) => EnsureRoot::<AccountId>::try_origin(o).map(|_| None),
+            Ok(who) => {
+                match Watchtower::proposal_admin() {
+                    Ok(admin) if who == admin => Ok(Some(who)),
+                    Ok(_admin) => Err(RuntimeOrigin::signed(who)), // non-admin signer → reject
+                    Err(_) => Ok(Some(who)),                       // no admin → allow anyone
+                }
+            },
+            Err(o) => Err(o),
         }
     }
 
@@ -308,7 +318,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 34,
+    spec_version: 37,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,

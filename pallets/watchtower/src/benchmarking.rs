@@ -333,6 +333,14 @@ benchmarks! {
         assert!(<MinVotingPeriod<T>>::get() == new_period);
     }
 
+    set_admin_config_account {
+        let new_account: T::AccountId = account("new_account", 0, 0);
+        let config = AdminConfig::AdminAccount(new_account);
+    }: set_admin_config(RawOrigin::Root, config)
+    verify {
+        assert!(<AdminAccount<T>>::get() == new_account);
+    }
+
     active_proposal_expiry_status {
         <frame_system::Pallet<T>>::set_block_number(100u32.into());
 

@@ -42,7 +42,7 @@ mod min_voting_period {
     use super::*;
 
     #[test]
-    fn min_voting_period_can_be_set() {
+    fn can_be_set() {
         let mut ext = ExtBuilder::build_default().as_externality();
         ext.execute_with(|| {
             let current_period = MinVotingPeriod::<TestRuntime>::get();
@@ -51,6 +51,25 @@ mod min_voting_period {
             let config = AdminConfig::MinVotingPeriod(new_period);
             assert_ok!(Watchtower::set_admin_config(RawOrigin::Root.into(), config,));
             System::assert_last_event(Event::MinVotingPeriodSet { new_period }.into());
+        });
+    }
+}
+
+mod admin_account {
+    use super::*;
+
+    #[test]
+    fn can_be_set() {
+        let mut ext = ExtBuilder::build_default().as_externality();
+        ext.execute_with(|| {
+            let current_admin = AdminAccount::<TestRuntime>::get();
+            let new_admin = TestAccount::new([79u8; 32]).account_id();
+
+            assert!(current_admin != Some(new_admin.clone()));
+
+            let config = AdminConfig::AdminAccount(new_admin);
+            assert_ok!(Watchtower::set_admin_config(RawOrigin::Root.into(), config,));
+            System::assert_last_event(Event::AdminAccountSet { new_admin }.into());
         });
     }
 }
