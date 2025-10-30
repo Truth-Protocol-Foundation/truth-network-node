@@ -98,3 +98,14 @@ jobs:
       fetch-depth: 0
       ref: ${{ github.event.pull_request.head.ref }}
       repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+  try-runtime-checks:
+    needs: [ set-up-job ]
+    if: |
+      ( !github.event.pull_request.draft ) &&
+      ( needs.set-up-job.outputs.SKIP_TESTS != 'true' )
+    uses: ./.github/workflows/try-runtime.yml
+    with:
+      fetch-depth: 0
+      ref: ${{ github.event.pull_request.head.ref }}
+      repository: ${{ github.event.pull_request.head.repo.full_name }}

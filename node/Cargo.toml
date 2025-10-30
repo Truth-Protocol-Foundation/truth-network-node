@@ -85,7 +85,7 @@ summary-calculation-rpc = { path = "./summary-calculation-rpc" }
 avn-key-subcommand = { path = "./avn-key-subcommand" }
 
 # CLI-specific dependencies
-try-runtime-cli = { version = "0.10.0-dev", optional = true, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
+# Note: try-runtime-cli is now a standalone tool, not embedded
 
 #prediction-market-primitives = { workspace = true }
 common-primitives = { workspace = true }
@@ -103,10 +103,9 @@ runtime-benchmarks = [
 	"frame-benchmarking-cli/runtime-benchmarks",
 	"pallet-authors-manager/runtime-benchmarks",
 ]
-# Enable features that allow the runtime to be tried and debugged. Name might be subject to change
-# in the near future.
+# Enable features that allow the runtime to be tried and debugged. 
+# Use standalone try-runtime-cli for testing.
 try-runtime = [
 	"tnf-node-runtime/try-runtime",
-	"try-runtime-cli/try-runtime",
 	"pallet-authors-manager/try-runtime",
 ]
