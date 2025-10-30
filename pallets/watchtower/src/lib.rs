@@ -230,7 +230,7 @@ pub mod pallet {
         /// Minimum voting period has been updated
         MinVotingPeriodSet { new_period: BlockNumberFor<T> },
         /// Admin account has been updated
-        AdminAccountSet { new_admin: T::AccountId },
+        AdminAccountSet { new_admin: Option<T::AccountId> },
     }
 
     #[pallet::error]
@@ -483,7 +483,7 @@ pub mod pallet {
                     return Ok(Some(<T as Config>::WeightInfo::set_admin_config_voting()).into());
                 },
                 AdminConfig::AdminAccount(admin_account) => {
-                    <AdminAccount<T>>::mutate(|a| *a = Some(admin_account.clone()));
+                    <AdminAccount<T>>::mutate(|a| *a = admin_account.clone());
                     Self::deposit_event(Event::AdminAccountSet { new_admin: admin_account });
                     return Ok(Some(<T as Config>::WeightInfo::set_admin_config_account()).into());
                 },

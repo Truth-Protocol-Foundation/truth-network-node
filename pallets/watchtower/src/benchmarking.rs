@@ -334,11 +334,11 @@ benchmarks! {
     }
 
     set_admin_config_account {
-        let new_account: T::AccountId = account("new_account", 0, 0);
+        let new_account: Option<T::AccountId> = Some(account("new_account", 0, 0));
         let config = AdminConfig::AdminAccount(new_account.clone());
     }: set_admin_config(RawOrigin::Root, config)
     verify {
-        assert!(<AdminAccount<T>>::get() == Some(new_account));
+        assert!(<AdminAccount<T>>::get() == new_account);
     }
 
     active_proposal_expiry_status {

@@ -67,9 +67,27 @@ mod admin_account {
 
             assert!(current_admin != Some(new_admin.clone()));
 
+            let config = AdminConfig::AdminAccount(Some(new_admin));
+            assert_ok!(Watchtower::set_admin_config(RawOrigin::Root.into(), config,));
+            System::assert_last_event(Event::AdminAccountSet { new_admin: Some(new_admin) }.into());
+        });
+    }
+
+    #[test]
+    fn can_be_set_to_none() {
+        let mut ext = ExtBuilder::build_default().as_externality();
+        ext.execute_with(|| {
+            let config = AdminConfig::AdminAccount(Some(TestAccount::new([69u8; 32]).account_id()));
+            assert_ok!(Watchtower::set_admin_config(RawOrigin::Root.into(), config,));
+
+            let current_admin: Option<AccountId> = AdminAccount::<TestRuntime>::get();
+            let new_admin: Option<AccountId> = None;
+
+            assert!(current_admin != new_admin);
+
             let config = AdminConfig::AdminAccount(new_admin);
             assert_ok!(Watchtower::set_admin_config(RawOrigin::Root.into(), config,));
-            System::assert_last_event(Event::AdminAccountSet { new_admin }.into());
+            System::assert_last_event(Event::AdminAccountSet { new_admin: None }.into());
         });
     }
 }
