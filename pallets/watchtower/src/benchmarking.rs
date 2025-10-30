@@ -168,7 +168,7 @@ benchmarks! {
 
         let signature = signer_key.sign(&signed_payload).unwrap().encode();
         let proof = get_proof::<T>(&relayer.clone(), &signer, &signature);
-    }: submit_external_proposal(RawOrigin::Signed(signer), proposal_request)
+    }: signed_submit_external_proposal(RawOrigin::Signed(signer), proof, proposal_request, now)
     verify {
         assert!(ExternalRef::<T>::contains_key(external_ref));
 
@@ -231,7 +231,7 @@ benchmarks! {
 
         let signature = voter_key.sign(&signed_payload).unwrap().encode();
         let proof = get_proof::<T>(&relayer.clone(), &voter, &signature);
-    }: signed_vote(RawOrigin::Signed(voter.clone()), proposal_id, in_favor, now, proof)
+    }: signed_vote(RawOrigin::Signed(voter.clone()), proof, proposal_id, in_favor, now)
     verify {
         assert!(Votes::<T>::contains_key(proposal_id));
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
@@ -260,7 +260,7 @@ benchmarks! {
 
         // Add some votes to be above the threshold
         setup_votes::<T>(proposal_id, 9u32);
-    }: signed_vote(RawOrigin::Signed(voter.clone()), proposal_id, in_favor, now, proof)
+    }: signed_vote(RawOrigin::Signed(voter.clone()), proof, proposal_id, in_favor, now)
     verify {
         assert!(Votes::<T>::contains_key(proposal_id));
         assert!(Voters::<T>::contains_key(proposal_id, &voter));
@@ -331,6 +331,14 @@ benchmarks! {
     }: set_admin_config(RawOrigin::Root, config)
     verify {
         assert!(<MinVotingPeriod<T>>::get() == new_period);
+    }
+
+    set_admin_config_account {
+        let new_account: Option<T::AccountId> = Some(account("new_account", 0, 0));
+        let config = AdminConfig::AdminAccount(new_account.clone());
+    }: set_admin_config(RawOrigin::Root, config)
+    verify {
+        assert!(<AdminAccount<T>>::get() == new_account);
     }
 
     active_proposal_expiry_status {
