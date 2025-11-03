@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.19.0"
+version = "1.19.1"
 authors = ["Aventus systems team"]
 homepage = "https://www.truth-network.io/"
 edition = "2021"
@@ -189,17 +189,17 @@ typenum = { version = "1.17.0", default-features = false }
 parking_lot = { version = "0.12.0" }
 
 # Aventus
-sp-avn-common = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-avn = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-eth-bridge-runtime-api = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-eth-bridge = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-summary = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-token-manager = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-avn-proxy = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-nft-manager = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-avn-transaction-payment = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-ethereum-events = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
-pallet-authors-manager = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.6-summary-watchtower", default-features = false }
+sp-avn-common = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-avn = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-eth-bridge-runtime-api = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-eth-bridge = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-summary = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-token-manager = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-avn-proxy = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-nft-manager = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-avn-transaction-payment = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-ethereum-events = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
+pallet-authors-manager = { git = "https://github.com/AventusProtocolFoundation/avn-parachain", tag = "v6.8.8-summary-optimistic", default-features = false }
 
 [profile.dev.package]
 blake2 = { opt-level = 3 }
