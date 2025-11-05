@@ -1,20 +1,6 @@
 name: Try Runtime
 
 on:
-  workflow_call:
-    inputs:
-      fetch-depth:
-        required: false
-        type: number
-        default: 1
-      ref:
-        required: false
-        type: string
-        default: ''
-      repository:
-        required: false
-        type: string
-        default: ''
   workflow_dispatch:
     inputs:
       chain:
@@ -24,8 +10,8 @@ on:
         type: choice
         options:
           - dev
-          - staging
-          - production
+          - testnet
+          - mainnet
 
 permissions:
   contents: read
@@ -45,10 +31,6 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-          ref: ${{ inputs.ref }}
-          repository: ${{ inputs.repository }}
 
       - name: Install Rust
         uses: actions/setup-rust@v1
@@ -96,10 +78,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-          ref: ${{ inputs.ref }}
-          repository: ${{ inputs.repository }}
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -144,30 +122,49 @@ jobs:
       - name: Assert runtime Wasm exists
         run: test -s ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
 
-      - name: Test ${{ matrix.test_type }}
-        continue-on-error: ${{ matrix.test_type != 'on-runtime-upgrade' }}
+      - name: Set chain WSS URL
+        id: set-wss-url
         run: |
+          case "${{ matrix.chain }}" in
+            "testnet")
+              echo "wss_url=wss://chain-external.testnet.truth-network.io" >> $GITHUB_OUTPUT
+              ;;
+            "mainnet")
+              echo "wss_url=wss://chain-external.truth-network.io" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "wss_url=wss://chain-external.dev.truth-network.io" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Test ${{ matrix.test_type }}
+        env:
+          RUNTIME_PATH: ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
+          WSS_URL: ${{ steps.set-wss-url.outputs.wss_url }}
+        run: |
+          echo "🔗 Testing against: $WSS_URL"
           case "${{ matrix.test_type }}" in
             "follow-chain")
-              timeout 300s try-runtime \
-                --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
-                --chain /tmp/try-runtime-data/chain-spec.json \
+              timeout 600s try-runtime \
+                --runtime "$RUNTIME_PATH" \
                 follow-chain \
-                --dev
+                live \
+                --uri "$WSS_URL"
               ;;
             "execute-block")
               try-runtime \
-                --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
-                --chain /tmp/try-runtime-data/chain-spec.json \
+                --runtime "$RUNTIME_PATH" \
                 execute-block \
-                --block-at 0
+                live \
+                --uri "$WSS_URL"
               ;;
             "on-runtime-upgrade")
               try-runtime \
-                --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
-                --chain /tmp/try-runtime-data/chain-spec.json \
+                --runtime "$RUNTIME_PATH" \
                 on-runtime-upgrade \
-                --checks all
+                --checks all \
+                live \
+                --uri "$WSS_URL"
               ;;
           esac
 
@@ -183,10 +180,6 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-          ref: ${{ inputs.ref }}
-          repository: ${{ inputs.repository }}
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -222,15 +215,34 @@ jobs:
       - name: Install standalone try-runtime-cli
         run: cargo install --git https://github.com/paritytech/try-runtime-cli --locked
 
-      - name: Test runtime operations
-        continue-on-error: true
+      - name: Set chain WSS URL for features test
+        id: set-wss-url-features
         run: |
-          ./target/release/tnf-node build-spec --chain=dev --raw > /tmp/dev-spec.json
+          CHAIN="${{ github.event.inputs.chain || 'dev' }}"
+          case "$CHAIN" in
+            "testnet")
+              echo "wss_url=wss://chain-external.testnet.truth-network.io" >> $GITHUB_OUTPUT
+              ;;
+            "mainnet")
+              echo "wss_url=wss://chain-external.truth-network.io" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "wss_url=wss://chain-external.dev.truth-network.io" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Test runtime operations
+        env:
+          RUNTIME_PATH: ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm
+          WSS_URL: ${{ steps.set-wss-url-features.outputs.wss_url }}
+        run: |
+          echo "🔗 Testing runtime operations with features against: $WSS_URL"
           try-runtime \
-            --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.compressed.wasm \
-            --chain /tmp/dev-spec.json \
+            --runtime "$RUNTIME_PATH" \
             on-runtime-upgrade \
-            --checks=all
+            --checks=all \
+            live \
+            --uri "$WSS_URL"
 
   validate-integration:
     name: Validate Integration
@@ -239,16 +251,28 @@ jobs:
     needs: [try-runtime-build, test-runtime-upgrade, test-features]
     if: always()
     steps:
-      - name: Check out
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-          ref: ${{ inputs.ref }}
-          repository: ${{ inputs.repository }}
-
       - name: Validate integration
         run: |
-          echo "Try-Runtime validation completed"
+          echo "=== Try-Runtime Validation Results ==="
           echo "Build: ${{ needs.try-runtime-build.result }}"
-          echo "Runtime upgrade: ${{ needs.test-runtime-upgrade.result }}"
-          echo "Features: ${{ needs.test-features.result }}" 
+          echo "Runtime upgrade tests: ${{ needs.test-runtime-upgrade.result }}"
+          echo "Feature tests: ${{ needs.test-features.result }}"
+          echo ""
+          
+          # Check if any job failed
+          if [ "${{ needs.try-runtime-build.result }}" != "success" ]; then
+            echo "Build job failed!"
+            exit 1
+          fi
+          
+          if [ "${{ needs.test-runtime-upgrade.result }}" != "success" ]; then
+            echo "Runtime upgrade tests failed!"
+            exit 1
+          fi
+          
+          if [ "${{ needs.test-features.result }}" != "success" ]; then
+            echo "Feature tests failed!"
+            exit 1
+          fi
+          
+          echo "All try-runtime tests passed successfully!" 
