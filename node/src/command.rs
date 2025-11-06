@@ -193,8 +193,9 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::TryRuntime) => {
             Err("The embedded try-runtime subcommand has been deprecated. Please use the standalone try-runtime-cli instead.\n\
                  Install it with: cargo install --git https://github.com/paritytech/try-runtime-cli --locked\n\
-                 Usage: try-runtime --runtime ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.wasm \\\n\
-                       --chain=dev on-runtime-upgrade live --uri ws://localhost:9944".into())
+                 Usage: try-runtime --runtime <PATH_TO_WASM_RUNTIME> \\\n\
+                       --chain=dev on-runtime-upgrade live --uri ws://localhost:9944\n\
+                 (Replace <PATH_TO_WASM_RUNTIME> with the path to your compiled runtime, e.g., ./target/release/wbuild/tnf-node-runtime/tnf_node_runtime.compact.wasm)".into())
         },
         Some(Subcommand::ChainInfo(cmd)) => {
             let runner = cli.create_runner(cmd)?;
