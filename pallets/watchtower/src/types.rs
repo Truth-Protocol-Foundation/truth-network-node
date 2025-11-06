@@ -145,6 +145,7 @@ pub struct Vote {
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq)]
-pub enum AdminConfig<BlockNumber> {
+pub enum AdminConfig<BlockNumber, AccountId> {
     MinVotingPeriod(BlockNumber),
+    AdminAccount(Option<AccountId>),
 }

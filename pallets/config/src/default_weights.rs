@@ -4,7 +4,7 @@
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
 //! DATE: 2025-05-15, STEPS: `50`, REPEAT: `20`, LOW RANGE: `[]`, HIGH RANGE: `[]`
 //! WORST CASE MAP SIZE: `1000000`
-//! HOSTNAME: `nahu-Precision-7560`, CPU: `11th Gen Intel(R) Core(TM) i7-11850H @ 2.50GHz`
+//! HOSTNAME: `ip-172-31-16-102`, CPU: `Intel(R) Xeon(R) Platinum 8275CL CPU @ 3.00GHz`
 //! EXECUTION: ``, WASM-EXECUTION: `Compiled`, CHAIN: `Some("dev")`, DB CACHE: `1024`
 
 // Executed Command:

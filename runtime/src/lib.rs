@@ -136,11 +136,21 @@ impl EnsureOrigin<RuntimeOrigin> for EnsureConfigAdmin {
 pub struct EnsureExternalProposerOrRoot;
 impl EnsureOrigin<RuntimeOrigin> for EnsureExternalProposerOrRoot {
     type Success = Option<AccountId>;
-
+    // If the config admin is not set, assume we can allow anyone to submit an external proposal
     fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+        if EnsureRoot::<AccountId>::try_origin(o.clone()).is_ok() {
+            return Ok(None);
+        }
+
         match EnsureSigned::<AccountId>::try_origin(o) {
-            Ok(who) => Ok(Some(who)),
-            Err(o) => EnsureRoot::<AccountId>::try_origin(o).map(|_| None),
+            Ok(who) => {
+                match Watchtower::proposal_admin() {
+                    Ok(admin) if who == admin => Ok(Some(who)),
+                    Ok(_admin) => Err(RuntimeOrigin::signed(who)), // non-admin signer → reject
+                    Err(_) => Ok(Some(who)),                       // no admin → allow anyone
+                }
+            },
+            Err(o) => Err(o),
         }
     }
 
@@ -308,7 +318,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 33,
+    spec_version: 36,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -527,7 +537,7 @@ impl pallet_avn::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type AuthorityId = AvnId;
     type EthereumPublicKeyChecker = AuthorsManager;
-    type NewSessionHandler = ();
+    type NewSessionHandler = AuthorsManager;
     type DisabledValidatorChecker = ();
     type WeightInfo = pallet_avn::default_weights::SubstrateWeight<Runtime>;
 }
@@ -832,6 +842,7 @@ parameter_types! {
     pub const EthAutoSubmitSummaries: bool = true;
     pub const AvnAutoSubmitSummaries: bool = false;
     pub const AvnInstanceId: u8 = 2u8;
+    pub const ExternalValidationEnabled: bool = true;
 }
 
 pub type EthSummary = pallet_summary::Instance1;
@@ -845,6 +856,8 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
+    type ExternalValidationEnabled = ExternalValidationEnabled;
+    type ExternalValidator = Watchtower;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -858,6 +871,8 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type BridgeInterface = EthBridge;
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
+    type ExternalValidationEnabled = ExternalValidationEnabled;
+    type ExternalValidator = Watchtower;
 }
 
 impl pallet_authors_manager::Config for Runtime {
@@ -904,7 +919,11 @@ impl pallet_watchtower::Config for Runtime {
     type Watchtowers = RuntimeNodeManager;
     type SignerId = NodeManagerKeyId;
     type ExternalProposerOrigin = EnsureExternalProposerOrRoot;
-    type WatchtowerHooks = SummaryWatchtower;
+    type WatchtowerHooks = (
+        SummaryWatchtower,
+        pallet_summary::Pallet<Runtime, EthSummary>,
+        pallet_summary::Pallet<Runtime, AvnAnchorSummary>,
+    );
     type MaxTitleLen = ConstU32<512>;
     type MaxInlineLen = ConstU32<8192>;
     type MaxUriLen = ConstU32<2040>;

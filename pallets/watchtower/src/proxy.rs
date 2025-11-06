@@ -60,6 +60,16 @@ impl<T: Config> Pallet<T> {
 
                 Some((proof, encoded_data))
             },
+            Call::signed_vote { ref proof, ref proposal_id, ref in_favor, ref block_number } => {
+                let encoded_data = Self::encode_signed_submit_vote_params(
+                    &proof.relayer,
+                    proposal_id,
+                    in_favor,
+                    block_number,
+                );
+
+                Some((proof, encoded_data))
+            },
             _ => None,
         }
     }
