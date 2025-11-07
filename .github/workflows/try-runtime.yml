@@ -6,10 +6,9 @@ on:
       chain:
         description: 'Chain to run try-runtime against'
         required: false
-        default: 'dev'
+        default: 'testnet'
         type: choice
         options:
-          - dev
           - testnet
           - mainnet
 
@@ -87,15 +86,13 @@ jobs:
       - name: Set chain WSS URL
         id: set-wss-url
         run: |
-          case "${{ github.event.inputs.chain || 'dev' }}" in
+          case "${{ github.event.inputs.chain || 'testnet' }}" in
             "testnet")
               echo "wss_url=wss://chain-external.testnet.truth-network.io:443" >> $GITHUB_OUTPUT
               ;;
             "mainnet")
               echo "wss_url=wss://chain-external.truth-network.io:443" >> $GITHUB_OUTPUT
-              ;;
             *)
-              echo "wss_url=wss://chain-external.dev.truth-network.io:443" >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -153,7 +150,7 @@ jobs:
       - name: Set chain WSS URL for features test
         id: set-wss-url-features
         run: |
-          CHAIN="${{ github.event.inputs.chain || 'dev' }}"
+          CHAIN="${{ github.event.inputs.chain || 'testnet' }}"
           case "$CHAIN" in
             "testnet")
               echo "wss_url=wss://chain-internal.testnet.truth-network.io:443" >> $GITHUB_OUTPUT
@@ -162,8 +159,6 @@ jobs:
               echo "wss_url=wss://chain-internal.truth-network.io:443" >> $GITHUB_OUTPUT
               ;;
             *)
-              echo "wss_url=wss://chain-internal.dev.truth-network.io:443" >> $GITHUB_OUTPUT
-              ;;
           esac
 
       - name: Run try-runtime with features
