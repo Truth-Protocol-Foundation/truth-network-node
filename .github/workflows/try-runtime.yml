@@ -87,12 +87,11 @@ jobs:
         id: set-wss-url
         run: |
           case "${{ github.event.inputs.chain || 'testnet' }}" in
-            "testnet")
-              echo "wss_url=wss://chain-external.testnet.truth-network.io:443" >> $GITHUB_OUTPUT
-              ;;
             "mainnet")
               echo "wss_url=wss://chain-external.truth-network.io:443" >> $GITHUB_OUTPUT
+              ;;
             *)
+              echo "wss_url=wss://chain-external.testnet.truth-network.io:443" >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -152,13 +151,12 @@ jobs:
         run: |
           CHAIN="${{ github.event.inputs.chain || 'testnet' }}"
           case "$CHAIN" in
-            "testnet")
-              echo "wss_url=wss://chain-internal.testnet.truth-network.io:443" >> $GITHUB_OUTPUT
-              ;;
             "mainnet")
-              echo "wss_url=wss://chain-internal.truth-network.io:443" >> $GITHUB_OUTPUT
+              echo "wss_url=wss://chain-external.truth-network.io:443" >> $GITHUB_OUTPUT
               ;;
             *)
+              echo "wss_url=wss://chain-external.testnet.truth-network.io:443" >> $GITHUB_OUTPUT
+              ;;
           esac
 
       - name: Run try-runtime with features
