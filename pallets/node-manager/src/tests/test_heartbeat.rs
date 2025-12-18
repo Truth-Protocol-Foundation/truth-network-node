@@ -566,4 +566,95 @@ mod fails_when {
             );
         });
     }
+
+    #[test]
+    fn unsigned_calls_are_rejected_early() {
+        let (mut ext, _ool_state, _offchain_state) = ExtBuilder::build_default()
+            .with_genesis_config()
+            .for_offchain_worker()
+            .as_externality_with_state();
+        ext.execute_with(|| {
+            let mut context = Context::default();
+
+            let key_id = 987;
+            context.signing_key = UintAuthorityId(key_id);
+            register_node(&context);
+
+            let bad_reward_period = 90u64;
+            let bad_heartbeat_count = 99u64;
+
+            // Bad reward period will cause early rejection
+            let call = crate::Call::offchain_submit_heartbeat {
+                node: context.node_id,
+                reward_period_index: bad_reward_period,
+                heartbeat_count: 0u64,
+                signature: context
+                    .signing_key
+                    .sign(&(HEARTBEAT_CONTEXT, 0u64, 0u64).encode())
+                    .expect("Error signing"),
+            };
+
+            assert_noop!(
+                <NodeManager as ValidateUnsigned>::validate_unsigned(
+                    TransactionSource::Local,
+                    &call
+                ),
+                InvalidTransaction::Custom(ERROR_CODE_INVALID_HEARTBEAT)
+            );
+
+            // Bad heartbeat count will cause early rejection
+            let call = crate::Call::offchain_submit_heartbeat {
+                node: context.node_id,
+                reward_period_index: 0u64,
+                heartbeat_count: bad_heartbeat_count,
+                signature: context
+                    .signing_key
+                    .sign(&(HEARTBEAT_CONTEXT, 0u64, 0u64).encode())
+                    .expect("Error signing"),
+            };
+
+            assert_noop!(
+                <NodeManager as ValidateUnsigned>::validate_unsigned(
+                    TransactionSource::Local,
+                    &call
+                ),
+                InvalidTransaction::Custom(ERROR_CODE_INVALID_HEARTBEAT)
+            );
+
+            // Bad signature will cause early rejection
+            let call = crate::Call::offchain_submit_heartbeat {
+                node: context.node_id,
+                reward_period_index: 0u64,
+                heartbeat_count: 0u64,
+                signature: context
+                    .signing_key
+                    .sign(&("DummyProof").encode())
+                    .expect("Error signing"),
+            };
+
+            assert_noop!(
+                <NodeManager as ValidateUnsigned>::validate_unsigned(
+                    TransactionSource::Local,
+                    &call
+                ),
+                InvalidTransaction::Custom(ERROR_CODE_INVALID_HEARTBEAT_SIGNATURE)
+            );
+
+            // Good params works
+            let call = crate::Call::offchain_submit_heartbeat {
+                node: context.node_id,
+                reward_period_index: 0u64,
+                heartbeat_count: 0u64,
+                signature: context
+                    .signing_key
+                    .sign(&(HEARTBEAT_CONTEXT, 0u64, 0u64).encode())
+                    .expect("Error signing"),
+            };
+
+            assert_ok!(<NodeManager as ValidateUnsigned>::validate_unsigned(
+                TransactionSource::Local,
+                &call
+            ));
+        });
+    }
 }
