@@ -86,6 +86,8 @@ pub const ERROR_CODE_INVALID_HEARTBEAT_SIGNATURE: u8 = 2;
 pub const ERROR_CODE_INVALID_NODE: u8 = 3;
 /// Rewards are disabled
 pub const ERROR_CODE_REWARD_DISABLED: u8 = 4;
+/// Invalid heartbeat submission
+pub const ERROR_CODE_INVALID_HEARTBEAT: u8 = 5;
 
 pub type AVN<T> = avn::Pallet<T>;
 pub type Author<T> =
@@ -613,30 +615,9 @@ pub mod pallet {
         ) -> DispatchResult {
             ensure_none(origin)?;
 
-            ensure!(<NodeRegistry<T>>::contains_key(&node), Error::<T>::NodeNotRegistered);
-            let reward_period = RewardPeriod::<T>::get();
-            let current_reward_period = reward_period.current;
-            let maybe_uptime_info = <NodeUptime<T>>::get(reward_period_index, &node);
+            Self::validate_heartbeats(node.clone(), reward_period_index, heartbeat_count)?;
 
-            ensure!(current_reward_period == reward_period_index, Error::<T>::InvalidHeartbeat);
-
-            if let Some(uptime_info) = maybe_uptime_info {
-                ensure!(
-                    uptime_info.count < reward_period.uptime_threshold as u64,
-                    Error::<T>::HeartbeatThresholdReached
-                );
-
-                let expected_submission = uptime_info.last_reported +
-                    BlockNumberFor::<T>::from(HeartbeatPeriod::<T>::get());
-                ensure!(
-                    frame_system::Pallet::<T>::block_number() > expected_submission,
-                    Error::<T>::DuplicateHeartbeat
-                );
-                ensure!(heartbeat_count == uptime_info.count, Error::<T>::InvalidHeartbeat);
-            } else {
-                ensure!(heartbeat_count == 0, Error::<T>::InvalidHeartbeat);
-            }
-
+            let current_reward_period = RewardPeriod::<T>::get().current;
             <NodeUptime<T>>::mutate(&current_reward_period, &node, |maybe_info| {
                 if let Some(info) = maybe_info.as_mut() {
                     info.count = info.count.saturating_add(1);
@@ -826,6 +807,7 @@ pub mod pallet {
                 return InvalidTransaction::Custom(ERROR_CODE_REWARD_DISABLED).into();
             }
 
+            let reduce_priority: TransactionPriority = TransactionPriority::from(1000u64);
             match call {
                 Call::offchain_pay_nodes { reward_period_index, author, signature } => {
                     // Discard unsinged tx's not coming from the local OCW.
@@ -846,7 +828,8 @@ pub mod pallet {
                     ) {
                         ValidTransaction::with_tag_prefix("NodeManagerPayout")
                             .and_provides((call, reward_period_index))
-                            .priority(TransactionPriority::max_value())
+                            .priority(TransactionPriority::max_value() - reduce_priority)
+                            .longevity(64_u64)
                             // We don't propagate this transaction,
                             // it ensures only block authors can pay rewards
                             .propagate(false)
@@ -864,21 +847,33 @@ pub mod pallet {
                     let node_info = NodeRegistry::<T>::get(&node);
                     match node_info {
                         Some(info) => {
-                            if Self::offchain_signature_is_valid(
+                            if Self::validate_heartbeats(
+                                node.clone(),
+                                *reward_period_index,
+                                *heartbeat_count,
+                            )
+                            .is_err()
+                            {
+                                return InvalidTransaction::Custom(ERROR_CODE_INVALID_HEARTBEAT)
+                                    .into();
+                            }
+
+                            if !Self::offchain_signature_is_valid(
                                 &(HEARTBEAT_CONTEXT, heartbeat_count, reward_period_index),
                                 &info.signing_key,
                                 signature,
                             ) {
-                                return ValidTransaction::with_tag_prefix("NodeManagerHeartbeat")
-                                    .and_provides(call)
-                                    .priority(TransactionPriority::max_value())
-                                    .build();
-                            } else {
                                 return InvalidTransaction::Custom(
                                     ERROR_CODE_INVALID_HEARTBEAT_SIGNATURE,
                                 )
                                 .into();
                             }
+
+                            return ValidTransaction::with_tag_prefix("NodeManagerHeartbeat")
+                                .and_provides(call)
+                                .priority(TransactionPriority::max_value() - reduce_priority)
+                                .longevity(64_u64)
+                                .build();
                         },
                         _ => InvalidTransaction::Custom(ERROR_CODE_INVALID_NODE).into(),
                     }
@@ -889,6 +884,38 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        fn validate_heartbeats(
+            node: NodeId<T>,
+            reward_period_index: RewardPeriodIndex,
+            heartbeat_count: u64,
+        ) -> DispatchResult {
+            ensure!(<NodeRegistry<T>>::contains_key(&node), Error::<T>::NodeNotRegistered);
+            let reward_period = RewardPeriod::<T>::get();
+            let current_reward_period = reward_period.current;
+            let maybe_uptime_info = <NodeUptime<T>>::get(reward_period_index, &node);
+
+            ensure!(current_reward_period == reward_period_index, Error::<T>::InvalidHeartbeat);
+
+            if let Some(uptime_info) = maybe_uptime_info {
+                ensure!(
+                    uptime_info.count < reward_period.uptime_threshold as u64,
+                    Error::<T>::HeartbeatThresholdReached
+                );
+
+                let expected_submission = uptime_info.last_reported +
+                    BlockNumberFor::<T>::from(HeartbeatPeriod::<T>::get());
+                ensure!(
+                    frame_system::Pallet::<T>::block_number() > expected_submission,
+                    Error::<T>::DuplicateHeartbeat
+                );
+                ensure!(heartbeat_count == uptime_info.count, Error::<T>::InvalidHeartbeat);
+            } else {
+                ensure!(heartbeat_count == 0, Error::<T>::InvalidHeartbeat);
+            }
+
+            Ok(())
+        }
+
         fn do_deregister_nodes(
             owner: &T::AccountId,
             nodes: &BoundedVec<NodeId<T>, MaxNodesToDeregister>,
