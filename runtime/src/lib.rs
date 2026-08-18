@@ -875,12 +875,17 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type ExternalValidator = Watchtower;
 }
 
+parameter_types! {
+    pub const MinimumAuthorsCount: u32 = 3;
+}
+
 impl pallet_authors_manager::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type AccountToBytesConvert = Avn;
     type ValidatorRegistrationNotifier = (); //AvnOffenceHandler;
     type WeightInfo = pallet_authors_manager::default_weights::SubstrateWeight<Runtime>;
     type BridgeInterface = EthBridge;
+    type MinimumAuthorsCount = MinimumAuthorsCount;
 }
 
 parameter_types! {
