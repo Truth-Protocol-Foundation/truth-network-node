@@ -318,7 +318,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
     //   the compatible custom types.
-    spec_version: 37,
+    spec_version: 38,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -875,12 +875,17 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type ExternalValidator = Watchtower;
 }
 
+parameter_types! {
+    pub const MinimumAuthorsCount: u32 = 3;
+}
+
 impl pallet_authors_manager::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type AccountToBytesConvert = Avn;
     type ValidatorRegistrationNotifier = (); //AvnOffenceHandler;
     type WeightInfo = pallet_authors_manager::default_weights::SubstrateWeight<Runtime>;
     type BridgeInterface = EthBridge;
+    type MinimumAuthorsCount = MinimumAuthorsCount;
 }
 
 parameter_types! {
