@@ -400,10 +400,14 @@ benchmarks! {
         for node in &nodes_to_deregister {
             assert!(!<OwnedNodes<T>>::contains_key(owner.clone(), node));
             assert!(!<NodeRegistry<T>>::contains_key(node));
+            assert!(!<NodeUptime<T>>::contains_key(reward_period_index, node));
         }
-        assert_last_event::<T>(Event::NodeDeregistered{
+        // Worst case: every node has uptime to discard
+        assert_eq!(<TotalUptime<T>>::get(reward_period_index), 0u64);
+        assert_last_event::<T>(Event::NodeUptimeDiscarded{
+            reward_period_index,
             owner,
-            node: nodes_to_deregister[nodes_to_deregister.len() - 1].clone()}.into());
+            heartbeats: nodes_to_deregister.len() as u64}.into());
     }
 
     signed_deregister_nodes {
@@ -445,10 +449,14 @@ benchmarks! {
         for node in &nodes_to_deregister {
             assert!(!<OwnedNodes<T>>::contains_key(owner.clone(), node));
             assert!(!<NodeRegistry<T>>::contains_key(node));
+            assert!(!<NodeUptime<T>>::contains_key(reward_period_index, node));
         }
-        assert_last_event::<T>(Event::NodeDeregistered{
+        // Worst case: every node has uptime to discard
+        assert_eq!(<TotalUptime<T>>::get(reward_period_index), 0u64);
+        assert_last_event::<T>(Event::NodeUptimeDiscarded{
+            reward_period_index,
             owner,
-            node: nodes_to_deregister[nodes_to_deregister.len() - 1].clone()}.into());
+            heartbeats: nodes_to_deregister.len() as u64}.into());
     }
 }
 
