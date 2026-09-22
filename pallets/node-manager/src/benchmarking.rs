@@ -70,10 +70,27 @@ fn create_heartbeat<T: Config>(node: NodeId<T>, reward_period_index: RewardPerio
     <TotalUptime<T>>::insert(reward_period_index, total_uptime + 1u64);
 }
 
+fn reward_amount<T: Config>() -> BalanceOf<T> {
+    T::MaxRewardPerPeriod::get()
+}
+
 fn fund_reward_pot<T: Config>() {
-    let reward_amount = RewardAmount::<T>::get() * 2000u32.into();
+    let pot_balance = reward_amount::<T>().saturating_mul(2000u32.into());
     let reward_pot_address = Pallet::<T>::compute_reward_account_id();
-    T::Currency::make_free_balance_be(&reward_pot_address, reward_amount);
+    T::Currency::make_free_balance_be(&reward_pot_address, pot_balance);
+}
+
+fn advance_time_past_update_window<T: Config + pallet_timestamp::Config>() {
+    let window_ms: u32 = ((REWARD_UPDATE_WINDOW_SECS + 1) * 1_000) as u32;
+    pallet_timestamp::Pallet::<T>::set_timestamp(
+        pallet_timestamp::Pallet::<T>::get() + window_ms.into(),
+    );
+}
+
+/// Fund an ended period and close its update window
+fn fund_ended_period<T: Config + pallet_timestamp::Config>(period: RewardPeriodIndex) {
+    Pallet::<T>::do_set_reward_amount(period, reward_amount::<T>()).expect("Period is funded");
+    advance_time_past_update_window::<T>();
 }
 
 fn create_author<T: Config>() -> Author<T> {
@@ -122,6 +139,8 @@ fn update_min_threshold<T: Config>(threshold: Perbill) {
 }
 
 benchmarks! {
+    where_clause { where T: pallet_timestamp::Config }
+
     register_node {
         let registrar: T::AccountId = account("registrar", 0, 0);
         set_registrar::<T>(registrar.clone());
@@ -177,16 +196,6 @@ benchmarks! {
         assert!(<HeartbeatPeriod<T>>::get() == new_heartbeat);
     }
 
-    set_admin_config_reward_amount {
-        let current_amount = <RewardAmount<T>>::get();
-        let new_amount = current_amount + 1u32.into();
-        let config = AdminConfig::RewardAmount(new_amount);
-
-    }: set_admin_config(RawOrigin::Root, config.clone())
-    verify {
-        assert!(<RewardAmount<T>>::get() == new_amount);
-    }
-
     set_admin_config_reward_enabled {
         let current_flag = <RewardEnabled<T>>::get();
         let new_flag = !current_flag;
@@ -219,8 +228,7 @@ benchmarks! {
         assert_last_event::<T>(Event::NewRewardPeriodStarted {
             reward_period_index: new_reward_period_index,
             reward_period_length: reward_period.length,
-            uptime_threshold: new_reward_period.uptime_threshold,
-            previous_period_reward: RewardAmount::<T>::get()}.into());
+            uptime_threshold: new_reward_period.uptime_threshold}.into());
     }
 
     on_initialise_no_reward_period {
@@ -283,6 +291,7 @@ benchmarks! {
         let current_block_number = frame_system::Pallet::<T>::block_number();
         <frame_system::Pallet<T>>::set_block_number(current_block_number + reward_period.length.into());
         Pallet::<T>::on_initialize(current_block_number);
+        fund_ended_period::<T>(reward_period_index);
         let signature = author.key.sign(
             &(PAYOUT_REWARD_CONTEXT, reward_period_index).encode()
         ).expect("Error signing");
@@ -291,7 +300,7 @@ benchmarks! {
         let max_batch_size = MaxBatchSize::<T>::get();
         let nodes_to_pay = max_batch_size.min(registered_nodes).saturated_into::<BalanceOf<T>>();
         let expected_balance = nodes_to_pay.
-                bmul_bdiv(RewardAmount::<T>::get(), registered_nodes.saturated_into::<BalanceOf<T>>())
+                bmul_bdiv(reward_amount::<T>(), registered_nodes.saturated_into::<BalanceOf<T>>())
                 .unwrap();
         assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1_000u32.saturated_into::<BalanceOf<T>>());
     }
@@ -333,6 +342,7 @@ benchmarks! {
         let current_block_number = frame_system::Pallet::<T>::block_number();
         <frame_system::Pallet<T>>::set_block_number(current_block_number + reward_period.length.into());
         Pallet::<T>::on_initialize(current_block_number);
+        fund_ended_period::<T>(reward_period_index);
         let signature = author.key.sign(
             &(PAYOUT_REWARD_CONTEXT, reward_period_index).encode()
         ).expect("Error signing");
@@ -340,7 +350,7 @@ benchmarks! {
     verify {
         let max_batch_size = MaxBatchSize::<T>::get();
         let expected_balance = max_batch_size.min(n).saturated_into::<BalanceOf<T>>().
-            bmul_bdiv(RewardAmount::<T>::get(), n.saturated_into::<BalanceOf<T>>())
+            bmul_bdiv(reward_amount::<T>(), n.saturated_into::<BalanceOf<T>>())
             .unwrap();
         assert_approx!(T::Currency::free_balance(&owner.clone()), expected_balance, 1_000u32.saturated_into::<BalanceOf<T>>());
     }
@@ -372,6 +382,26 @@ benchmarks! {
         assert!(<OwnedNodes<T>>::contains_key(owner.clone(), node.clone()));
         assert!(<NodeRegistry<T>>::contains_key(node.clone()));
         assert_last_event::<T>(Event::NodeRegistered{owner, node}.into());
+    }
+
+    set_reward_amount {
+        fund_reward_pot::<T>();
+        enable_rewards::<T>();
+        let reward_period = <RewardPeriod<T>>::get();
+        let period_index = reward_period.current;
+        let block_number: BlockNumberFor<T> =
+            reward_period.first + BlockNumberFor::<T>::from(reward_period.length) + 1u32.into();
+        Pallet::<T>::on_initialize(block_number);
+        // Worst case: replace an existing amount
+        Pallet::<T>::do_set_reward_amount(period_index, reward_amount::<T>() / 2u32.into())?;
+        let new_amount = reward_amount::<T>();
+    }: set_reward_amount(RawOrigin::Root, period_index, new_amount)
+    verify {
+        let pot_info = <RewardPot<T>>::get(period_index).expect("Pot exists");
+        assert!(pot_info.funded);
+        assert!(pot_info.total_reward == new_amount);
+        assert!(<OutstandingRewardToPay<T>>::get() == new_amount);
+        assert_last_event::<T>(Event::RewardAmountSet { period: period_index, amount: new_amount }.into());
     }
 
     deregister_nodes {
