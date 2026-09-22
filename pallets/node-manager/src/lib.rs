@@ -300,6 +300,12 @@ pub mod pallet {
         MinUptimeThresholdSet { threshold: Perbill },
         /// A node has been deregistered
         NodeDeregistered { owner: T::AccountId, node: NodeId<T> },
+        /// Current period uptime of the owner's deregistered nodes was discarded
+        NodeUptimeDiscarded {
+            reward_period_index: RewardPeriodIndex,
+            owner: T::AccountId,
+            heartbeats: u64,
+        },
     }
 
     // Pallet Errors
@@ -910,10 +916,16 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Deregister `nodes`, discarding their uptime in the current reward period. Ended
+        /// periods are left untouched: they may be mid-payout and `TotalUptime` is the payout
+        /// denominator.
         fn do_deregister_nodes(
             owner: &T::AccountId,
             nodes: &BoundedVec<NodeId<T>, MaxNodesToDeregister>,
         ) -> DispatchResult {
+            let current_period = RewardPeriod::<T>::get().current;
+            let mut discarded_heartbeats: u64 = 0;
+
             for node in nodes {
                 ensure!(
                     <OwnedNodes<T>>::contains_key(owner, node),
@@ -924,11 +936,30 @@ pub mod pallet {
                 <OwnedNodes<T>>::remove(owner, node);
                 <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_sub(1));
 
+                // The remaining nodes split the whole pot, and a re-registered node starts at 0
+                if let Some(uptime) = <NodeUptime<T>>::take(current_period, node) {
+                    discarded_heartbeats = discarded_heartbeats.saturating_add(uptime.count);
+                }
+
                 Self::deposit_event(Event::NodeDeregistered {
                     owner: owner.clone(),
                     node: node.clone(),
                 });
             }
+
+            // A single `TotalUptime` update for the whole batch
+            if discarded_heartbeats > 0 {
+                <TotalUptime<T>>::mutate(current_period, |total| {
+                    *total = total.saturating_sub(discarded_heartbeats);
+                });
+
+                Self::deposit_event(Event::NodeUptimeDiscarded {
+                    reward_period_index: current_period,
+                    owner: owner.clone(),
+                    heartbeats: discarded_heartbeats,
+                });
+            }
+
             Ok(())
         }
 
