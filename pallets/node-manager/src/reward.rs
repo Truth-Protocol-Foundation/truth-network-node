@@ -1,6 +1,5 @@
 use crate::*;
-use prediction_market_primitives::math::fixed::FixedMulDiv;
-use sp_runtime::SaturatedConversion;
+use sp_runtime::{ArithmeticError, Perquintill, SaturatedConversion};
 impl<T: Config> Pallet<T> {
     // Nodes should not be able to submit over the min uptime required.
     // but we still check it here to be sure.
@@ -20,14 +19,19 @@ impl<T: Config> Pallet<T> {
         }
     }
 
+    /// The node's share of `total_reward`, rounded down
     pub fn calculate_reward(
         uptime: u64,
         total_uptime: &u64,
         total_reward: &BalanceOf<T>,
     ) -> Result<BalanceOf<T>, DispatchError> {
-        let uptime_balance: BalanceOf<T> = uptime.saturated_into::<BalanceOf<T>>();
-        let total_uptime_balance: BalanceOf<T> = (*total_uptime).saturated_into::<BalanceOf<T>>();
-        total_reward.bmul_bdiv(uptime_balance, total_uptime_balance)
+        if total_uptime.is_zero() {
+            return Err(DispatchError::Arithmetic(ArithmeticError::DivisionByZero));
+        }
+
+        let ratio = Perquintill::from_rational(uptime, *total_uptime);
+        let total_reward_u128: u128 = (*total_reward).saturated_into();
+        Ok(ratio.mul_floor(total_reward_u128).saturated_into())
     }
 
     pub fn pay_reward(
@@ -84,6 +88,13 @@ impl<T: Config> Pallet<T> {
     }
 
     pub fn complete_reward_payout(period_index: RewardPeriodIndex) {
+        // Anything left unpaid stays in the pot for later periods
+        if let Some(reward_pot) = RewardPot::<T>::get(period_index) {
+            OutstandingRewardToPay::<T>::mutate(|outstanding| {
+                *outstanding = outstanding.saturating_sub(reward_pot.total_reward);
+            });
+        }
+
         // We finished paying all nodes for this period
         OldestUnpaidRewardPeriodIndex::<T>::put(period_index.saturating_add(1));
         LastPaidPointer::<T>::kill();
@@ -127,5 +138,56 @@ impl<T: Config> Pallet<T> {
         // Start iteration just after `(oldest_period, last_paid_pointer.node)`.
         let final_key = last_paid_pointer.get_final_key::<T>();
         Ok(NodeUptime::<T>::iter_prefix_from(oldest_period, final_key))
+    }
+
+    /// Get the current time in seconds
+    pub fn time_now_sec() -> Duration {
+        T::TimeProvider::now().as_secs()
+    }
+
+    /// `period`'s reward pot, if it is funded and its update window has closed
+    pub fn get_payable_reward_pot(
+        period: RewardPeriodIndex,
+    ) -> Result<RewardPotInfo<BalanceOf<T>>, Error<T>> {
+        let reward_pot = RewardPot::<T>::get(period).ok_or(Error::<T>::RewardPotNotFound)?;
+        ensure!(reward_pot.funded, Error::<T>::RewardPeriodNotFunded);
+        ensure!(
+            !reward_pot.update_window_open(Self::time_now_sec()),
+            Error::<T>::RewardUpdateWindowOpen
+        );
+        Ok(reward_pot)
+    }
+
+    /// Set `amount` (which may be zero) as the ended `period`'s reward total.
+    ///
+    /// Allowed while the period is unfunded, or funded and still inside its update window.
+    /// The pot must already hold `amount` on top of `OutstandingRewardToPay`. No currency
+    /// moves here.
+    pub(crate) fn do_set_reward_amount(
+        period: RewardPeriodIndex,
+        amount: BalanceOf<T>,
+    ) -> DispatchResult {
+        ensure!(amount <= T::MaxRewardPerPeriod::get(), Error::<T>::RewardExceedsMax);
+
+        let mut pot_info = RewardPot::<T>::get(period).ok_or(Error::<T>::RewardPotNotFound)?;
+        ensure!(
+            pot_info.can_update_amount(Self::time_now_sec()),
+            Error::<T>::RewardUpdateWindowClosed
+        );
+
+        let outstanding_without_period =
+            OutstandingRewardToPay::<T>::get().saturating_sub(pot_info.total_reward);
+        ensure!(
+            Self::reward_pot_balance() >= outstanding_without_period.saturating_add(amount),
+            Error::<T>::InsufficientPotBalance
+        );
+
+        pot_info.total_reward = amount;
+        pot_info.funded = true;
+        RewardPot::<T>::insert(period, pot_info);
+        OutstandingRewardToPay::<T>::put(outstanding_without_period.saturating_add(amount));
+
+        Self::deposit_event(Event::RewardAmountSet { period, amount });
+        Ok(())
     }
 }

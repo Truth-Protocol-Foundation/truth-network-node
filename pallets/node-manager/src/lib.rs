@@ -4,7 +4,7 @@ use frame_support::{
     dispatch::DispatchResult,
     pallet_prelude::*,
     storage::{generator::StorageDoubleMap as StorageDoubleMapTrait, PrefixIterator},
-    traits::{Currency, ExistenceRequirement, IsSubType, StorageVersion},
+    traits::{Currency, ExistenceRequirement, IsSubType, StorageVersion, UnixTime},
     PalletId,
 };
 use frame_system::{
@@ -27,6 +27,7 @@ use sp_runtime::{
     DispatchError, Perbill, RuntimeDebug, Saturating,
 };
 
+pub mod migration;
 pub mod offchain;
 pub mod reward;
 pub mod types;
@@ -47,6 +48,9 @@ mod test_admin;
 #[path = "tests/test_heartbeat.rs"]
 mod test_heartbeat;
 #[cfg(test)]
+#[path = "tests/test_migration.rs"]
+mod test_migration;
+#[cfg(test)]
 #[path = "tests/test_node_deregistration.rs"]
 mod test_node_deregistration;
 #[cfg(test)]
@@ -55,6 +59,9 @@ mod test_node_registration;
 #[cfg(test)]
 #[path = "tests/test_reward_payment.rs"]
 mod test_reward_payment;
+#[cfg(test)]
+#[path = "tests/test_set_reward_amount.rs"]
+mod test_set_reward_amount;
 
 // Definition of the crypto to use for signing
 pub mod sr25519 {
@@ -71,7 +78,7 @@ use sp_std::prelude::*;
 
 const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
 pub const SIGNED_DEREGISTER_NODE_CONTEXT: &[u8] = b"deregister_node";
 pub const MAX_NODES_TO_DEREGISTER: u32 = 64;
@@ -151,11 +158,11 @@ pub mod pallet {
     #[pallet::storage]
     pub type HeartbeatPeriod<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-    /// The total amount to pay out for each period
+    /// Total rewards still to be paid
     #[pallet::storage]
-    pub type RewardAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+    pub type OutstandingRewardToPay<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
-    /// Map of reward pot amounts for each reward period.
+    /// Reward amount and state of each ended period. Removed once the period is paid.
     #[pallet::storage]
     pub(super) type RewardPot<T: Config> = StorageMap<
         _,
@@ -215,7 +222,6 @@ pub mod pallet {
         pub max_batch_size: u32,
         pub reward_period: u32,
         pub heartbeat_period: u32,
-        pub reward_amount: BalanceOf<T>,
     }
 
     impl<T: Config> Default for GenesisConfig<T> {
@@ -225,7 +231,6 @@ pub mod pallet {
                 max_batch_size: 0,
                 reward_period: 0,
                 heartbeat_period: 0,
-                reward_amount: Default::default(),
             }
         }
     }
@@ -236,7 +241,6 @@ pub mod pallet {
             assert!(self.reward_period > self.heartbeat_period);
             let default_threshold = Pallet::<T>::get_default_threshold();
 
-            RewardAmount::<T>::set(self.reward_amount);
             MaxBatchSize::<T>::set(self.max_batch_size);
             HeartbeatPeriod::<T>::set(self.heartbeat_period);
             <MinUptimeThreshold<T>>::set(Some(default_threshold));
@@ -266,7 +270,6 @@ pub mod pallet {
             reward_period_index: RewardPeriodIndex,
             reward_period_length: u32,
             uptime_threshold: u32,
-            previous_period_reward: BalanceOf<T>,
         },
         /// We finished paying all nodes for a particular period.
         RewardPayoutCompleted { reward_period_index: RewardPeriodIndex },
@@ -292,8 +295,8 @@ pub mod pallet {
         HeartbeatPeriodSet { new_heartbeat_period: u32 },
         /// A new heartbeat has been received
         HeartbeatReceived { reward_period_index: RewardPeriodIndex, node: NodeId<T> },
-        /// A new reward amount is set
-        RewardAmountSet { new_amount: BalanceOf<T> },
+        /// `period`'s reward amount set or updated
+        RewardAmountSet { period: RewardPeriodIndex, amount: BalanceOf<T> },
         /// Reward payment has been toggled
         RewardToggled { enabled: bool },
         /// A new minimum uptime threshold has been set
@@ -349,7 +352,7 @@ pub mod pallet {
         NodeNotRegistered,
         /// Failed to aquire a lock on the Offchain db
         FailedToAcquireOcwDbLock,
-        /// The reward amount is 0
+        /// Unused. Kept to preserve error indices
         RewardAmountZero,
         /// The sender is not the signer
         SenderIsNotSigner,
@@ -363,6 +366,18 @@ pub mod pallet {
         UptimeThresholdZero,
         /// The specified node is not owned by the owner
         NodeNotOwnedByOwner,
+        /// No reward pot entry for the period (not ended yet, or already paid)
+        RewardPotNotFound,
+        /// The period is funded and its update window has closed
+        RewardUpdateWindowClosed,
+        /// The reward pot's current balance is insufficient
+        InsufficientPotBalance,
+        /// The reward amount exceeds `MaxRewardPerPeriod`
+        RewardExceedsMax,
+        /// The period's reward amount has not been set
+        RewardPeriodNotFunded,
+        /// The period's update window is still open
+        RewardUpdateWindowOpen,
     }
 
     #[pallet::config]
@@ -404,6 +419,12 @@ pub mod pallet {
         /// The id of the reward pot.
         #[pallet::constant]
         type RewardPotId: Get<PalletId>;
+        /// Time provider
+        type TimeProvider: UnixTime;
+        /// Maximum reward amount that can be set for a single reward period
+        /// via `set_reward_amount`.
+        #[pallet::constant]
+        type MaxRewardPerPeriod: Get<BalanceOf<Self>>;
         /// The lifetime (in blocks) of a signed transaction.
         #[pallet::constant]
         type SignedTxLifetime: Get<u32>;
@@ -438,13 +459,12 @@ pub mod pallet {
             .max(<T as Config>::WeightInfo::set_admin_config_reward_period())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_batch_size())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat())
-            .max(<T as Config>::WeightInfo::set_admin_config_reward_amount())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_enabled())
             .max(<T as Config>::WeightInfo::set_admin_config_min_threshold())
         )]
         pub fn set_admin_config(
             origin: OriginFor<T>,
-            config: AdminConfig<T::AccountId, BalanceOf<T>>,
+            config: AdminConfig<T::AccountId>,
         ) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
 
@@ -491,14 +511,6 @@ pub mod pallet {
                         Some(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat()).into()
                     );
                 },
-                AdminConfig::RewardAmount(amount) => {
-                    ensure!(amount > BalanceOf::<T>::zero(), Error::<T>::RewardAmountZero);
-                    <RewardAmount<T>>::mutate(|a| *a = amount.clone());
-                    Self::deposit_event(Event::RewardAmountSet { new_amount: amount });
-                    return Ok(
-                        Some(<T as Config>::WeightInfo::set_admin_config_reward_amount()).into()
-                    );
-                },
                 AdminConfig::RewardToggle(enabled) => {
                     <RewardEnabled<T>>::mutate(|e| *e = enabled.clone());
                     Self::deposit_event(Event::RewardToggled { enabled });
@@ -531,13 +543,17 @@ pub mod pallet {
             let oldest_period = OldestUnpaidRewardPeriodIndex::<T>::get();
             // Be careful when using current period. Everything here should be based on previous
             // period
-            let RewardPeriodInfo { current, length, .. } = RewardPeriod::<T>::get();
+            let current = RewardPeriod::<T>::get().current;
 
             // Only pay for completed periods
             ensure!(
                 reward_period_index == oldest_period && oldest_period < current,
                 Error::<T>::InvalidRewardPaymentRequest
             );
+
+            // Only pay funded periods whose update window has closed
+            let reward_pot = Self::get_payable_reward_pot(oldest_period)?;
+            let total_reward = reward_pot.total_reward;
 
             let total_heartbeats = TotalUptime::<T>::get(&oldest_period);
             let maybe_node_uptime = NodeUptime::<T>::iter_prefix(oldest_period).next();
@@ -550,15 +566,6 @@ pub mod pallet {
 
             ensure!(total_heartbeats > 0, Error::<T>::TotalUptimeNotFound);
             ensure!(maybe_node_uptime.is_some(), Error::<T>::NodeUptimeNotFound);
-
-            let reward_pot = RewardPot::<T>::get(&oldest_period).unwrap_or_else(|| {
-                RewardPotInfo::new(
-                    RewardAmount::<T>::get(),
-                    Self::calculate_uptime_threshold(length),
-                )
-            });
-
-            let total_reward = reward_pot.total_reward;
 
             let mut paid_nodes = Vec::new();
             let mut last_node_paid: Option<T::AccountId> = None;
@@ -738,6 +745,24 @@ pub mod pallet {
 
             Ok(())
         }
+
+        /// Registrar or root: set the reward amount for an ended reward period. The amount
+        /// can be changed until the period's update window closes; an unfunded period can
+        /// always still be set. See `Pallet::do_set_reward_amount`.
+        #[pallet::call_index(7)]
+        #[pallet::weight(<T as Config>::WeightInfo::set_reward_amount())]
+        pub fn set_reward_amount(
+            origin: OriginFor<T>,
+            period_index: RewardPeriodIndex,
+            amount: BalanceOf<T>,
+        ) -> DispatchResult {
+            if let Some(who) = ensure_signed_or_root(origin)? {
+                let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
+                ensure!(who == registrar, Error::<T>::OriginNotRegistrar);
+            }
+
+            Self::do_set_reward_amount(period_index, amount)
+        }
     }
 
     #[pallet::hooks]
@@ -759,18 +784,22 @@ pub mod pallet {
                 let reward_period = reward_period.update(n, uptime_threshold);
                 RewardPeriod::<T>::mutate(|p| *p = reward_period);
 
-                // take a snapshot of the reward pot amount to pay for the previous reward period
-                let reward_amount = RewardAmount::<T>::get();
+                // The period that just closed starts out unfunded. Its amount can be set and
+                // changed for `REWARD_UPDATE_WINDOW_SECS` after this point.
                 <RewardPot<T>>::insert(
                     previous_index,
-                    RewardPotInfo::<BalanceOf<T>>::new(reward_amount, previous_uptime_threshold),
+                    RewardPotInfo::<BalanceOf<T>>::new(
+                        BalanceOf::<T>::zero(),
+                        previous_uptime_threshold,
+                        Self::time_now_sec(),
+                        false,
+                    ),
                 );
 
                 Self::deposit_event(Event::NewRewardPeriodStarted {
                     reward_period_index: reward_period.current,
                     reward_period_length: reward_period.length,
                     uptime_threshold: reward_period.uptime_threshold,
-                    previous_period_reward: reward_amount,
                 });
 
                 return <T as Config>::WeightInfo::on_initialise_with_new_reward_period();

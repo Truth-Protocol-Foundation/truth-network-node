@@ -119,7 +119,6 @@ fn get_default_node_manager_config() -> NodeManagerConfig {
         reward_period: 30u32,
         max_batch_size: 10u32,
         heartbeat_period: 10u32,
-        reward_amount: 20 * BASE,
     };
 }
 
@@ -374,7 +373,6 @@ pub fn public_testnet_config() -> Result<ChainSpec, String> {
                     reward_period: BLOCKS_PER_DAY as u32,
                     max_batch_size: 100u32,
                     heartbeat_period: 10u32,
-                    reward_amount: 75_000_000 * BASE,
                 },
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
                 None,
@@ -882,7 +880,6 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                     reward_period: BLOCKS_PER_DAY as u32,
                     max_batch_size: 100u32,
                     heartbeat_period: 10u32,
-                    reward_amount: 75_000_000 * BASE,
                 },
                 AssetRegistryConfig { last_asset_id: Default::default(), assets: vec![] },
                 None,

@@ -59,17 +59,41 @@ impl<
     }
 }
 
+pub type Duration = u64;
+
+/// How long after a period ends its reward amount can still be changed, and no rewards are paid.
+pub const REWARD_UPDATE_WINDOW_SECS: Duration = 5 * 60;
+
 #[derive(Copy, Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub struct RewardPotInfo<Balance> {
     /// The total reward to pay out
     pub total_reward: Balance,
     /// The minimum number of uptime reports required to earn full reward
     pub uptime_threshold: u32,
+    /// The timestamp at which the reward period ended
+    pub reward_end_time: Duration,
+    /// `true` once `set_reward_amount` has set the amount (which may be zero)
+    pub funded: bool,
 }
 
 impl<Balance: Copy> RewardPotInfo<Balance> {
-    pub fn new(total_reward: Balance, uptime_threshold: u32) -> RewardPotInfo<Balance> {
-        RewardPotInfo { total_reward, uptime_threshold }
+    pub fn new(
+        total_reward: Balance,
+        uptime_threshold: u32,
+        reward_end_time: Duration,
+        funded: bool,
+    ) -> RewardPotInfo<Balance> {
+        RewardPotInfo { total_reward, uptime_threshold, reward_end_time, funded }
+    }
+
+    /// Whether `now` is still within `REWARD_UPDATE_WINDOW_SECS` of the period's end
+    pub fn update_window_open(&self, now: Duration) -> bool {
+        now < self.reward_end_time.saturating_add(REWARD_UPDATE_WINDOW_SECS)
+    }
+
+    /// An unfunded period can always be set; a funded one only while the window is open.
+    pub fn can_update_amount(&self, now: Duration) -> bool {
+        !self.funded || self.update_window_open(now)
     }
 }
 
@@ -125,12 +149,18 @@ impl<
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq)]
-pub enum AdminConfig<AccountId, Balance> {
+pub enum AdminConfig<AccountId> {
+    #[codec(index = 0)]
     NodeRegistrar(AccountId),
+    #[codec(index = 1)]
     RewardPeriod(u32),
+    #[codec(index = 2)]
     BatchSize(u32),
+    #[codec(index = 3)]
     Heartbeat(u32),
-    RewardAmount(Balance),
+    // Index 4 was `RewardAmount`, replaced by `set_reward_amount`. Not reused.
+    #[codec(index = 5)]
     RewardToggle(bool),
+    #[codec(index = 6)]
     MinUptimeThreshold(Perbill),
 }

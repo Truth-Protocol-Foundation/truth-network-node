@@ -28,9 +28,10 @@ prediction-market-primitives = { workspace = true }
 
 # Optional imports for benchmarking
 frame-benchmarking = { workspace = true, optional = true }
+pallet-timestamp = { workspace = true, optional = true }
 hex = { workspace = true }
 [dev-dependencies]
-pallet-timestamp = { workspace = true }
+pallet-timestamp = { workspace = true, features = ["default"] }
 pallet-balances = { workspace = true, features=["insecure_zero_ed", "default"] }
 pallet-session = { workspace = true }
 sp-state-machine = { workspace = true }
@@ -54,6 +55,7 @@ std = [
 	"log/std",
 	"sp-std/std",
 	"frame-benchmarking?/std",
+	"pallet-timestamp?/std",
 	"pallet-avn/std",
 	"common-primitives/std",
 	"prediction-market-primitives/std",
@@ -61,6 +63,7 @@ std = [
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
+	"pallet-timestamp/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 ]
