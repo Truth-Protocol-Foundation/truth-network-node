@@ -22,7 +22,7 @@ impl Context {
         let registrar = registrar_key_pair.account_id();
         let owner = TestAccount::new([209u8; 32]).account_id();
         let relayer = TestAccount::new([109u8; 32]).account_id();
-        let reward_amount: BalanceOf<TestRuntime> = <RewardAmount<TestRuntime>>::get();
+        let reward_amount: BalanceOf<TestRuntime> = REWARD_AMOUNT;
 
         Balances::make_free_balance_be(
             &NodeManager::compute_reward_account_id(),
@@ -338,7 +338,7 @@ fn payment_works_all_nodes_deregistered() {
         }
 
         let reward_period = <RewardPeriod<TestRuntime>>::get();
-        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_amount = REWARD_AMOUNT;
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
@@ -354,6 +354,7 @@ fn payment_works_all_nodes_deregistered() {
 
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
+        fund_reward_period(reward_period_to_pay, reward_amount);
 
         // mock finalised block response
         mock_get_finalised_block(
@@ -407,7 +408,7 @@ fn payment_works_some_nodes_deregistered() {
         ));
 
         let reward_period = <RewardPeriod<TestRuntime>>::get();
-        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_amount = REWARD_AMOUNT;
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
         let remaining_nodes = (node_count - num_nodes_to_deregister) as u64;
@@ -422,6 +423,7 @@ fn payment_works_some_nodes_deregistered() {
 
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
+        fund_reward_period(reward_period_to_pay, reward_amount);
 
         assert_eq!(
             <RewardPot<TestRuntime>>::get(reward_period_to_pay).unwrap().total_reward,
@@ -478,12 +480,13 @@ fn deregistration_after_period_ends_keeps_uptime_but_skips_payment() {
         let deregistered_node = context.registered_nodes[0].clone();
 
         let reward_period = <RewardPeriod<TestRuntime>>::get();
-        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_amount = REWARD_AMOUNT;
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
+        fund_reward_period(reward_period_to_pay, reward_amount);
         assert!(<RewardPeriod<TestRuntime>>::get().current > reward_period_to_pay);
 
         assert_ok!(NodeManager::deregister_nodes(

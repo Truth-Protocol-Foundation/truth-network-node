@@ -46,8 +46,12 @@ frame_support::construct_runtime!(
     }
 );
 
+/// Reward amount used to fund periods in tests
+pub const REWARD_AMOUNT: u128 = 20 * BASE;
+
 parameter_types! {
     pub const RewardPotId: PalletId = NODE_MANAGER_PALLET_ID;
+    pub const MaxRewardPerPeriod: u128 = 1_000 * BASE;
 }
 
 impl Config for TestRuntime {
@@ -58,6 +62,8 @@ impl Config for TestRuntime {
     type Public = AccountId;
     type Signature = Signature;
     type RewardPotId = RewardPotId;
+    type TimeProvider = Timestamp;
+    type MaxRewardPerPeriod = MaxRewardPerPeriod;
     type SignedTxLifetime = ConstU32<64>;
     type WeightInfo = ();
 }
@@ -212,7 +218,6 @@ impl ExtBuilder {
             reward_period: 200u32,
             max_batch_size: 10u32,
             heartbeat_period: 5u32,
-            reward_amount: 20 * BASE,
         }
         .assimilate_storage(&mut self.storage);
         self
@@ -299,6 +304,20 @@ pub(crate) fn roll_one_block() -> u64 {
     Balances::on_initialize(System::block_number());
     NodeManager::on_initialize(System::block_number());
     System::block_number()
+}
+
+pub(crate) fn advance_time_secs(secs: u64) {
+    Timestamp::set_timestamp(Timestamp::get() + secs * 1_000);
+}
+
+/// Fund an ended period and close its update window
+pub(crate) fn fund_reward_period(period: RewardPeriodIndex, amount: BalanceOf<TestRuntime>) {
+    frame_support::assert_ok!(NodeManager::set_reward_amount(
+        RuntimeOrigin::root(),
+        period,
+        amount
+    ));
+    advance_time_secs(REWARD_UPDATE_WINDOW_SECS);
 }
 
 pub fn mock_get_finalised_block(state: &mut OffchainState, response: &Option<Vec<u8>>) {
