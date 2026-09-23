@@ -27,7 +27,6 @@ use sp_runtime::{
     DispatchError, Perbill, RuntimeDebug, Saturating,
 };
 
-pub mod migration;
 pub mod offchain;
 pub mod reward;
 pub mod types;
