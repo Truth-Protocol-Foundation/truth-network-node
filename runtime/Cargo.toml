@@ -100,6 +100,9 @@ pallet-pm-eth-asset-registry = { workspace = true }
 pallet-pm-hybrid-router = { workspace = true }
 pallet-pm-order-book = { workspace = true }
 
+[dev-dependencies]
+sp-io = { workspace = true, features = ["std"] }
+
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/polkadot-sdk", optional = true , branch = "release-polkadot-v1.1.0" }
 
