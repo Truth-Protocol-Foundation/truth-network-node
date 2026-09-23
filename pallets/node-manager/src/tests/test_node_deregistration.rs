@@ -167,10 +167,18 @@ fn deregistration_succeeds() {
             assert!(!<OwnedNodes<TestRuntime>>::contains_key(context.owner.clone(), node));
             assert!(!<NodeRegistry<TestRuntime>>::contains_key(node));
         }
-        System::assert_last_event(
+        System::assert_has_event(
             Event::NodeDeregistered {
                 owner: context.owner,
                 node: context.registered_nodes[num_nodes_to_deregister - 1].clone(),
+            }
+            .into(),
+        );
+        System::assert_last_event(
+            Event::NodeUptimeDiscarded {
+                reward_period_index: <RewardPeriod<TestRuntime>>::get().current,
+                owner: context.owner,
+                heartbeats: num_nodes_to_deregister as u64,
             }
             .into(),
         );
@@ -216,13 +224,94 @@ fn signed_deregistration_succeeds() {
             assert!(!<OwnedNodes<TestRuntime>>::contains_key(context.owner.clone(), node));
             assert!(!<NodeRegistry<TestRuntime>>::contains_key(node));
         }
-        System::assert_last_event(
+        System::assert_has_event(
             Event::NodeDeregistered {
                 owner: context.owner,
                 node: context.registered_nodes[num_nodes_to_deregister - 1].clone(),
             }
             .into(),
         );
+        System::assert_last_event(
+            Event::NodeUptimeDiscarded {
+                reward_period_index: <RewardPeriod<TestRuntime>>::get().current,
+                owner: context.owner,
+                heartbeats: num_nodes_to_deregister as u64,
+            }
+            .into(),
+        );
+    });
+}
+
+#[test]
+fn deregistration_discards_current_period_uptime() {
+    let (mut ext, _, _) = ExtBuilder::build_default()
+        .with_genesis_config()
+        .for_offchain_worker()
+        .as_externality_with_state();
+    ext.execute_with(|| {
+        let node_count = <MaxBatchSize<TestRuntime>>::get();
+        let context = Context::new(node_count as u8);
+        let reward_period = <RewardPeriod<TestRuntime>>::get().current;
+        let nodes_to_deregister = vec![context.registered_nodes[0], context.registered_nodes[1]];
+
+        // Extra heartbeats so the discarded total differs from the node count
+        incr_heartbeats(reward_period, vec![context.registered_nodes[0]], 2);
+        let total_before = <TotalUptime<TestRuntime>>::get(reward_period);
+        let discarded: u64 = nodes_to_deregister
+            .iter()
+            .map(|n| <NodeUptime<TestRuntime>>::get(reward_period, n).unwrap().count)
+            .sum();
+        assert_eq!(discarded, 4);
+
+        assert_ok!(NodeManager::deregister_nodes(
+            RuntimeOrigin::signed(context.registrar),
+            context.owner,
+            BoundedVec::truncate_from(nodes_to_deregister.clone()),
+        ));
+
+        for node in &nodes_to_deregister {
+            assert!(<NodeUptime<TestRuntime>>::get(reward_period, node).is_none());
+        }
+        // Nodes that were not deregistered keep their uptime
+        assert!(
+            <NodeUptime<TestRuntime>>::get(reward_period, context.registered_nodes[2]).is_some()
+        );
+        assert_eq!(<TotalUptime<TestRuntime>>::get(reward_period), total_before - discarded);
+
+        System::assert_last_event(
+            Event::NodeUptimeDiscarded {
+                reward_period_index: reward_period,
+                owner: context.owner,
+                heartbeats: discarded,
+            }
+            .into(),
+        );
+    });
+}
+
+#[test]
+fn deregistration_without_uptime_does_not_emit_discard_event() {
+    let (mut ext, _, _) = ExtBuilder::build_default()
+        .with_genesis_config()
+        .for_offchain_worker()
+        .as_externality_with_state();
+    ext.execute_with(|| {
+        let context = Context::new(1);
+        let node = context.registered_nodes[0];
+        let reward_period = <RewardPeriod<TestRuntime>>::get().current;
+
+        // Remove the heartbeat created by the context
+        <NodeUptime<TestRuntime>>::remove(reward_period, node);
+        <TotalUptime<TestRuntime>>::remove(reward_period);
+
+        assert_ok!(NodeManager::deregister_nodes(
+            RuntimeOrigin::signed(context.registrar),
+            context.owner,
+            BoundedVec::truncate_from(vec![node]),
+        ));
+
+        assert_eq!(<TotalUptime<TestRuntime>>::get(reward_period), 0);
+        System::assert_last_event(Event::NodeDeregistered { owner: context.owner, node }.into());
     });
 }
 
@@ -236,7 +325,6 @@ fn payment_works_all_nodes_deregistered() {
     ext.execute_with(|| {
         let node_count = <MaxBatchSize<TestRuntime>>::get();
         let context = Context::new(node_count as u8);
-        let num_nodes_to_deregister = context.registered_nodes.len();
 
         assert_ok!(NodeManager::deregister_nodes(
             RuntimeOrigin::signed(context.registrar),
@@ -254,6 +342,10 @@ fn payment_works_all_nodes_deregistered() {
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
+        // All the uptime for this period has been discarded
+        assert_eq!(<TotalUptime<TestRuntime>>::get(reward_period_to_pay), 0);
+        assert!(<NodeUptime<TestRuntime>>::iter_prefix(reward_period_to_pay).next().is_none());
+
         let initial_pot_balance = Balances::free_balance(&NodeManager::compute_reward_account_id());
         let initial_owner_balance = Balances::free_balance(&context.owner);
 
@@ -263,10 +355,6 @@ fn payment_works_all_nodes_deregistered() {
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
 
-        assert_eq!(
-            <RewardPot<TestRuntime>>::get(reward_period_to_pay).unwrap().total_reward,
-            reward_amount
-        );
         // mock finalised block response
         mock_get_finalised_block(
             &mut offchain_state.write(),
@@ -287,19 +375,12 @@ fn payment_works_all_nodes_deregistered() {
             initial_pot_balance
         );
 
-        // Make sure the failed payment event is emitted
-        System::assert_has_event(
-            Event::ErrorPayingReward {
-                reward_period: reward_period_to_pay,
-                node: context.registered_nodes[num_nodes_to_deregister - 1].clone(),
-                amount: reward_amount / node_count as u128,
-                error: Error::<TestRuntime>::NodeNotRegistered.into(),
-            }
-            .into(),
-        );
-
-        // The payment should succeed
+        // The period completes without attempting to pay anyone
         assert_eq!(true, <RewardPot<TestRuntime>>::get(reward_period_to_pay).is_none());
+        assert!(!System::events().iter().any(|r| matches!(
+            r.event,
+            RuntimeEvent::NodeManager(Event::ErrorPayingReward { .. })
+        )));
         System::assert_last_event(
             Event::RewardPayoutCompleted { reward_period_index: reward_period_to_pay }.into(),
         );
@@ -329,6 +410,10 @@ fn payment_works_some_nodes_deregistered() {
         let reward_amount = <RewardAmount<TestRuntime>>::get();
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
+        let remaining_nodes = (node_count - num_nodes_to_deregister) as u64;
+
+        // The deregistered node's uptime no longer counts towards the total
+        assert_eq!(<TotalUptime<TestRuntime>>::get(reward_period_to_pay), remaining_nodes);
 
         let initial_pot_balance = Balances::free_balance(&NodeManager::compute_reward_account_id());
 
@@ -354,29 +439,96 @@ fn payment_works_some_nodes_deregistered() {
         let tx = pop_tx_from_mempool(pool_state);
         assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
 
-        // Make sure the failed payment event is emitted
-        System::assert_has_event(
-            Event::ErrorPayingReward {
-                reward_period: reward_period_to_pay,
-                node: context.registered_nodes[(num_nodes_to_deregister - 1) as usize].clone(),
-                amount: reward_amount / node_count as u128,
-                error: Error::<TestRuntime>::NodeNotRegistered.into(),
-            }
-            .into(),
-        );
+        // The deregistered node is not paid
+        assert!(!System::events().iter().any(|r| matches!(
+            r.event,
+            RuntimeEvent::NodeManager(Event::ErrorPayingReward { .. })
+        )));
 
-        // The owner should get all rewards minus the nodes that were deregistered
-        let expected_owner_reward_amount =
-            reward_amount / node_count as u128 * (node_count - num_nodes_to_deregister) as u128;
+        // The remaining nodes share the whole reward
+        let reward_per_node =
+            NodeManager::calculate_reward(1, &remaining_nodes, &reward_amount).unwrap();
+        let expected_owner_reward_amount = reward_per_node * remaining_nodes as u128;
         assert_eq!(Balances::free_balance(&context.owner), expected_owner_reward_amount);
+        assert!(reward_amount - expected_owner_reward_amount < remaining_nodes as u128);
 
-        // The pot balance should stay the same because all the nodes were deregistered
         assert_eq!(
             Balances::free_balance(&NodeManager::compute_reward_account_id()),
             initial_pot_balance - expected_owner_reward_amount
         );
 
         // The payment for the remaing nodes should succeed
+        assert_eq!(true, <RewardPot<TestRuntime>>::get(reward_period_to_pay).is_none());
+        System::assert_last_event(
+            Event::RewardPayoutCompleted { reward_period_index: reward_period_to_pay }.into(),
+        );
+    });
+}
+
+#[test]
+fn deregistration_after_period_ends_keeps_uptime_but_skips_payment() {
+    let (mut ext, pool_state, offchain_state) = ExtBuilder::build_default()
+        .with_genesis_config()
+        .with_authors()
+        .for_offchain_worker()
+        .as_externality_with_state();
+    ext.execute_with(|| {
+        let node_count = <MaxBatchSize<TestRuntime>>::get();
+        let context = Context::new(node_count as u8);
+        let deregistered_node = context.registered_nodes[0].clone();
+
+        let reward_period = <RewardPeriod<TestRuntime>>::get();
+        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_period_length = reward_period.length as u64;
+        let reward_period_to_pay = reward_period.current;
+
+        // Complete a reward period
+        roll_forward((reward_period_length - System::block_number()) + 1);
+        assert!(<RewardPeriod<TestRuntime>>::get().current > reward_period_to_pay);
+
+        assert_ok!(NodeManager::deregister_nodes(
+            RuntimeOrigin::signed(context.registrar),
+            context.owner,
+            BoundedVec::truncate_from(vec![deregistered_node]),
+        ));
+
+        // Uptime of an ended period is kept
+        assert!(<NodeUptime<TestRuntime>>::get(reward_period_to_pay, deregistered_node).is_some());
+        assert_eq!(<TotalUptime<TestRuntime>>::get(reward_period_to_pay), node_count as u64);
+
+        let initial_pot_balance = Balances::free_balance(&NodeManager::compute_reward_account_id());
+
+        // mock finalised block response
+        mock_get_finalised_block(
+            &mut offchain_state.write(),
+            &Some(hex::encode(1u32.encode()).into()),
+        );
+
+        // Trigger ocw and send the transaction
+        NodeManager::offchain_worker(System::block_number());
+        let tx = pop_tx_from_mempool(pool_state);
+        assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
+
+        // Make sure the failed payment event is emitted
+        System::assert_has_event(
+            Event::ErrorPayingReward {
+                reward_period: reward_period_to_pay,
+                node: deregistered_node,
+                amount: reward_amount / node_count as u128,
+                error: Error::<TestRuntime>::NodeNotRegistered.into(),
+            }
+            .into(),
+        );
+
+        // The owner gets all rewards minus the deregistered node's share
+        let expected_owner_reward_amount =
+            reward_amount / node_count as u128 * (node_count - 1) as u128;
+        assert_eq!(Balances::free_balance(&context.owner), expected_owner_reward_amount);
+        assert_eq!(
+            Balances::free_balance(&NodeManager::compute_reward_account_id()),
+            initial_pot_balance - expected_owner_reward_amount
+        );
+
         assert_eq!(true, <RewardPot<TestRuntime>>::get(reward_period_to_pay).is_none());
         System::assert_last_event(
             Event::RewardPayoutCompleted { reward_period_index: reward_period_to_pay }.into(),
