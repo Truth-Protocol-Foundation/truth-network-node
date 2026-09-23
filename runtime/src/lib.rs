@@ -342,11 +342,25 @@ parameter_types! {
     pub const ReportLongevity: u64 = Period::get() as u64 * 2u64;
 }
 
+/// Rejects calls disabled on this chain: new node registrations.
+pub struct RuntimeCallFilter;
+impl Contains<RuntimeCall> for RuntimeCallFilter {
+    fn contains(call: &RuntimeCall) -> bool {
+        !matches!(
+            call,
+            RuntimeCall::NodeManager(
+                pallet_node_manager::Call::register_node { .. } |
+                    pallet_node_manager::Call::signed_register_node { .. }
+            )
+        )
+    }
+}
+
 // Configure FRAME pallets to include in runtime.
 
 impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
-    type BaseCallFilter = frame_support::traits::Everything;
+    type BaseCallFilter = RuntimeCallFilter;
     /// The block type for the runtime.
     type Block = Block;
     /// Block & extrinsics weights: base values and limits.
@@ -1732,5 +1746,65 @@ impl ProcessedEventsChecker for ProcessedEventCustodian {
 
     fn get_events_to_migrate() -> Option<BoundedVec<EventMigration, ProcessingBatchBound>> {
         EthereumEvents::get_events_to_migrate()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use frame_support::{assert_err, traits::Contains};
+    use sp_io::TestExternalities;
+    use sp_runtime::traits::Dispatchable;
+
+    fn account(seed: u8) -> AccountId {
+        AccountId::from([seed; 32])
+    }
+
+    fn register_node_call() -> RuntimeCall {
+        RuntimeCall::NodeManager(pallet_node_manager::Call::register_node {
+            node: account(1),
+            owner: account(2),
+            signing_key: NodeManagerKeyId::from(sp_core::sr25519::Public::from_raw([3u8; 32])),
+        })
+    }
+
+    #[test]
+    fn node_registration_is_filtered() {
+        assert!(!RuntimeCallFilter::contains(&register_node_call()));
+    }
+
+    #[test]
+    fn other_node_manager_calls_are_allowed() {
+        let call = RuntimeCall::NodeManager(pallet_node_manager::Call::deregister_nodes {
+            owner: account(2),
+            nodes_to_deregister: Default::default(),
+        });
+        assert!(RuntimeCallFilter::contains(&call));
+
+        let call = RuntimeCall::NodeManager(pallet_node_manager::Call::set_admin_config {
+            config: pallet_node_manager::types::AdminConfig::BatchSize(1),
+        });
+        assert!(RuntimeCallFilter::contains(&call));
+    }
+
+    #[test]
+    fn node_registration_cannot_be_dispatched_by_signed_origin() {
+        TestExternalities::default().execute_with(|| {
+            let call = register_node_call();
+            assert_err!(
+                call.dispatch(RuntimeOrigin::signed(account(4))).map_err(|e| e.error),
+                frame_system::Error::<Runtime>::CallFiltered
+            );
+        });
+    }
+
+    #[test]
+    fn node_registration_is_filtered_inside_a_batch() {
+        TestExternalities::default().execute_with(|| {
+            let call = RuntimeCall::Utility(pallet_utility::Call::batch_all {
+                calls: vec![register_node_call()],
+            });
+            assert!(call.dispatch(RuntimeOrigin::signed(account(4))).is_err());
+        });
     }
 }
