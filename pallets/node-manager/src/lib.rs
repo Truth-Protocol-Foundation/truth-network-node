@@ -4,7 +4,9 @@ use frame_support::{
     dispatch::DispatchResult,
     pallet_prelude::*,
     storage::{generator::StorageDoubleMap as StorageDoubleMapTrait, PrefixIterator},
-    traits::{Currency, ExistenceRequirement, IsSubType, StorageVersion, UnixTime},
+    traits::{
+        ConstBool, ConstU32, Currency, ExistenceRequirement, IsSubType, StorageVersion, UnixTime,
+    },
     PalletId,
 };
 use frame_system::{
@@ -212,6 +214,10 @@ pub mod pallet {
     #[pallet::storage]
     pub(super) type RewardEnabled<T: Config> = StorageValue<_, bool, ValueQuery>;
 
+    /// Whether new nodes can be registered
+    #[pallet::storage]
+    pub type RegistrationEnabled<T: Config> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
+
     /// The heartbeat period in blocks
     #[pallet::storage]
     pub type MinUptimeThreshold<T: Config> = StorageValue<_, Perbill, OptionQuery>;
@@ -309,6 +315,8 @@ pub mod pallet {
             owner: T::AccountId,
             heartbeats: u64,
         },
+        /// Node registration toggled
+        RegistrationEnabledSet { enabled: bool },
     }
 
     // Pallet Errors
@@ -378,6 +386,8 @@ pub mod pallet {
         RewardPeriodNotFunded,
         /// The period's update window is still open
         RewardUpdateWindowOpen,
+        /// Registration of new nodes is disabled
+        RegistrationDisabled,
     }
 
     #[pallet::config]
@@ -461,6 +471,7 @@ pub mod pallet {
             .max(<T as Config>::WeightInfo::set_admin_config_reward_heartbeat())
             .max(<T as Config>::WeightInfo::set_admin_config_reward_enabled())
             .max(<T as Config>::WeightInfo::set_admin_config_min_threshold())
+            .max(<T as Config>::WeightInfo::set_admin_config_registration_enabled())
         )]
         pub fn set_admin_config(
             origin: OriginFor<T>,
@@ -525,6 +536,14 @@ pub mod pallet {
                     return Ok(
                         Some(<T as Config>::WeightInfo::set_admin_config_min_threshold()).into()
                     );
+                },
+                AdminConfig::RegistrationEnabled(enabled) => {
+                    <RegistrationEnabled<T>>::put(enabled);
+                    Self::deposit_event(Event::RegistrationEnabledSet { enabled });
+                    return Ok(Some(
+                        <T as Config>::WeightInfo::set_admin_config_registration_enabled(),
+                    )
+                    .into());
                 },
             }
         }
@@ -1005,6 +1024,7 @@ pub mod pallet {
             owner: T::AccountId,
             signing_key: T::SignerId,
         ) -> DispatchResult {
+            ensure!(RegistrationEnabled::<T>::get(), Error::<T>::RegistrationDisabled);
             ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
 
             <OwnedNodes<T>>::insert(&owner, &node, ());
