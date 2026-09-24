@@ -216,6 +216,13 @@ benchmarks! {
         assert!(<MinUptimeThreshold<T>>::get() == Some(new_threshold));
     }
 
+    set_admin_config_registration_enabled {
+        let config = AdminConfig::RegistrationEnabled(false);
+    }: set_admin_config(RawOrigin::Root, config.clone())
+    verify {
+        assert!(!<RegistrationEnabled<T>>::get());
+    }
+
     on_initialise_with_new_reward_period {
         let reward_period = <RewardPeriod<T>>::get();
         let block_number: BlockNumberFor<T> = (reward_period.first + BlockNumberFor::<T>::from(reward_period.length) + 1u32.into()).into();

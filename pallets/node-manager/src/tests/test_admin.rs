@@ -181,6 +181,46 @@ mod heartbeat {
     }
 }
 
+mod registration_enabled {
+    use super::*;
+
+    #[test]
+    fn is_enabled_by_default() {
+        let mut ext = ExtBuilder::build_default().with_genesis_config().as_externality();
+        ext.execute_with(|| {
+            assert!(RegistrationEnabled::<TestRuntime>::get());
+        });
+    }
+
+    #[test]
+    fn can_be_set() {
+        let mut ext = ExtBuilder::build_default().with_genesis_config().as_externality();
+        ext.execute_with(|| {
+            let config = AdminConfig::RegistrationEnabled(false);
+            assert_ok!(NodeManager::set_admin_config(RawOrigin::Root.into(), config));
+            assert!(!RegistrationEnabled::<TestRuntime>::get());
+            System::assert_last_event(Event::RegistrationEnabledSet { enabled: false }.into());
+
+            let config = AdminConfig::RegistrationEnabled(true);
+            assert_ok!(NodeManager::set_admin_config(RawOrigin::Root.into(), config));
+            assert!(RegistrationEnabled::<TestRuntime>::get());
+        });
+    }
+
+    #[test]
+    fn cannot_be_set_by_non_root() {
+        let mut ext = ExtBuilder::build_default().with_genesis_config().as_externality();
+        ext.execute_with(|| {
+            let other = TestAccount::new([2u8; 32]).account_id();
+            let config = AdminConfig::RegistrationEnabled(false);
+            assert_noop!(
+                NodeManager::set_admin_config(RuntimeOrigin::signed(other), config),
+                sp_runtime::DispatchError::BadOrigin
+            );
+        });
+    }
+}
+
 mod reward_enabled {
     use super::*;
 

@@ -4,6 +4,9 @@
 
 use crate::{mock::*, *};
 use frame_support::{assert_noop, assert_ok};
+use prediction_market_primitives::types::SignatureTest;
+use sp_avn_common::Proof;
+use sp_core::Pair;
 
 #[derive(Clone)]
 struct Context {
@@ -56,8 +59,86 @@ fn registration_succeeds() {
     });
 }
 
+#[test]
+fn registration_succeeds_when_re_enabled() {
+    let mut ext = ExtBuilder::build_default().with_genesis_config().as_externality();
+    ext.execute_with(|| {
+        let context = Context::default();
+        <RegistrationEnabled<TestRuntime>>::put(false);
+        <RegistrationEnabled<TestRuntime>>::put(true);
+
+        assert_ok!(NodeManager::register_node(
+            context.origin,
+            context.node_id,
+            context.owner,
+            context.signing_key,
+        ));
+        assert!(<NodeRegistry<TestRuntime>>::get(&context.node_id).is_some());
+    });
+}
+
 mod fails_when {
     use super::*;
+
+    #[test]
+    fn registration_is_disabled() {
+        let mut ext = ExtBuilder::build_default().with_genesis_config().as_externality();
+        ext.execute_with(|| {
+            let context = Context::default();
+            <RegistrationEnabled<TestRuntime>>::put(false);
+
+            assert_noop!(
+                NodeManager::register_node(
+                    context.origin,
+                    context.node_id,
+                    context.owner,
+                    context.signing_key,
+                ),
+                Error::<TestRuntime>::RegistrationDisabled
+            );
+        });
+    }
+
+    #[test]
+    fn signed_registration_is_disabled() {
+        let mut ext = ExtBuilder::build_default().with_genesis_config().as_externality();
+        ext.execute_with(|| {
+            let registrar_key_pair = TestAccount::new([1u8; 32]);
+            let registrar = registrar_key_pair.account_id();
+            setup_registrar(&registrar);
+            let relayer = TestAccount::new([109u8; 32]).account_id();
+            let owner = TestAccount::new([101u8; 32]).account_id();
+            let node = TestAccount::new([202u8; 32]).account_id();
+            let signing_key = <mock::TestRuntime as pallet::Config>::SignerId::generate_pair(None);
+            let block_number = System::block_number();
+
+            let payload = encode_signed_register_node_params::<TestRuntime>(
+                &relayer,
+                &node,
+                &owner,
+                &signing_key,
+                &block_number,
+            );
+            let proof = Proof {
+                signer: registrar_key_pair.key_pair().public(),
+                relayer,
+                signature: SignatureTest::from(registrar_key_pair.key_pair().sign(&payload)),
+            };
+
+            <RegistrationEnabled<TestRuntime>>::put(false);
+            assert_noop!(
+                NodeManager::signed_register_node(
+                    RuntimeOrigin::signed(registrar),
+                    proof,
+                    node,
+                    owner,
+                    signing_key,
+                    block_number,
+                ),
+                Error::<TestRuntime>::RegistrationDisabled
+            );
+        });
+    }
 
     #[test]
     fn registrar_is_not_set() {

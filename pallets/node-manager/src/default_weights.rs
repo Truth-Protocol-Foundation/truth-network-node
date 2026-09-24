@@ -44,6 +44,7 @@ pub trait WeightInfo {
 	fn set_admin_config_reward_heartbeat() -> Weight;
 	fn set_admin_config_reward_enabled() -> Weight;
 	fn set_admin_config_min_threshold() -> Weight;
+	fn set_admin_config_registration_enabled() -> Weight;
 	fn on_initialise_with_new_reward_period() -> Weight;
 	fn on_initialise_no_reward_period() -> Weight;
 	fn offchain_submit_heartbeat() -> Weight;
@@ -143,6 +144,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		// Minimum execution time: 11_375_000 picoseconds.
 		Weight::from_parts(11_953_000, 1489)
 			.saturating_add(T::DbWeight::get().reads(1_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	/// Storage: `NodeManager::RegistrationEnabled` (r:0 w:1)
+	/// Proof: `NodeManager::RegistrationEnabled` (`max_values`: Some(1), `max_size`: Some(1), added: 496, mode: `MaxEncodedLen`)
+	fn set_admin_config_registration_enabled() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Hand estimated from `set_admin_config_reward_enabled`, not benchmarked yet.
+		Weight::from_parts(13_226_000, 0)
 			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
 	/// Storage: `NodeManager::RewardEnabled` (r:1 w:0)
@@ -447,6 +458,16 @@ impl WeightInfo for () {
 		// Minimum execution time: 11_375_000 picoseconds.
 		Weight::from_parts(11_953_000, 1489)
 			.saturating_add(RocksDbWeight::get().reads(1_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
+	}
+	/// Storage: `NodeManager::RegistrationEnabled` (r:0 w:1)
+	/// Proof: `NodeManager::RegistrationEnabled` (`max_values`: Some(1), `max_size`: Some(1), added: 496, mode: `MaxEncodedLen`)
+	fn set_admin_config_registration_enabled() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Hand estimated from `set_admin_config_reward_enabled`, not benchmarked yet.
+		Weight::from_parts(13_226_000, 0)
 			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
 	/// Storage: `NodeManager::RewardEnabled` (r:1 w:0)
