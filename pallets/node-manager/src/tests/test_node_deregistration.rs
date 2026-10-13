@@ -468,7 +468,77 @@ fn payment_works_some_nodes_deregistered() {
 }
 
 #[test]
-fn deregistration_after_period_ends_keeps_uptime_but_skips_payment() {
+fn deregistration_blocked_until_earlier_period_payouts_complete() {
+    let (mut ext, pool_state, offchain_state) = ExtBuilder::build_default()
+        .with_genesis_config()
+        .with_authors()
+        .for_offchain_worker()
+        .as_externality_with_state();
+    ext.execute_with(|| {
+        let context = Context::new(1u8);
+        let node = context.registered_nodes[0];
+        let nodes = BoundedVec::truncate_from(vec![node]);
+        let reward_period = <RewardPeriod<TestRuntime>>::get();
+        let earlier_period = reward_period.current;
+
+        roll_forward((reward_period.length as u64 - System::block_number()) + 1);
+        let current_period = <RewardPeriod<TestRuntime>>::get().current;
+        assert_ne!(current_period, earlier_period, "expected a period rollover");
+        incr_heartbeats(current_period, vec![node], 1);
+
+        assert_noop!(
+            NodeManager::deregister_nodes(
+                RuntimeOrigin::signed(context.registrar),
+                context.owner,
+                nodes.clone(),
+            ),
+            Error::<TestRuntime>::RewardPayoutsPending,
+        );
+
+        let block_number = System::block_number();
+        let proof = create_signed_deregister_proof(
+            &context.registrar_key_pair,
+            &context.relayer,
+            &context.owner,
+            &nodes,
+            &1u32,
+            &block_number,
+        );
+        assert_noop!(
+            NodeManager::signed_deregister_nodes(
+                RuntimeOrigin::signed(context.registrar),
+                proof,
+                context.owner,
+                nodes.clone(),
+                block_number,
+            ),
+            Error::<TestRuntime>::RewardPayoutsPending,
+        );
+
+        // Pay the earlier period so the guard is satisfied.
+        fund_reward_period(earlier_period, REWARD_AMOUNT);
+        mock_get_finalised_block(
+            &mut offchain_state.write(),
+            &Some(hex::encode(1u32.encode()).into()),
+        );
+        NodeManager::offchain_worker(System::block_number());
+        let tx = pop_tx_from_mempool(pool_state);
+        assert_ok!(tx.call.clone().dispatch(frame_system::RawOrigin::None.into()));
+        assert_eq!(<OldestUnpaidRewardPeriodIndex<TestRuntime>>::get(), current_period);
+        assert_eq!(Balances::free_balance(&context.owner), REWARD_AMOUNT);
+
+        assert_ok!(NodeManager::deregister_nodes(
+            RuntimeOrigin::signed(context.registrar),
+            context.owner,
+            nodes,
+        ));
+        assert!(!<NodeUptime<TestRuntime>>::contains_key(current_period, node));
+        assert_eq!(<TotalUptime<TestRuntime>>::get(current_period), 0);
+    });
+}
+
+#[test]
+fn payment_skips_nodes_missing_from_the_registry() {
     let (mut ext, pool_state, offchain_state) = ExtBuilder::build_default()
         .with_genesis_config()
         .with_authors()
@@ -477,7 +547,7 @@ fn deregistration_after_period_ends_keeps_uptime_but_skips_payment() {
     ext.execute_with(|| {
         let node_count = <MaxBatchSize<TestRuntime>>::get();
         let context = Context::new(node_count as u8);
-        let deregistered_node = context.registered_nodes[0].clone();
+        let missing_node = context.registered_nodes[0].clone();
 
         let reward_period = <RewardPeriod<TestRuntime>>::get();
         let reward_amount = REWARD_AMOUNT;
@@ -489,15 +559,8 @@ fn deregistration_after_period_ends_keeps_uptime_but_skips_payment() {
         fund_reward_period(reward_period_to_pay, reward_amount);
         assert!(<RewardPeriod<TestRuntime>>::get().current > reward_period_to_pay);
 
-        assert_ok!(NodeManager::deregister_nodes(
-            RuntimeOrigin::signed(context.registrar),
-            context.owner,
-            BoundedVec::truncate_from(vec![deregistered_node]),
-        ));
-
-        // Uptime of an ended period is kept
-        assert!(<NodeUptime<TestRuntime>>::get(reward_period_to_pay, deregistered_node).is_some());
-        assert_eq!(<TotalUptime<TestRuntime>>::get(reward_period_to_pay), node_count as u64);
+        // Deregistration is blocked while the period is unpaid, so remove the node directly
+        <NodeRegistry<TestRuntime>>::remove(missing_node);
 
         let initial_pot_balance = Balances::free_balance(&NodeManager::compute_reward_account_id());
 
@@ -516,14 +579,14 @@ fn deregistration_after_period_ends_keeps_uptime_but_skips_payment() {
         System::assert_has_event(
             Event::ErrorPayingReward {
                 reward_period: reward_period_to_pay,
-                node: deregistered_node,
+                node: missing_node,
                 amount: reward_amount / node_count as u128,
                 error: Error::<TestRuntime>::NodeNotRegistered.into(),
             }
             .into(),
         );
 
-        // The owner gets all rewards minus the deregistered node's share
+        // The owner gets all rewards minus the missing node's share
         let expected_owner_reward_amount =
             reward_amount / node_count as u128 * (node_count - 1) as u128;
         assert_eq!(Balances::free_balance(&context.owner), expected_owner_reward_amount);
