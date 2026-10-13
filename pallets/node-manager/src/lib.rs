@@ -27,7 +27,6 @@ use sp_runtime::{
     DispatchError, Perbill, RuntimeDebug, Saturating,
 };
 
-pub mod migration;
 pub mod offchain;
 pub mod reward;
 pub mod types;
@@ -139,11 +138,6 @@ pub mod pallet {
         (),
         OptionQuery,
     >;
-
-    /// Count of nodes owned by an account.
-    #[pallet::storage]
-    pub type OwnedNodesCount<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
     /// The admin account that can register new nodes
     #[pallet::storage]
@@ -928,7 +922,6 @@ pub mod pallet {
 
                 <NodeRegistry<T>>::remove(node);
                 <OwnedNodes<T>>::remove(owner, node);
-                <OwnedNodesCount<T>>::mutate(owner, |count| *count = count.saturating_sub(1));
                 <TotalRegisteredNodes<T>>::mutate(|n| *n = n.saturating_sub(1));
 
                 Self::deposit_event(Event::NodeDeregistered {
@@ -955,7 +948,6 @@ pub mod pallet {
             ensure!(!<NodeRegistry<T>>::contains_key(&node), Error::<T>::DuplicateNode);
 
             <OwnedNodes<T>>::insert(&owner, &node, ());
-            <OwnedNodesCount<T>>::mutate(&owner, |count| *count = count.saturating_add(1));
             <NodeRegistry<T>>::insert(
                 &node,
                 NodeInfo::<T::SignerId, T::AccountId>::new(owner.clone(), signing_key),
