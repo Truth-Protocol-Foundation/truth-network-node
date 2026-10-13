@@ -10440,6 +10440,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "hex",
+ "log",
  "orml-currencies",
  "orml-tokens",
  "orml-traits",

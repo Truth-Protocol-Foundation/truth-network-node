@@ -38,6 +38,7 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
+pub mod migrations;
 pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
 
@@ -1437,6 +1438,8 @@ pub type Executive = frame_executive::Executive<
     (
         pallet_eth_bridge::migration::EthBridgeMigrations<Runtime>,
         pallet_node_manager::migration::OwnedNodesUpgrade<Runtime>,
+        migrations::MoveInFlightSummaryValidationsToAdminReview<EthSummary>,
+        migrations::MoveInFlightSummaryValidationsToAdminReview<AvnAnchorSummary>,
     ),
 >;
 

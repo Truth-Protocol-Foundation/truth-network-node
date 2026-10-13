@@ -18,6 +18,7 @@ codec = { package = "parity-scale-codec", version = "3.6.9", default-features = 
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 smallvec = "1.11.0"
 hex = { workspace = true }
+log = { workspace = true }
 
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
 pallet-aura = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
@@ -113,6 +114,7 @@ std = [
 	"frame-benchmarking?/std",
 	"codec/std",
 	"scale-info/std",
+	"log/std",
 	"frame-executive/std",
 	"frame-support/std",
 	"frame-system-rpc-runtime-api/std",
