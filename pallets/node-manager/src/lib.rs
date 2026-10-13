@@ -80,7 +80,7 @@ use sp_std::prelude::*;
 
 const PAYOUT_REWARD_CONTEXT: &'static [u8] = b"NodeManager_RewardPayout";
 const HEARTBEAT_CONTEXT: &'static [u8] = b"NodeManager_heartbeat";
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 pub const SIGNED_REGISTER_NODE_CONTEXT: &[u8] = b"register_node";
 pub const SIGNED_DEREGISTER_NODE_CONTEXT: &[u8] = b"deregister_node";
 pub const MAX_NODES_TO_DEREGISTER: u32 = 64;
