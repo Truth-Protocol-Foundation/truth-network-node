@@ -1380,7 +1380,6 @@ pub type Executive = frame_executive::Executive<
     AllPalletsWithSystem,
     (
         pallet_eth_bridge::migration::EthBridgeMigrations<Runtime>,
-        pallet_node_manager::migration::OwnedNodesUpgrade<Runtime>,
         migrations::MoveInFlightSummaryValidationsToAdminReview<EthSummary>,
         migrations::MoveInFlightSummaryValidationsToAdminReview<AvnAnchorSummary>,
         // Must run after the summary migrations above, which read watchtower storage
