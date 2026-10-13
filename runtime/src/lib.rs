@@ -42,7 +42,7 @@ pub mod proxy_config;
 use proxy_config::AvnProxyConfig;
 
 pub use prediction_market_primitives::{constants::*, types::*};
-pub use sp_avn_common::watchtower::{ProposalId, WatchtowerHooks};
+pub use sp_avn_common::watchtower::{NoopWatchtower, ProposalId, WatchtowerHooks};
 
 pub use common_primitives::{
     constants::{
@@ -842,7 +842,7 @@ parameter_types! {
     pub const EthAutoSubmitSummaries: bool = true;
     pub const AvnAutoSubmitSummaries: bool = false;
     pub const AvnInstanceId: u8 = 2u8;
-    pub const ExternalValidationEnabled: bool = true;
+    pub const ExternalValidationEnabled: bool = false;
 }
 
 pub type EthSummary = pallet_summary::Instance1;
@@ -857,7 +857,7 @@ impl pallet_summary::Config<EthSummary> for Runtime {
     type AutoSubmitSummaries = EthAutoSubmitSummaries;
     type InstanceId = EthereumInstanceId;
     type ExternalValidationEnabled = ExternalValidationEnabled;
-    type ExternalValidator = Watchtower;
+    type ExternalValidator = NoopWatchtower<AccountId>;
 }
 
 pub type AvnAnchorSummary = pallet_summary::Instance2;
@@ -872,7 +872,7 @@ impl pallet_summary::Config<AvnAnchorSummary> for Runtime {
     type AutoSubmitSummaries = AvnAutoSubmitSummaries;
     type InstanceId = AvnInstanceId;
     type ExternalValidationEnabled = ExternalValidationEnabled;
-    type ExternalValidator = Watchtower;
+    type ExternalValidator = NoopWatchtower<AccountId>;
 }
 
 parameter_types! {
