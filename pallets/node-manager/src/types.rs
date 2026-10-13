@@ -163,4 +163,6 @@ pub enum AdminConfig<AccountId> {
     RewardToggle(bool),
     #[codec(index = 6)]
     MinUptimeThreshold(Perbill),
+    #[codec(index = 7)]
+    RegistrationEnabled(bool),
 }
