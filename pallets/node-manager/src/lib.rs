@@ -388,6 +388,8 @@ pub mod pallet {
         RewardUpdateWindowOpen,
         /// Registration of new nodes is disabled
         RegistrationDisabled,
+        /// `deregister_nodes` called while an earlier reward period is still unpaid
+        RewardPayoutsPending,
     }
 
     #[pallet::config]
@@ -709,6 +711,9 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Deregister one or more of `owner`'s nodes. Registrar-only.
+        ///
+        /// Fails while an earlier reward period still has an outstanding payout.
         #[pallet::call_index(5)]
         #[pallet::weight(<T as Config>::WeightInfo::deregister_nodes(nodes_to_deregister.len() as u32))]
         pub fn deregister_nodes(
@@ -726,6 +731,9 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Deregister one or more of `owner`'s nodes. Registrar-only.
+        ///
+        /// Fails while an earlier reward period still has an outstanding payout.
         #[pallet::call_index(6)]
         #[pallet::weight(<T as Config>::WeightInfo::signed_deregister_nodes(nodes_to_deregister.len() as u32))]
         pub fn signed_deregister_nodes(
@@ -964,14 +972,20 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Deregister `nodes`, discarding their uptime in the current reward period. Ended
-        /// periods are left untouched: they may be mid-payout and `TotalUptime` is the payout
-        /// denominator.
+        /// Deregister `nodes`, discarding their uptime in the current reward period.
         fn do_deregister_nodes(
             owner: &T::AccountId,
             nodes: &BoundedVec<NodeId<T>, MaxNodesToDeregister>,
         ) -> DispatchResult {
             let current_period = RewardPeriod::<T>::get().current;
+
+            // Only the current period's uptime is cleaned below; block until earlier
+            // periods are fully paid out.
+            ensure!(
+                OldestUnpaidRewardPeriodIndex::<T>::get() >= current_period,
+                Error::<T>::RewardPayoutsPending
+            );
+
             let mut discarded_heartbeats: u64 = 0;
 
             for node in nodes {
