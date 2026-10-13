@@ -12,6 +12,25 @@ use sp_std::{marker::PhantomData, vec::Vec};
 #[cfg(feature = "try-runtime")]
 use sp_runtime::TryRuntimeError;
 
+frame_support::parameter_types! {
+    /// Storage prefix of the removed watchtower pallet (was index 29).
+    pub const WatchtowerPalletName: &'static str = "Watchtower";
+    /// Storage prefix of the removed summary watchtower pallet (was index 49).
+    pub const SummaryWatchtowerPalletName: &'static str = "SummaryWatchtower";
+}
+
+/// Clears all storage of the removed watchtower pallet.
+pub type RemoveWatchtower = frame_support::migrations::RemovePallet<
+    WatchtowerPalletName,
+    <Runtime as frame_system::Config>::DbWeight,
+>;
+
+/// Clears all storage of the removed summary watchtower pallet.
+pub type RemoveSummaryWatchtower = frame_support::migrations::RemovePallet<
+    SummaryWatchtowerPalletName,
+    <Runtime as frame_system::Config>::DbWeight,
+>;
+
 /// Storage of the removed watchtower pallet, read before it is cleared.
 mod watchtower {
     use super::*;
@@ -26,6 +45,7 @@ mod watchtower {
 /// `admin_resolve_challenge`.
 pub struct MoveInFlightSummaryValidationsToAdminReview<I>(PhantomData<I>);
 
+#[cfg(feature = "try-runtime")]
 impl<I: 'static> MoveInFlightSummaryValidationsToAdminReview<I>
 where
     Runtime: pallet_summary::Config<I>,
