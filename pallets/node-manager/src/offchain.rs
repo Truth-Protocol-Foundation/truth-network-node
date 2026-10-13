@@ -124,6 +124,15 @@ impl<T: Config> Pallet<T> {
         let current_period = RewardPeriod::<T>::get().current;
         let last_paid_pointer = LastPaidPointer::<T>::get();
 
+        if oldest_period >= current_period {
+            return Ok(false);
+        }
+
+        if let Err(e) = Self::get_payable_reward_pot(oldest_period) {
+            log::info!("👷 Reward period {:?} cannot be paid yet: {:?}", oldest_period, e);
+            return Ok(false);
+        }
+
         if last_paid_pointer.is_some() {
             log::info!("👷 Resuming payment for period: {:?}", oldest_period);
             return Ok(true);

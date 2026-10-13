@@ -17,7 +17,7 @@ impl Context {
     fn new(num_of_nodes: u8) -> Self {
         let registrar = TestAccount::new([1u8; 32]).account_id();
         let owner = TestAccount::new([209u8; 32]).account_id();
-        let reward_amount: BalanceOf<TestRuntime> = <RewardAmount<TestRuntime>>::get();
+        let reward_amount: BalanceOf<TestRuntime> = REWARD_AMOUNT;
 
         Balances::make_free_balance_be(
             &NodeManager::compute_reward_account_id(),
@@ -116,7 +116,7 @@ fn payment_transaction_succeed() {
         let node_count = <MaxBatchSize<TestRuntime>>::get();
         let context = Context::new(node_count as u8);
         let reward_period = <RewardPeriod<TestRuntime>>::get();
-        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_amount = REWARD_AMOUNT;
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
@@ -128,6 +128,7 @@ fn payment_transaction_succeed() {
 
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
+        fund_reward_period(reward_period_to_pay, reward_amount);
 
         assert_eq!(
             <RewardPot<TestRuntime>>::get(reward_period_to_pay).unwrap().total_reward,
@@ -185,12 +186,13 @@ fn multiple_payments_can_be_triggered_in_the_same_block() {
         let node_count = <MaxBatchSize<TestRuntime>>::get() * 2;
         let context = Context::new(node_count as u8);
         let reward_period = <RewardPeriod<TestRuntime>>::get();
-        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_amount = REWARD_AMOUNT;
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
+        fund_reward_period(reward_period_to_pay, reward_amount);
 
         mock_get_finalised_block(
             &mut offchain_state.write(),
@@ -249,7 +251,7 @@ fn payment_is_based_on_uptime() {
         let node_count = <MaxBatchSize<TestRuntime>>::get() - 1;
         let context = Context::new(node_count as u8);
         let reward_period = <RewardPeriod<TestRuntime>>::get(); // 200
-        let reward_amount = <RewardAmount<TestRuntime>>::get(); // 5
+        let reward_amount = REWARD_AMOUNT; // 5
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
@@ -277,6 +279,7 @@ fn payment_is_based_on_uptime() {
 
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
+        fund_reward_period(reward_period_to_pay, reward_amount);
 
         // Pay out
         mock_get_finalised_block(
@@ -330,7 +333,7 @@ fn payment_works_when_uptime_is_threshold() {
         let node_count = <MaxBatchSize<TestRuntime>>::get() - 1;
         let context = Context::new(node_count as u8);
         let reward_period = <RewardPeriod<TestRuntime>>::get(); // 200
-        let reward_amount = <RewardAmount<TestRuntime>>::get(); // 5
+        let reward_amount = REWARD_AMOUNT; // 5
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
@@ -357,6 +360,7 @@ fn payment_works_when_uptime_is_threshold() {
 
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
+        fund_reward_period(reward_period_to_pay, reward_amount);
 
         // Pay out
         mock_get_finalised_block(
@@ -409,7 +413,7 @@ fn payment_works_even_when_uptime_is_over_threshold() {
         let node_count = <MaxBatchSize<TestRuntime>>::get() - 1;
         let context = Context::new(node_count as u8);
         let reward_period = <RewardPeriod<TestRuntime>>::get();
-        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_amount = REWARD_AMOUNT;
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
@@ -434,6 +438,7 @@ fn payment_works_even_when_uptime_is_over_threshold() {
 
         // Complete a reward period
         roll_forward(reward_period_length - System::block_number());
+        fund_reward_period(reward_period_to_pay, reward_amount);
 
         // Pay out
         mock_get_finalised_block(
@@ -499,7 +504,7 @@ fn threshold_update_is_respected() {
         let node_count = <MaxBatchSize<TestRuntime>>::get() - 1;
         let context = Context::new(node_count as u8);
         let reward_period = <RewardPeriod<TestRuntime>>::get();
-        let reward_amount = <RewardAmount<TestRuntime>>::get();
+        let reward_amount = REWARD_AMOUNT;
         let reward_period_length = reward_period.length as u64;
         let reward_period_to_pay = reward_period.current;
 
@@ -529,6 +534,7 @@ fn threshold_update_is_respected() {
 
         // Complete a reward period
         roll_forward((reward_period_length - System::block_number()) + 1);
+        fund_reward_period(reward_period_to_pay, reward_amount);
 
         // Pay out
         mock_get_finalised_block(
@@ -570,6 +576,44 @@ fn threshold_update_is_respected() {
             Event::RewardPayoutCompleted { reward_period_index: reward_period_to_pay }.into(),
         );
     });
+}
+
+mod calculate_reward {
+    use super::*;
+    use sp_runtime::ArithmeticError;
+
+    #[test]
+    fn is_the_exact_share_rounded_down() {
+        assert_eq!(NodeManager::calculate_reward(1, &3, &300), Ok(100));
+        assert_eq!(NodeManager::calculate_reward(2, &3, &300), Ok(200));
+        assert_eq!(NodeManager::calculate_reward(1, &3, &100), Ok(33));
+        assert_eq!(NodeManager::calculate_reward(3, &3, &300), Ok(300));
+        assert_eq!(NodeManager::calculate_reward(0, &3, &300), Ok(0));
+    }
+
+    #[test]
+    fn equal_shares_of_a_small_reward_are_not_lost() {
+        let shares: Vec<u128> =
+            (0..3).map(|_| NodeManager::calculate_reward(1, &3, &3).unwrap()).collect();
+        assert_eq!(shares, vec![1, 1, 1]);
+    }
+
+    #[test]
+    fn does_not_overflow_on_large_values() {
+        assert_eq!(NodeManager::calculate_reward(u64::MAX, &u64::MAX, &u128::MAX), Ok(u128::MAX));
+        assert_eq!(
+            NodeManager::calculate_reward(u64::MAX / 2, &(u64::MAX - 1), &u128::MAX),
+            Ok(u128::MAX / 2)
+        );
+    }
+
+    #[test]
+    fn fails_when_total_uptime_is_zero() {
+        assert_eq!(
+            NodeManager::calculate_reward(1, &0, &300),
+            Err(DispatchError::Arithmetic(ArithmeticError::DivisionByZero))
+        );
+    }
 }
 
 mod fails_when {
@@ -618,12 +662,13 @@ mod fails_when {
             let node_count = <MaxBatchSize<TestRuntime>>::get();
             let _ = Context::new(node_count as u8);
             let reward_period = <RewardPeriod<TestRuntime>>::get();
-            let reward_amount = <RewardAmount<TestRuntime>>::get();
+            let reward_amount = REWARD_AMOUNT;
             let reward_period_length = reward_period.length as u64;
             let reward_period_to_pay = reward_period.current;
 
             // Complete a reward period
             roll_forward((reward_period_length - System::block_number()) + 1);
+            fund_reward_period(reward_period_to_pay, reward_amount);
 
             let signature =
                 UintAuthorityId(1).sign(&("DummyProof").encode()).expect("Error signing");

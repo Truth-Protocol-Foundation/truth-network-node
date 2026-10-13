@@ -857,6 +857,7 @@ impl pallet_authors_manager::Config for Runtime {
 
 parameter_types! {
     pub const NodeManagerPalletId: PalletId = NODE_MANAGER_PALLET_ID;
+    pub const NodeManagerMaxRewardPerPeriod: Balance = 75_000_000 * BASE;
 }
 
 impl pallet_node_manager::Config for Runtime {
@@ -865,6 +866,8 @@ impl pallet_node_manager::Config for Runtime {
     type SignerId = NodeManagerKeyId;
     type Currency = Balances;
     type RewardPotId = NodeManagerPalletId;
+    type TimeProvider = Timestamp;
+    type MaxRewardPerPeriod = NodeManagerMaxRewardPerPeriod;
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
     type SignedTxLifetime = ConstU32<64>;
