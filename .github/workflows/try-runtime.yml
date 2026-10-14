@@ -25,7 +25,7 @@ env:
 jobs:
   build-runtime:
     name: Build Runtime
-    runs-on: gh-ubuntu-2404-x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - name: Check out
@@ -70,7 +70,7 @@ jobs:
 
   test-runtime-upgrade:
     name: Test Runtime Upgrade
-    runs-on: gh-ubuntu-2404-x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     needs: build-runtime
     steps:
@@ -104,7 +104,7 @@ jobs:
 
   test-features:
     name: Test Features
-    runs-on: gh-ubuntu-2404-x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     needs: build-runtime
     strategy:
@@ -168,7 +168,7 @@ jobs:
 
   validate-integration:
     name: Validate Integration
-    runs-on: gh-ubuntu-2404-x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     needs: [build-runtime, test-runtime-upgrade, test-features]
     if: always()

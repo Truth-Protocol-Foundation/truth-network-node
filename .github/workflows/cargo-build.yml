@@ -12,7 +12,7 @@ env:
 
 jobs:
   cargo-build:
-    runs-on: gh-ubuntu-2404-x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - name: Check out
