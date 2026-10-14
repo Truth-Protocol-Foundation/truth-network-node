@@ -31,16 +31,15 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Install Protobuf compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends protobuf-compiler
-
       - name: Install Rust
-        run: |
-          rustup toolchain install 1.81.0 --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
-          rustup default 1.81.0
-          rustup override set 1.81.0
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
 
       - name: Restore cargo cache - common
         uses: actions/cache@v4
@@ -116,16 +115,15 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Install Protobuf compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends protobuf-compiler
-
       - name: Install Rust
-        run: |
-          rustup toolchain install 1.81.0 --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
-          rustup default 1.81.0
-          rustup override set 1.81.0
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
 
       - name: Restore cargo cache - common
         uses: actions/cache@v4
@@ -199,4 +197,4 @@ jobs:
             exit 1
           fi
           
-          echo "All try-runtime tests passed successfully!"
+          echo "All try-runtime tests passed successfully!" 

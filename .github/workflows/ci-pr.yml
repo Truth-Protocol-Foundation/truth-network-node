@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           ref: ${{github.event.pull_request.head.ref}}
@@ -37,10 +37,8 @@ jobs:
 
       - name: skip testing
         id: skip_tests
-        env:
-          PR_HEAD_REF: ${{ github.head_ref }}
         run: |
-          git checkout "$PR_HEAD_REF"
+          git checkout ${{ github.head_ref }}
           commit_message=$(git log -1 --pretty=format:"%s")
           git checkout $GITHUB_SHA
 

@@ -16,21 +16,20 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Check out
-        uses: actions/checkout@v4
-
-      - name: Install Protobuf compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends protobuf-compiler
+        uses: actions/checkout@v3
 
       - name: Install Rust
-        run: |
-          rustup toolchain install 1.81.0 --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
-          rustup default 1.81.0
-          rustup override set 1.81.0
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
 
       - name: Restore cargo cache - common
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
@@ -40,7 +39,7 @@ jobs:
           key: ${{ runner.os }}-cargo-common-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Set up cargo cache - build
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         continue-on-error: false
         with:
           path: |
