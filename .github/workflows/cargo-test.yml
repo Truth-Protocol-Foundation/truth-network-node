@@ -95,6 +95,11 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}      
 
+      - name: Install Protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler
+
       - name: Test Code
         run: cargo test
 
@@ -138,6 +143,11 @@ jobs:
           path: |
             target/
           key: ${{ runner.os }}-runtime-benchmarks-${{ hashFiles('**/Cargo.lock') }}      
+
+      - name: Install Protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler
 
       - name: Runtime Benchmarks
         run: cargo test  --features runtime-benchmarks -- benchmarks
