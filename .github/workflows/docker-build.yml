@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: get Node Artifact
         uses: actions/download-artifact@v4
@@ -57,9 +57,12 @@ jobs:
           docker tag $ECR_REPO:${GITHUB_SHA::7} $ECR_REPO:$DOCKER_TAG
 
       - name: Login to the AWS registry
+        # Disabled while GitHub-hosted runners have no AWS publishing credentials.
+        if: ${{ false }}
         run: |
           aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 288761771289.dkr.ecr.us-east-1.amazonaws.com
 
       - name: Push the images to the registry
+        if: ${{ false }}
         run: |
           docker push -a $ECR_REPO
