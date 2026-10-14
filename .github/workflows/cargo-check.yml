@@ -18,7 +18,7 @@ on:
 
 jobs:
   cargo-check:
-    runs-on: gh-ubuntu-2404-x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - name: Check out
@@ -54,6 +54,11 @@ jobs:
           path: |
             target/
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler
 
       - name: Check Code
         run: cargo check --locked

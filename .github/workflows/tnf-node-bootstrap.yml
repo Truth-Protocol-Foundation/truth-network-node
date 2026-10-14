@@ -12,6 +12,9 @@ on:
 
 jobs:
   trigger:
+    # The bootstrap workflow publishes an image and requires the node image in ECR.
+    # Keep it disabled while AWS publishing is disabled in docker-build.yml.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger workflow in tnf-node-bootstrap

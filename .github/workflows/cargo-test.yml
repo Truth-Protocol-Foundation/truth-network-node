@@ -18,7 +18,7 @@ on:
 
 jobs:
   ci:
-    runs-on: gh-ubuntu-2404-x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     
     steps:
@@ -56,7 +56,7 @@ jobs:
 
   test:
     name: Test Code
-    runs-on: gh-ubuntu-2404-x64    
+    runs-on: ubuntu-24.04    
     needs: ci
     timeout-minutes: 90
     steps:
@@ -95,12 +95,17 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}      
 
+      - name: Install Protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler
+
       - name: Test Code
         run: cargo test
 
   runtime-benchmarks:
     name: Runtime Benchmarks
-    runs-on: gh-ubuntu-2404-x64    
+    runs-on: ubuntu-24.04    
     needs: ci
     timeout-minutes: 90
     steps:
@@ -138,6 +143,11 @@ jobs:
           path: |
             target/
           key: ${{ runner.os }}-runtime-benchmarks-${{ hashFiles('**/Cargo.lock') }}      
+
+      - name: Install Protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler
 
       - name: Runtime Benchmarks
         run: cargo test  --features runtime-benchmarks -- benchmarks

@@ -1,6 +1,6 @@
 # This workflow is used to create git tags and releases with all needed artefacts automatically from a branch
 # If RELEASE is set to true, a git release will be created, with all needed artefacts.
-# If RELEASE is set to false, only build and push a docker image to the ECR with the commit hash
+# Docker images are built locally on the runner; ECR and S3 publishing are temporarily disabled.
 name: CI Manual
 
 on:
