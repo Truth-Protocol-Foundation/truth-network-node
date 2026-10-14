@@ -18,7 +18,7 @@ on:
 
 jobs:
   ci:
-    runs-on: gh-ubuntu-2404-x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     
     steps:
@@ -54,7 +54,7 @@ jobs:
 
   test:
     name: Test Code
-    runs-on: gh-ubuntu-2404-x64    
+    runs-on: ubuntu-24.04    
     needs: ci
     timeout-minutes: 90
     steps:
@@ -96,7 +96,7 @@ jobs:
 
   runtime-benchmarks:
     name: Runtime Benchmarks
-    runs-on: gh-ubuntu-2404-x64    
+    runs-on: ubuntu-24.04    
     needs: ci
     timeout-minutes: 90
     steps:
