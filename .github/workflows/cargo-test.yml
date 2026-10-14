@@ -23,20 +23,26 @@ jobs:
     
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           ref: ${{ inputs.ref }}
           repository: ${{ inputs.repository }}
 
       - name: Install Rust
-        run: |
-          rustup toolchain install nightly-2024-04-15 --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
-          rustup default nightly-2024-04-15
-          rustup override set nightly-2024-04-15
+        uses: actions-rs/toolchain@v1
+        env:
+          RUSTUP_INIT_SKIP_PATH_CHECK: yes
+        with:
+          profile: minimal
+          toolchain: nightly-2024-04-15
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
 
       - name: Restore cargo cache - common
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
@@ -54,25 +60,26 @@ jobs:
     needs: ci
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           ref: ${{ inputs.ref }}
           repository: ${{ inputs.repository }}
 
-      - name: Install Protobuf compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends protobuf-compiler
-
       - name: Install Rust
-        run: |
-          rustup toolchain install 1.81.0 --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
-          rustup default 1.81.0
-          rustup override set 1.81.0
+        uses: actions-rs/toolchain@v1
+        env:
+          RUSTUP_INIT_SKIP_PATH_CHECK: yes
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
 
       - name: Restore cargo cache - common
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
@@ -82,7 +89,7 @@ jobs:
           key: ${{ runner.os }}-cargo-common-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Restore cargo cache - test
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             target/
@@ -97,25 +104,26 @@ jobs:
     needs: ci
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           ref: ${{ inputs.ref }}
           repository: ${{ inputs.repository }}
 
-      - name: Install Protobuf compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends protobuf-compiler
-
       - name: Install Rust
-        run: |
-          rustup toolchain install 1.81.0 --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
-          rustup default 1.81.0
-          rustup override set 1.81.0
+        uses: actions-rs/toolchain@v1
+        env:
+          RUSTUP_INIT_SKIP_PATH_CHECK: yes
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
 
       - name: Restore cargo cache - common
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
@@ -125,7 +133,7 @@ jobs:
           key: ${{ runner.os }}-cargo-common-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Restore cargo cache - runtime benchmarks
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             target/
