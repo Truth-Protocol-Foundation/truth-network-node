@@ -15,7 +15,9 @@ env:
 
 jobs:
   s3-upload:
-    runs-on: gh-ubuntu-2404-x64
+    # Disabled while GitHub-hosted runners have no AWS publishing credentials.
+    if: ${{ false }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out
         uses: actions/checkout@v3
