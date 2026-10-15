@@ -578,6 +578,44 @@ fn threshold_update_is_respected() {
     });
 }
 
+mod calculate_reward {
+    use super::*;
+    use sp_runtime::ArithmeticError;
+
+    #[test]
+    fn is_the_exact_share_rounded_down() {
+        assert_eq!(NodeManager::calculate_reward(1, &3, &300), Ok(100));
+        assert_eq!(NodeManager::calculate_reward(2, &3, &300), Ok(200));
+        assert_eq!(NodeManager::calculate_reward(1, &3, &100), Ok(33));
+        assert_eq!(NodeManager::calculate_reward(3, &3, &300), Ok(300));
+        assert_eq!(NodeManager::calculate_reward(0, &3, &300), Ok(0));
+    }
+
+    #[test]
+    fn equal_shares_of_a_small_reward_are_not_lost() {
+        let shares: Vec<u128> =
+            (0..3).map(|_| NodeManager::calculate_reward(1, &3, &3).unwrap()).collect();
+        assert_eq!(shares, vec![1, 1, 1]);
+    }
+
+    #[test]
+    fn does_not_overflow_on_large_values() {
+        assert_eq!(NodeManager::calculate_reward(u64::MAX, &u64::MAX, &u128::MAX), Ok(u128::MAX));
+        assert_eq!(
+            NodeManager::calculate_reward(u64::MAX / 2, &(u64::MAX - 1), &u128::MAX),
+            Ok(u128::MAX / 2)
+        );
+    }
+
+    #[test]
+    fn fails_when_total_uptime_is_zero() {
+        assert_eq!(
+            NodeManager::calculate_reward(1, &0, &300),
+            Err(DispatchError::Arithmetic(ArithmeticError::DivisionByZero))
+        );
+    }
+}
+
 mod fails_when {
     use super::*;
 

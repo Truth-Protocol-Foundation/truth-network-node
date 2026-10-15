@@ -1,5 +1,8 @@
 use crate::*;
-use sp_runtime::{ArithmeticError, Perquintill, SaturatedConversion};
+use sp_runtime::{
+    helpers_128bit::multiply_by_rational_with_rounding, ArithmeticError, Rounding,
+    SaturatedConversion,
+};
 impl<T: Config> Pallet<T> {
     // Nodes should not be able to submit over the min uptime required.
     // but we still check it here to be sure.
@@ -29,9 +32,15 @@ impl<T: Config> Pallet<T> {
             return Err(DispatchError::Arithmetic(ArithmeticError::DivisionByZero));
         }
 
-        let ratio = Perquintill::from_rational(uptime, *total_uptime);
         let total_reward_u128: u128 = (*total_reward).saturated_into();
-        Ok(ratio.mul_floor(total_reward_u128).saturated_into())
+        let reward = multiply_by_rational_with_rounding(
+            total_reward_u128,
+            uptime.into(),
+            (*total_uptime).into(),
+            Rounding::Down,
+        )
+        .ok_or(DispatchError::Arithmetic(ArithmeticError::Overflow))?;
+        Ok(reward.saturated_into())
     }
 
     pub fn pay_reward(
