@@ -782,13 +782,14 @@ pub mod pallet {
             origin: OriginFor<T>,
             period_index: RewardPeriodIndex,
             amount: BalanceOf<T>,
-        ) -> DispatchResult {
+        ) -> DispatchResultWithPostInfo {
             if let Some(who) = ensure_signed_or_root(origin)? {
                 let registrar = NodeRegistrar::<T>::get().ok_or(Error::<T>::RegistrarNotSet)?;
                 ensure!(who == registrar, Error::<T>::OriginNotRegistrar);
             }
 
-            Self::do_set_reward_amount(period_index, amount)
+            Self::do_set_reward_amount(period_index, amount)?;
+            Ok(Pays::No.into())
         }
     }
 
